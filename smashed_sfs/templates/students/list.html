@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>📋 My Students</h2>
+
+<a href="{% url 'upload_students' %}" class="btn">+ Upload CSV</a>
+<a href="{% url 'dashboard' %}" class="btn">← Dashboard</a>
+
+<hr>
+
+{% if students %}
+    <p>Total: <strong>{{ students|length }}</strong> students</p>
+    <table border="1" cellpadding="8" style="border-collapse: collapse; width: 100%;">
+        <thead>
+            <tr style="background: #2c3e50; color: white;">
+                <th>LRN</th>
+                <th>Surname</th>
+                <th>Name</th>
+                <th>Middle Name</th>
+                <th>Sex</th>
+                <th>Birthday</th>
+                <th>Section</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr>
+                <td><strong>{{ student.lrn }}</strong></td>
+                <td>{{ student.surname }}</td>
+                <td>{{ student.name }}</td>
+                <td>{{ student.middle_name|default:"—" }}</td>
+                <td>{{ student.sex }}</td>
+                <td>{{ student.birthday|date:"Y-m-d" }}</td>
+                <td>{{ student.section_id }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p style="color: #999; text-align: center; padding: 40px;">
+        No students uploaded yet.<br>
+        Click <strong>"Upload CSV"</strong> to add students.
+    </p>
+{% endif %}
+
+<style>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    th, td {
+        padding: 8px 10px;
+        text-align: left;
+        border: 1px solid #ddd;
+    }
+    th {
+        background: #2c3e50;
+        color: white;
+    }
+    tr:nth-child(even) {
+        background: #f5f5f5;
+    }
+    tr:hover {
+        background: #e8f4fd;
+    }
+    .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        background: #3498db;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        margin-right: 10px;
+    }
+    .btn:hover {
+        background: #2980b9;
+    }
+</style>
+{% endblock %}

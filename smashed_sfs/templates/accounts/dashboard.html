@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>📊 Dashboard</h1>
+<p>Welcome, {{ teacher.full_name|default:user.username }}!</p>
+<p>Position: {{ teacher.position|default:"Not set" }}</p>
+
+<h3>Quick Actions:</h3>
+<div class="dashboard-grid">
+    <div class="card">
+        <h3>📋 Students</h3>
+        <p>Upload student profiles CSV</p>
+        <a href="/students/upload/" class="btn">Upload CSV</a>
+        <a href="/students/list/" class="btn">View Students</a>
+    </div>
+    <div class="card">
+        <h3>📝 Grades</h3>
+        <p>Upload grades per term</p>
+        <a href="#" class="btn">Upload CSV</a>
+    </div>
+    <div class="card">
+        <h3>📄 SF9</h3>
+        <p>Generate report cards</p>
+        <a href="#" class="btn">Generate</a>
+    </div>
+    <div class="card">
+        <h3>📄 SF10</h3>
+        <p>Generate permanent record</p>
+        <a href="#" class="btn">Generate</a>
+    </div>
+</div>
+
+<h3>My Students:</h3>
+{% if students %}
+<table border="1" cellpadding="8" style="width:100%; margin-top:15px;">
+    <thead>
+        <tr>
+            <th>LRN</th>
+            <th>Surname</th>
+            <th>Name</th>
+            <th>Section</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for student in students %}
+        <tr>
+            <td>{{ student.lrn }}</td>
+            <td>{{ student.surname }}</td>
+            <td>{{ student.name }}</td>
+            <td>{{ student.section.section_name }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<p><strong>Total:</strong> {{ students|length }} students</p>
+{% else %}
+<p>No students uploaded yet.</p>
+{% endif %}
+{% endblock %}

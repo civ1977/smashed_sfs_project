@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>📋 Upload Student Profiles</h2>
+
+<form method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-group">
+        <label>Select CSV File:</label>
+        <input type="file" name="csv_file" accept=".csv" required>
+    </div>
+    <div class="form-group">
+        <label>
+            <input type="checkbox" name="skip_header" checked>
+            Skip first row (header/column names)
+        </label>
+        <small>Uncheck if your CSV does NOT have a header row.</small>
+    </div>
+    <button type="submit" class="btn">Preview Data</button>
+    <a href="{% url 'dashboard' %}" class="btn">Cancel</a>
+</form>
+
+{% if preview_data %}
+<hr>
+<h3>📋 Preview Student Data</h3>
+<p>Review the data below. You can edit any field before saving.</p>
+<p><strong>Note:</strong> Dates should be in format: <strong>YYYY-MM-DD</strong> (e.g., 2008-06-30)</p>
+
+<form method="POST" action="{% url 'save_students' %}">
+    {% csrf_token %}
+    <div style="overflow-x: auto;">
+        <table border="1" cellpadding="6" style="border-collapse: collapse; font-size: 12px;">
+            <thead>
+                <tr style="background: #2c3e50; color: white;">
+                    <th>LRN</th>
+                    <th>Surname</th>
+                    <th>Name</th>
+                    <th>Middle Name</th>
+                    <th>Extension</th>
+                    <th>Sex</th>
+                    <th>Birthday</th>
+                    <th>School (G10)</th>
+                    <th>School Address</th>
+                    <th>Average</th>
+                    <th>Completion Date</th>
+                    <th>SHS Admission</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in preview_data %}
+                <tr>
+                    <td><input type="text" name="lrn_{{ forloop.counter0 }}" value="{{ row.0 }}" size="12"></td>
+                    <td><input type="text" name="surname_{{ forloop.counter0 }}" value="{{ row.1 }}" size="10"></td>
+                    <td><input type="text" name="name_{{ forloop.counter0 }}" value="{{ row.2 }}" size="12"></td>
+                    <td><input type="text" name="middle_name_{{ forloop.counter0 }}" value="{{ row.3|default:'' }}" size="10"></td>
+                    <td><input type="text" name="extension_{{ forloop.counter0 }}" value="{{ row.4|default:'' }}" size="5"></td>
+                    <td>
+                        <select name="sex_{{ forloop.counter0 }}">
+                            <option value="MALE" {% if row.5 == 'MALE' or row.5 == 'M' or row.5 == 'Male' %}selected{% endif %}>Male</option>
+                            <option value="FEMALE" {% if row.5 == 'FEMALE' or row.5 == 'F' or row.5 == 'Female' %}selected{% endif %}>Female</option>
+                        </select>
+                    </td>
+                    <td><input type="text" name="birthday_{{ forloop.counter0 }}" value="{{ row.6 }}" size="12"></td>
+                    <td><input type="text" name="school_g10_{{ forloop.counter0 }}" value="{{ row.7 }}" size="15"></td>
+                    <td><input type="text" name="school_address_g10_{{ forloop.counter0 }}" value="{{ row.8 }}" size="15"></td>
+                    <td><input type="number" step="0.01" name="average_g10_{{ forloop.counter0 }}" value="{{ row.9 }}" size="5"></td>
+                    <td><input type="text" name="completion_date_g10_{{ forloop.counter0 }}" value="{{ row.10 }}" size="12"></td>
+                    <td><input type="text" name="shs_admission_date_{{ forloop.counter0 }}" value="{{ row.11 }}" size="12"></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <input type="hidden" name="row_count" value="{{ preview_data|length }}">
+    
+    <div style="margin-top: 15px;">
+        <button type="submit" class="btn btn-success">✅ Confirm & Save to Database</button>
+        <a href="{% url 'upload_students' %}" class="btn">Cancel</a>
+    </div>
+</form>
+{% endif %}
+
+<style>
+    table input, table select {
+        width: 100%;
+        padding: 3px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        box-sizing: border-box;
+        font-size: 11px;
+    }
+    table td {
+        padding: 3px;
+        min-width: 60px;
+    }
+    .btn-success {
+        background: #2ecc71;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .btn-success:hover {
+        background: #27ae60;
+    }
+    .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        background: #3498db;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+    }
+    .btn:hover {
+        background: #2980b9;
+    }
+    small {
+        color: #666;
+        font-size: 11px;
+    }
+</style>
+{% endblock %}
