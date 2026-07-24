@@ -90,8 +90,8 @@ def save_students(request):
         section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
         
         if not section:
-            messages.error(request, 'No section found for this teacher. Please set up your section first.')
-            return redirect('upload_students')
+            messages.error(request, 'No section found for this teacher. Please complete your profile first.')
+            return redirect('complete_profile')
         
         for i in range(row_count):
             try:

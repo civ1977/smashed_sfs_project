@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>🧩 Complete Your Profile</h2>
+<p>Before you can upload students or grades, we need a school and a section linked to your account.</p>
+
+<form method="POST">
+    {% csrf_token %}
+
+    {% if needs_school %}
+    <div class="card" style="margin-bottom: 20px;">
+        <h3>🏫 School</h3>
+
+        <div class="form-group">
+            <label>{{ school_select_form.school_profile.label }}</label>
+            {{ school_select_form.school_profile }}
+            {% for error in school_select_form.school_profile.errors %}
+                <small style="color: #c0392b;">{{ error }}</small>
+            {% endfor %}
+            <small>Pick your school, or choose "+ Add a new school" and fill in the details below.</small>
+        </div>
+
+        <h4>New school details</h4>
+        <p><small>Only needed if you selected "+ Add a new school" above.</small></p>
+        {% for field in school_create_form %}
+        <div class="form-group">
+            <label>{{ field.label }}</label>
+            {{ field }}
+            {% for error in field.errors %}
+                <small style="color: #c0392b;">{{ error }}</small>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if needs_section %}
+    <div class="card" style="margin-bottom: 20px;">
+        <h3>🏷️ Your Section</h3>
+        <p><small>One section per adviser — this creates a new section for you.</small></p>
+
+        <div class="form-group">
+            <label>Section Name</label>
+            {{ section_form.section_name }}
+            {% for error in section_form.section_name.errors %}
+                <small style="color: #c0392b;">{{ error }}</small>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label>{{ section_form.grade_level_choice.label }}</label>
+            {{ section_form.grade_level_choice }}
+            {{ section_form.grade_level_new }}
+            {% for error in section_form.grade_level_new.errors %}
+                <small style="color: #c0392b;">{{ error }}</small>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label>{{ section_form.track_choice.label }}</label>
+            {{ section_form.track_choice }}
+            {{ section_form.track_new }}
+            {% for error in section_form.track_new.errors %}
+                <small style="color: #c0392b;">{{ error }}</small>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label>{{ section_form.strand_choice.label }}</label>
+            {{ section_form.strand_choice }}
+            {{ section_form.strand_new }}
+            {% for error in section_form.strand_new.errors %}
+                <small style="color: #c0392b;">{{ error }}</small>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label>{{ section_form.modality_choice.label }}</label>
+            {{ section_form.modality_choice }}
+            {{ section_form.modality_new }}
+            {% for error in section_form.modality_new.errors %}
+                <small style="color: #c0392b;">{{ error }}</small>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <button type="submit" class="btn btn-success">Save & Continue</button>
+    <a href="{% url 'dashboard' %}" class="btn">Skip for now</a>
+</form>
+
+<style>
+    .form-group select, .form-group input[type="text"] {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-sizing: border-box;
+        margin-bottom: 6px;
+    }
+</style>
+{% endblock %}

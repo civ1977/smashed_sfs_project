@@ -15,6 +15,9 @@ class SubjectMapping(models.Model):
     class Meta:
         db_table = 'subject_mapping'
 
+    def __str__(self):
+        return f"{self.subject_number}: {self.subject_name}"
+
 
 class Grade(models.Model):
     grade_id = models.AutoField(primary_key=True)
@@ -29,6 +32,9 @@ class Grade(models.Model):
 
     class Meta:
         db_table = 'grades'
+
+    def __str__(self):
+        return f"{self.lrn} - Term {self.term}: {self.grade}"
 
 
 class Attendance(models.Model):

@@ -23,6 +23,9 @@ class SchoolProfile(models.Model):
     class Meta:
         db_table = 'school_profile'
 
+    def __str__(self):
+        return self.school_name
+
 
 class Section(models.Model):
     section_id = models.AutoField(primary_key=True)

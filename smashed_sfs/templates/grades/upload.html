@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>📝 Upload Grades</h2>
+
+<form method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+    
+    <div class="form-group">
+        <label>Select Term:</label>
+        <select name="term" required class="form-control">
+            <option value="">-- Select Term --</option>
+            {% for t in terms %}
+            <option value="{{ t.value }}" {% if term == t.value %}selected{% endif %}>
+                {{ t.label }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    
+    <div class="form-group">
+        <label>Select CSV File:</label>
+        <input type="file" name="csv_file" accept=".csv" required>
+        <small>Format: LRN, Subject1, Subject2, ..., Subject30</small>
+    </div>
+    
+    <div class="form-group">
+        <label>
+            <input type="checkbox" name="skip_header" checked>
+            Skip first row (header/column names)
+        </label>
+        <small>Check this if your CSV has a header row with subject names.</small>
+    </div>
+    
+    <div class="form-group" style="border-left: 3px solid #e74c3c; padding-left: 15px;">
+        <label style="color: #c0392b;">
+            <input type="checkbox" name="replace_all">
+            ⚠️ Replace existing grades for this term
+        </label>
+        <small style="color: #c0392b;">Warning: This will delete ALL existing grades for this term before uploading new data.</small>
+    </div>
+    
+    <button type="submit" class="btn">Preview Data</button>
+    <a href="{% url 'dashboard' %}" class="btn">Cancel</a>
+</form>
+
+{% if preview_data %}
+<hr>
+<h3>📋 Preview Grade Data</h3>
+<p>Term: <strong>{{ term }}</strong></p>
+<p>Review the data below. You can edit any field before saving.</p>
+
+<form method="POST" action="{% url 'save_grades' %}">
+    {% csrf_token %}
+    <input type="hidden" name="term" value="{{ term }}">
+    <input type="hidden" name="replace_all" value="{{ request.POST.replace_all|default:'off' }}">
+    <input type="hidden" name="row_count" value="{{ preview_data|length }}">
+    
+    {% if headers %}
+    <div style="margin-bottom: 15px; padding: 10px; background: #eef2ff; border-radius: 5px;">
+        <p><strong>📝 Headers detected from CSV:</strong></p>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+            {% for header in headers %}
+            <span style="background: #2c3e50; color: white; padding: 3px 10px; border-radius: 3px; font-size: 12px;">
+                {{ header }}
+            </span>
+            {% endfor %}
+        </div>
+        <p style="margin-top: 5px; font-size: 12px; color: #666;">
+            <input type="checkbox" name="update_subjects" checked> 
+            Use these as subject names (they will be saved to the database)
+        </p>
+    </div>
+    {% endif %}
+    
+    <div style="overflow-x: auto;">
+        <table border="1" cellpadding="6" style="border-collapse: collapse; font-size: 12px;">
+            <thead>
+                <tr style="background: #2c3e50; color: white;">
+                    <th>LRN</th>
+                    {% if headers %}
+                        {% for header in headers %}
+                            {% if forloop.counter0 > 0 %}
+                            <th><input type="text" name="subject_name_{{ forloop.counter0 }}" value="{{ header }}" size="10"></th>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        {% for i in "123456789012345678901234567890"|make_list %}
+                        <th>Subject{{ forloop.counter }}</th>
+                        {% endfor %}
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in preview_data %}
+                <tr>
+                    <td><input type="text" name="lrn_{{ forloop.counter0 }}" value="{{ row.0 }}" size="12"></td>
+                    {% for col in row|slice:"1:" %}
+                    <td><input type="number" name="grade_{{ forloop.parentloop.counter0 }}_{{ forloop.counter }}" value="{{ col }}" size="4" min="60" max="100"></td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div style="margin-top: 15px;">
+        <button type="submit" class="btn btn-success">✅ Confirm & Save to Database</button>
+        <a href="{% url 'upload_grades' %}" class="btn">Cancel</a>
+    </div>
+</form>
+{% endif %}
+
+<style>
+    table input {
+        width: 100%;
+        padding: 3px;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        box-sizing: border-box;
+        font-size: 11px;
+    }
+    table td {
+        padding: 3px;
+        min-width: 50px;
+    }
+    .btn-success {
+        background: #2ecc71;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .btn-success:hover {
+        background: #27ae60;
+    }
+    .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        background: #3498db;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+    }
+    .btn:hover {
+        background: #2980b9;
+    }
+    .form-group {
+        margin-bottom: 15px;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+    .form-group input, .form-group select {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    small {
+        color: #666;
+        font-size: 11px;
+        display: block;
+        margin-top: 3px;
+    }
+</style>
+{% endblock %}
