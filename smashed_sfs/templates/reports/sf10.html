@@ -1,13 +1,11 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h2>📄 SF9 - Learner's Progress Report Card</h2>
+<h2>📘 SF10 - Learner's Permanent Academic Record</h2>
 
 <a href="{% url 'select_student_report' %}" class="btn">← Back to Students</a>
-<a href="{% url 'view_sf10' student.lrn %}" class="btn">📘 View SF10</a>
-<a href="{% url 'generate_sf9_excel' student.lrn 1 %}" class="btn btn-success">⬇️ Term 1 Excel</a>
-<a href="{% url 'generate_sf9_excel' student.lrn 2 %}" class="btn btn-success">⬇️ Term 2 Excel</a>
-<a href="{% url 'generate_sf9_excel' student.lrn 3 %}" class="btn btn-success">⬇️ Term 3 Excel</a>
+<a href="{% url 'view_sf9' student.lrn %}" class="btn">📄 View SF9</a>
+<a href="{% url 'generate_sf10_excel' student.lrn %}" class="btn btn-success">⬇️ Download Excel</a>
 <a href="{% url 'dashboard' %}" class="btn">← Dashboard</a>
 
 <hr>
@@ -35,12 +33,14 @@
         <td><strong>Birthday:</strong> {{ student.birthday|date:"Y-m-d" }}</td>
     </tr>
     <tr>
-        <td><strong>Section:</strong> {{ student.section_id }}</td>
-        <td></td>
+        <td><strong>Section:</strong> {% if section %}{{ section.section_name }} ({{ section.track }} - {{ section.strand }}){% else %}{{ student.section_id }}{% endif %}</td>
+        <td><strong>Grade 10 School:</strong> {{ student.school_g10 }}</td>
     </tr>
 </table>
 
-{% if subject_rows %}
+{% if grade_level_sections %}
+    {% for section_data in grade_level_sections %}
+    <h3 style="margin-top: 25px;">Grade {{ section_data.grade_level }}</h3>
     <table class="sf9-grades">
         <thead>
             <tr>
@@ -53,7 +53,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for row in subject_rows %}
+            {% for row in section_data.subject_rows %}
             <tr>
                 <td>{{ row.subject_name }}</td>
                 <td style="text-align: center;">{{ row.term_1|default:"—" }}</td>
@@ -75,13 +75,15 @@
             {% endfor %}
         </tbody>
     </table>
-
-    <div style="margin-top: 15px; padding: 15px; background: #eef2ff; border-radius: 5px;">
-        <strong>General Average:</strong> {{ general_average|default:"—" }}
+    <div style="margin-top: 10px; margin-bottom: 10px; padding: 15px; background: #eef2ff; border-radius: 5px;">
+        <strong>General Average:</strong> {{ section_data.general_average|default:"—" }}
+        &nbsp;|&nbsp;
+        <strong>Remarks:</strong> {{ section_data.remarks|default:"—" }}
     </div>
+    {% endfor %}
 {% else %}
     <p style="color: #999; text-align: center; padding: 40px;">
-        No grades found for this student.
+        No grades on record for this student yet.
     </p>
 {% endif %}
 

@@ -15,7 +15,7 @@
                 <th>LRN</th>
                 <th>Surname</th>
                 <th>Name</th>
-                <th>SF9</th>
+                <th>Reports</th>
             </tr>
         </thead>
         <tbody>
@@ -25,7 +25,8 @@
                 <td>{{ student.surname }}</td>
                 <td>{{ student.name }}</td>
                 <td>
-                    <a href="{% url 'view_sf9' student.lrn %}" class="btn">View</a>
+                    <a href="{% url 'view_sf9' student.lrn %}" class="btn">SF9</a>
+                    <a href="{% url 'view_sf10' student.lrn %}" class="btn">SF10</a>
                 </td>
             </tr>
             {% endfor %}
