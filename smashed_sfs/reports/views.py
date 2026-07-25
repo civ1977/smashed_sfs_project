@@ -1,13 +1,12 @@
+from datetime import date
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import HttpResponse
-import openpyxl
 
 from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
 from grades.models import Grade, SubjectMapping, Attendance
-from .excel_utils import merge_and_write, write_table_header, write_table_row, excel_response
 
 
 def _get_teacher(request):
@@ -68,10 +67,45 @@ def _grade_levels_for_student(lrn):
 
 
 def _attendance_rows(lrn):
-    return [
-        {'term': term, 'attendance': Attendance.objects.filter(lrn=lrn, term=term).first()}
-        for term in (1, 2, 3)
-    ]
+    rows = []
+    for term in (1, 2, 3):
+        attendance = Attendance.objects.filter(lrn=lrn, term=term).first()
+        total = None
+        if attendance is not None:
+            total = attendance.days_present + attendance.days_absent
+        rows.append({'term': term, 'attendance': attendance, 'total': total})
+    return rows
+
+
+def _age_from_birthday(birthday):
+    if not birthday:
+        return None
+    today = date.today()
+    had_birthday_this_year = (today.month, today.day) >= (birthday.month, birthday.day)
+    return today.year - birthday.year - (0 if had_birthday_this_year else 1)
+
+
+def _gate_finals_pending_term3(subject_rows):
+    """A subject's Final Grade/Remarks only show once Term 3 data has
+    actually been uploaded for it. Returns True if every subject on this
+    report has a displayable final, which gates whether the General
+    Average shows."""
+    all_complete = True
+    for row in subject_rows:
+        if row['term_3'] is None:
+            row['final'] = None
+            row['remarks'] = None
+            all_complete = False
+    return all_complete
+
+
+def _split_core_elective(subject_rows):
+    """SF9 groups Learning Areas under 'Core Subjects' and 'Elective Subjects'
+    headers. There's no core/elective flag in SubjectMapping, so use the
+    'Elective' naming convention already used for elective subject names."""
+    core_rows = [r for r in subject_rows if 'elective' not in r['subject_name'].lower()]
+    elective_rows = [r for r in subject_rows if 'elective' in r['subject_name'].lower()]
+    return core_rows, elective_rows
 
 
 @login_required
@@ -101,17 +135,25 @@ def view_sf9(request, student_lrn):
     if teacher.school_profile_id:
         school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
 
+    section = Section.objects.filter(section_id=student.section_id).first()
+
     subject_rows = _build_subject_rows(student_lrn)
+    all_finals_ready = _gate_finals_pending_term3(subject_rows)
+    core_rows, elective_rows = _split_core_elective(subject_rows)
 
     finals = [row['final'] for row in subject_rows if row['final'] is not None]
-    general_average = round(sum(finals) / len(finals), 2) if finals else None
+    general_average = round(sum(finals) / len(finals), 2) if (all_finals_ready and finals) else None
 
     return render(request, 'reports/sf9.html', {
         'student': student,
         'school_profile': school_profile,
-        'subject_rows': subject_rows,
+        'section': section,
+        'age': _age_from_birthday(student.birthday),
+        'core_rows': core_rows,
+        'elective_rows': elective_rows,
         'general_average': general_average,
         'attendance_rows': _attendance_rows(student_lrn),
+        'teacher': teacher,
     })
 
 
@@ -134,13 +176,14 @@ def view_sf10(request, student_lrn):
     grade_level_sections = []
     for grade_level in _grade_levels_for_student(student_lrn):
         subject_rows = _build_subject_rows(student_lrn, grade_level=grade_level)
+        all_finals_ready = _gate_finals_pending_term3(subject_rows)
         finals = [row['final'] for row in subject_rows if row['final'] is not None]
-        general_average = round(sum(finals) / len(finals), 2) if finals else None
+        general_average = round(sum(finals) / len(finals), 2) if (all_finals_ready and finals) else None
         grade_level_sections.append({
             'grade_level': grade_level,
             'subject_rows': subject_rows,
             'general_average': general_average,
-            'remarks': _remarks_for(general_average),
+            'remarks': _remarks_for(general_average) if all_finals_ready else None,
         })
 
     return render(request, 'reports/sf10.html', {
@@ -150,142 +193,3 @@ def view_sf10(request, student_lrn):
         'grade_level_sections': grade_level_sections,
         'attendance_rows': _attendance_rows(student_lrn),
     })
-
-
-@login_required
-def generate_sf9_excel(request, student_lrn, term):
-    try:
-        teacher = _get_teacher(request)
-    except Teacher.DoesNotExist:
-        messages.error(request, 'Your account is not linked to a Teacher profile.')
-        return redirect('dashboard')
-
-    student = get_object_or_404(Student, lrn=student_lrn, adviser_id=teacher.teacher_id)
-
-    school_profile = None
-    if teacher.school_profile_id:
-        school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
-
-    subject_rows = _build_subject_rows(student_lrn, term=term)
-
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = f'SF9 Term {term}'
-    for col, width in zip('ABC', (32, 14, 14)):
-        ws.column_dimensions[col].width = width
-
-    row = 1
-    if school_profile:
-        merge_and_write(ws, row, 1, 3, school_profile.school_name, bold=True, size=14)
-        row += 1
-        merge_and_write(ws, row, 1, 3, f'{school_profile.municipality}, {school_profile.division}, {school_profile.region}')
-        row += 1
-        merge_and_write(ws, row, 1, 3, f'School ID: {school_profile.school_id} | School Year: {school_profile.school_year}')
-        row += 1
-    row += 1
-
-    merge_and_write(ws, row, 1, 3, 'Learner\'s Progress Report Card (SF9)', bold=True, size=12)
-    row += 1
-    merge_and_write(ws, row, 1, 3, f'Term {term}', bold=True)
-    row += 2
-
-    ws.cell(row=row, column=1, value=f"Name: {student.surname}, {student.name} {student.middle_name or ''}".strip())
-    row += 1
-    ws.cell(row=row, column=1, value=f'LRN: {student.lrn}')
-    row += 1
-    ws.cell(row=row, column=1, value=f'Sex: {student.sex}')
-    row += 1
-    ws.cell(row=row, column=1, value=f'Birthday: {student.birthday}')
-    row += 2
-
-    write_table_header(ws, row, 1, ['Subject', f'Term {term} Grade', 'Remarks'])
-    row += 1
-    for subject_row in subject_rows:
-        grade_value = subject_row[f'term_{term}']
-        write_table_row(ws, row, 1, [
-            subject_row['subject_name'],
-            grade_value if grade_value is not None else '—',
-            'Passed' if grade_value is not None and grade_value >= 75 else ('Failed' if grade_value is not None else '—'),
-        ])
-        row += 1
-
-    row += 2
-    if school_profile:
-        ws.cell(row=row, column=1, value=f'Registrar: {school_profile.registrar_name}')
-        row += 1
-        ws.cell(row=row, column=1, value=f'Principal: {school_profile.principal_name}')
-
-    filename = f'SF9_{student_lrn}_Term{term}.xlsx'
-    return excel_response(wb, filename)
-
-
-@login_required
-def generate_sf10_excel(request, student_lrn):
-    try:
-        teacher = _get_teacher(request)
-    except Teacher.DoesNotExist:
-        messages.error(request, 'Your account is not linked to a Teacher profile.')
-        return redirect('dashboard')
-
-    student = get_object_or_404(Student, lrn=student_lrn, adviser_id=teacher.teacher_id)
-
-    school_profile = None
-    if teacher.school_profile_id:
-        school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
-
-    wb = openpyxl.Workbook()
-    first_sheet = True
-
-    for grade_level in _grade_levels_for_student(student_lrn):
-        subject_rows = _build_subject_rows(student_lrn, grade_level=grade_level)
-        finals = [row['final'] for row in subject_rows if row['final'] is not None]
-        general_average = round(sum(finals) / len(finals), 2) if finals else None
-
-        if first_sheet:
-            ws = wb.active
-            ws.title = f'Grade {grade_level}'
-            first_sheet = False
-        else:
-            ws = wb.create_sheet(title=f'Grade {grade_level}')
-
-        for col, width in zip('ABCDEF', (32, 10, 10, 10, 12, 12)):
-            ws.column_dimensions[col].width = width
-
-        row = 1
-        if school_profile:
-            merge_and_write(ws, row, 1, 6, school_profile.school_name, bold=True, size=14)
-            row += 1
-            merge_and_write(ws, row, 1, 6, f'School ID: {school_profile.school_id} | School Year: {school_profile.school_year}')
-            row += 2
-
-        merge_and_write(ws, row, 1, 6, 'Learner\'s Permanent Academic Record (SF10)', bold=True, size=12)
-        row += 1
-        merge_and_write(ws, row, 1, 6, f'{student.surname}, {student.name} {student.middle_name or ""} | LRN: {student.lrn}'.strip())
-        row += 1
-        merge_and_write(ws, row, 1, 6, f'Grade Level: {grade_level}', bold=True)
-        row += 2
-
-        write_table_header(ws, row, 1, ['Subject', 'Term 1', 'Term 2', 'Term 3', 'Final', 'Remarks'])
-        row += 1
-        for subject_row in subject_rows:
-            write_table_row(ws, row, 1, [
-                subject_row['subject_name'],
-                subject_row['term_1'] if subject_row['term_1'] is not None else '—',
-                subject_row['term_2'] if subject_row['term_2'] is not None else '—',
-                subject_row['term_3'] if subject_row['term_3'] is not None else '—',
-                subject_row['final'] if subject_row['final'] is not None else '—',
-                subject_row['remarks'] or '—',
-            ])
-            row += 1
-
-        row += 1
-        merge_and_write(ws, row, 1, 6, f'General Average: {general_average if general_average is not None else "—"}', bold=True)
-
-    if first_sheet:
-        # No grades on record at all — still produce a valid, mostly-empty workbook.
-        ws = wb.active
-        ws.title = 'SF10'
-        ws.cell(row=1, column=1, value=f'No grades on record for {student.surname}, {student.name} ({student.lrn}).')
-
-    filename = f'SF10_{student_lrn}.xlsx'
-    return excel_response(wb, filename)

@@ -1,14 +1,16 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h2>📘 SF10 - Learner's Permanent Academic Record</h2>
+<div class="no-print">
+    <h2>📘 SF10 - Learner's Permanent Academic Record</h2>
 
-<a href="{% url 'select_student_report' %}" class="btn">← Back to Students</a>
-<a href="{% url 'view_sf9' student.lrn %}" class="btn">📄 View SF9</a>
-<a href="{% url 'generate_sf10_excel' student.lrn %}" class="btn btn-success">⬇️ Download Excel</a>
-<a href="{% url 'dashboard' %}" class="btn">← Dashboard</a>
+    <a href="{% url 'select_student_report' %}" class="btn">← Back to Students</a>
+    <a href="{% url 'view_sf9' student.lrn %}" class="btn">📄 View SF9</a>
+    <a href="{% url 'dashboard' %}" class="btn">← Dashboard</a>
+    <button type="button" class="btn btn-success" onclick="window.print()">Save As PDF</button>
 
-<hr>
+    <hr>
+</div>
 
 <div class="sf9-school-header">
     {% if school_profile %}
@@ -59,7 +61,7 @@
                 <td style="text-align: center;">{{ row.term_1|default:"—" }}</td>
                 <td style="text-align: center;">{{ row.term_2|default:"—" }}</td>
                 <td style="text-align: center;">{{ row.term_3|default:"—" }}</td>
-                <td style="text-align: center; font-weight: bold; color: {% if row.final >= 75 %}green{% else %}red{% endif %};">
+                <td style="text-align: center; font-weight: bold; color: {% if row.final == None %}#999{% elif row.final >= 75 %}green{% else %}red{% endif %};">
                     {{ row.final|default:"—" }}
                 </td>
                 <td style="text-align: center;">
@@ -76,9 +78,9 @@
         </tbody>
     </table>
     <div style="margin-top: 10px; margin-bottom: 10px; padding: 15px; background: #eef2ff; border-radius: 5px;">
-        <strong>General Average:</strong> {{ section_data.general_average|default:"—" }}
+        <strong>General Average:</strong> {{ section_data.general_average|default:"" }}
         &nbsp;|&nbsp;
-        <strong>Remarks:</strong> {{ section_data.remarks|default:"—" }}
+        <strong>Remarks:</strong> {{ section_data.remarks|default:"" }}
     </div>
     {% endfor %}
 {% else %}
@@ -132,5 +134,11 @@
     table.sf9-grades th, table.sf9-attendance th { background: #2c3e50; color: white; }
     table.sf9-grades tr:nth-child(even) { background: #f5f5f5; }
     .sf9-signatures { display: flex; justify-content: space-around; margin-top: 40px; text-align: center; }
+    @media print {
+        @page { size: 13in 8.5in; margin: 0.4in; }
+        .no-print, .header, .alert { display: none !important; }
+        body { background: #fff; }
+        .container { box-shadow: none; margin: 0; padding: 0; max-width: none; }
+    }
 </style>
 {% endblock %}

@@ -1,134 +1,274 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h2>📄 SF9 - Learner's Progress Report Card</h2>
+<div class="no-print">
+    <h2>📄 SF9 - Learner's Performance Report</h2>
 
-<a href="{% url 'select_student_report' %}" class="btn">← Back to Students</a>
-<a href="{% url 'view_sf10' student.lrn %}" class="btn">📘 View SF10</a>
-<a href="{% url 'generate_sf9_excel' student.lrn 1 %}" class="btn btn-success">⬇️ Term 1 Excel</a>
-<a href="{% url 'generate_sf9_excel' student.lrn 2 %}" class="btn btn-success">⬇️ Term 2 Excel</a>
-<a href="{% url 'generate_sf9_excel' student.lrn 3 %}" class="btn btn-success">⬇️ Term 3 Excel</a>
-<a href="{% url 'dashboard' %}" class="btn">← Dashboard</a>
+    <a href="{% url 'select_student_report' %}" class="btn">← Back to Students</a>
+    <a href="{% url 'view_sf10' student.lrn %}" class="btn">📘 View SF10</a>
+    <a href="{% url 'dashboard' %}" class="btn">← Dashboard</a>
+    <button type="button" class="btn btn-success" onclick="window.print()">Save As PDF</button>
 
-<hr>
-
-<div class="sf9-school-header">
-    {% if school_profile %}
-        <h3>{{ school_profile.school_name }}</h3>
-        <p>
-            {{ school_profile.municipality }}, {{ school_profile.district }},
-            {{ school_profile.division }}, {{ school_profile.region }}
-        </p>
-        <p>School ID: {{ school_profile.school_id }} &nbsp;|&nbsp; School Year: {{ school_profile.school_year }}</p>
-    {% else %}
-        <p style="color: #999;">No school profile linked to your account. <a href="{% url 'complete_profile' %}">Complete your profile</a>.</p>
+    {% if not school_profile %}
+    <p style="color: #999;">No school profile linked to your account. <a href="{% url 'complete_profile' %}">Complete your profile</a>.</p>
     {% endif %}
+
+    <hr>
 </div>
 
-<table class="sf9-student-info">
-    <tr>
-        <td><strong>Name:</strong> {{ student.surname }}, {{ student.name }} {{ student.middle_name }}</td>
-        <td><strong>LRN:</strong> {{ student.lrn }}</td>
-    </tr>
-    <tr>
-        <td><strong>Sex:</strong> {{ student.sex }}</td>
-        <td><strong>Birthday:</strong> {{ student.birthday|date:"Y-m-d" }}</td>
-    </tr>
-    <tr>
-        <td><strong>Section:</strong> {{ student.section_id }}</td>
-        <td></td>
-    </tr>
-</table>
+<div class="sf9-form">
+    <div class="sf9-header">
+        <div class="sf9-header-text">
+            <p>Republic of the Philippines</p>
+            <p>Department of Education</p>
+            {% if school_profile %}
+                <p>{{ school_profile.region }}</p>
+                <p class="bold">{{ school_profile.division }}</p>
+                <p>{{ school_profile.district }}</p>
+                <p>{{ school_profile.municipality }}</p>
+                <p>School: <span class="bold">{{ school_profile.school_name }}</span></p>
+            {% else %}
+                <p>&nbsp;</p>
+                <p class="bold">&nbsp;</p>
+                <p>&nbsp;</p>
+                <p>&nbsp;</p>
+                <p>School: <span class="bold">&mdash;</span></p>
+            {% endif %}
+        </div>
+        <div class="sf9-logo">School<br>Logo</div>
+    </div>
 
-{% if subject_rows %}
-    <table class="sf9-grades">
-        <thead>
-            <tr>
-                <th style="text-align: left;">Subject</th>
-                <th>Term 1</th>
-                <th>Term 2</th>
-                <th>Term 3</th>
-                <th>Final Grade</th>
-                <th>Remarks</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in subject_rows %}
-            <tr>
-                <td>{{ row.subject_name }}</td>
-                <td style="text-align: center;">{{ row.term_1|default:"—" }}</td>
-                <td style="text-align: center;">{{ row.term_2|default:"—" }}</td>
-                <td style="text-align: center;">{{ row.term_3|default:"—" }}</td>
-                <td style="text-align: center; font-weight: bold; color: {% if row.final >= 75 %}green{% else %}red{% endif %};">
-                    {{ row.final|default:"—" }}
-                </td>
-                <td style="text-align: center;">
-                    {% if row.remarks == 'Passed' %}
-                        <span style="color: green;">✅ Passed</span>
-                    {% elif row.remarks == 'Failed' %}
-                        <span style="color: red;">❌ Failed</span>
-                    {% else %}
-                        <span style="color: #999;">—</span>
+    <h3 class="sf9-title">LEARNER'S PERFORMANCE REPORT</h3>
+    <p class="sf9-subtitle">School Year {{ school_profile.school_year|default:"—" }}</p>
+
+    <div class="sf9-columns">
+        <div class="sf9-col-left">
+            <table class="sf9-info-table">
+                <tr>
+                    <td class="label">Name:</td>
+                    <td class="fill">{{ student.surname }}, {{ student.name }} {{ student.middle_name }}</td>
+                    <td class="label">Age:</td>
+                    <td class="fill">{{ age|default:"—" }}</td>
+                    <td class="label">Sex:</td>
+                    <td class="fill">{{ student.sex }}</td>
+                </tr>
+                <tr>
+                    <td class="label">LRN:</td>
+                    <td class="fill">{{ student.lrn }}</td>
+                    <td class="label">Grade:</td>
+                    <td class="fill">{{ section.grade_level|default:"—" }}</td>
+                    <td class="label">Section:</td>
+                    <td class="fill">{{ section.section_name|default:"—" }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Track (SHS only):</td>
+                    <td class="fill" colspan="5">{{ section.track|default:"—" }}{% if section.strand %} - {{ section.strand }}{% endif %}</td>
+                </tr>
+            </table>
+
+            <p class="sf9-dear-parents">
+                Dear Parents,<br>
+                &nbsp;&nbsp;&nbsp;This Performance Report shows the ability and progress your child has made in
+                the different learning areas as well as his/her core values.<br>
+                &nbsp;&nbsp;&nbsp;The school welcomes you should you desire to know more about your child's
+                progress.
+            </p>
+
+            <p class="sf9-section-heading">LEARNING PROGRESS AND ACHIEVEMENT</p>
+            <table class="sf9-grades">
+                <thead>
+                    <tr>
+                        <th rowspan="2">Learning Areas</th>
+                        <th colspan="3">TERM</th>
+                        <th rowspan="2">Final<br>Grade</th>
+                        <th rowspan="2">Remarks</th>
+                    </tr>
+                    <tr>
+                        <th>1</th>
+                        <th>2</th>
+                        <th>3</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if core_rows %}
+                    <tr class="sf9-group-row"><td colspan="6">Core Subjects</td></tr>
+                    {% for row in core_rows %}
+                    <tr>
+                        <td class="subject-name">{{ row.subject_name }}</td>
+                        <td>{{ row.term_1|default:"" }}</td>
+                        <td>{{ row.term_2|default:"" }}</td>
+                        <td>{{ row.term_3|default:"" }}</td>
+                        <td>{{ row.final|default:"" }}</td>
+                        <td>{{ row.remarks|default:"" }}</td>
+                    </tr>
+                    {% endfor %}
                     {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                    {% if elective_rows %}
+                    <tr class="sf9-group-row"><td colspan="6">Elective Subjects</td></tr>
+                    {% for row in elective_rows %}
+                    <tr>
+                        <td class="subject-name">{{ row.subject_name }}</td>
+                        <td>{{ row.term_1|default:"" }}</td>
+                        <td>{{ row.term_2|default:"" }}</td>
+                        <td>{{ row.term_3|default:"" }}</td>
+                        <td>{{ row.final|default:"" }}</td>
+                        <td>{{ row.remarks|default:"" }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
+                    {% if not core_rows and not elective_rows %}
+                    <tr>
+                        <td colspan="6" style="color: #999; padding: 15px;">No grades on record for this student.</td>
+                    </tr>
+                    {% endif %}
+                    <tr class="sf9-average-row">
+                        <td colspan="4" class="right">General Average</td>
+                        <td colspan="2">{{ general_average|default:"" }}</td>
+                    </tr>
+                </tbody>
+            </table>
 
-    <div style="margin-top: 15px; padding: 15px; background: #eef2ff; border-radius: 5px;">
-        <strong>General Average:</strong> {{ general_average|default:"—" }}
+            <p class="sf9-section-heading">PERFORMANCE DESCRIPTORS</p>
+            <table class="sf9-descriptors">
+                <thead>
+                    <tr>
+                        <th>Grading Scale</th>
+                        <th>Description</th>
+                        <th>Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>90-100</td><td>Advancing</td><td>Passed</td></tr>
+                    <tr><td>80-89</td><td>Benchmarking</td><td>Passed</td></tr>
+                    <tr><td>75-79</td><td>Correcting</td><td>Passed</td></tr>
+                    <tr><td>65-74</td><td>Developing</td><td>Failed</td></tr>
+                    <tr><td>0-64</td><td>Emerging</td><td>Failed</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="sf9-col-right">
+            <p class="sf9-section-heading center">ATTENDANCE RECORD</p>
+            <table class="sf9-attendance">
+                <thead>
+                    <tr>
+                        <th>Term</th>
+                        <th>No. of Class Days</th>
+                        <th>No. of Days Present</th>
+                        <th>No. of Days Absent</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in attendance_rows %}
+                    <tr>
+                        <td>Term {{ row.term }}</td>
+                        <td>{{ row.total|default:"—" }}</td>
+                        <td>{{ row.attendance.days_present|default:"—" }}</td>
+                        <td>{{ row.attendance.days_absent|default:"—" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <p class="sf9-section-heading center">TEACHER'S COMMENTS/REMARKS</p>
+            <div class="sf9-comment-box">Term 1<div class="sf9-comment-line"></div></div>
+            <div class="sf9-comment-box">Term 2<div class="sf9-comment-line"></div></div>
+            <div class="sf9-comment-box">Term 3<div class="sf9-comment-line"></div></div>
+
+            <p class="sf9-section-heading center">PARENTS/GUARDIAN'S SIGNATURE</p>
+            <table class="sf9-signature-lines">
+                <tr><td>Term 1</td><td class="line"></td></tr>
+                <tr><td>Term 2</td><td class="line"></td></tr>
+                <tr><td>Term 3</td><td class="line"></td></tr>
+            </table>
+
+            <p class="sf9-section-heading center">CERTIFICATE OF TRANSFER</p>
+            <p class="sf9-small">
+                This is to certify that the above-named learner has satisfactorily completed the requirements for
+                the grade level indicated.
+            </p>
+            <p class="sf9-small">Admitted to Grade: <span class="dotted"></span></p>
+            <p class="sf9-small">Eligible for Admission to Grade: <span class="dotted"></span></p>
+            <p class="sf9-small">Approved: <span class="dotted"></span></p>
+            <div class="sf9-signatures">
+                <div>
+                    <p class="line"></p>
+                    <p>School Head</p>
+                </div>
+                <div>
+                    <p class="line"></p>
+                    <p>Adviser{% if teacher %}<br><span class="sf9-small">{{ teacher.full_name }}</span>{% endif %}</p>
+                </div>
+            </div>
+
+            <p class="sf9-section-heading center">CANCELLATION OF ELIGIBILITY TO TRANSFER</p>
+            <p class="sf9-small">Admitted in: <span class="dotted"></span> &nbsp;&nbsp; Date: <span class="dotted"></span></p>
+            <div class="sf9-signatures single">
+                <div>
+                    <p class="line"></p>
+                    <p>School Head</p>
+                </div>
+            </div>
+        </div>
     </div>
-{% else %}
-    <p style="color: #999; text-align: center; padding: 40px;">
-        No grades found for this student.
-    </p>
-{% endif %}
-
-<div style="margin-top: 15px;">
-    <strong>Attendance:</strong>
-    <table class="sf9-attendance">
-        <thead>
-            <tr>
-                <th>Term</th>
-                <th>Days Present</th>
-                <th>Days Absent</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in attendance_rows %}
-            <tr>
-                <td>Term {{ row.term }}</td>
-                <td>{{ row.attendance.days_present|default:"—" }}</td>
-                <td>{{ row.attendance.days_absent|default:"—" }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
 </div>
-
-{% if school_profile %}
-<div class="sf9-signatures">
-    <div>
-        <p>_____________________________</p>
-        <p>{{ school_profile.registrar_name }}<br>{{ school_profile.registrar_designation }}</p>
-    </div>
-    <div>
-        <p>_____________________________</p>
-        <p>{{ school_profile.principal_name }}<br>{{ school_profile.principal_designation }}</p>
-    </div>
-</div>
-{% endif %}
 
 <style>
-    .sf9-school-header { text-align: center; margin-bottom: 15px; }
-    .sf9-student-info { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-    .sf9-student-info td { padding: 6px 10px; border: 1px solid #ddd; }
-    table.sf9-grades, table.sf9-attendance { width: 100%; border-collapse: collapse; }
+    .sf9-form {
+        font-family: 'Times New Roman', Times, serif;
+        font-size: 12px;
+        color: #000;
+        border: 2px solid #000;
+        padding: 15px;
+        max-width: 950px;
+        margin: 0 auto;
+    }
+    .sf9-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .sf9-header-text { flex: 1; text-align: center; }
+    .sf9-header-text p { margin: 1px 0; }
+    .sf9-logo {
+        width: 55px; height: 55px; border-radius: 50%; border: 1px dashed #999;
+        display: flex; align-items: center; justify-content: center; text-align: center;
+        font-size: 9px; color: #999; margin-left: 10px; flex-shrink: 0;
+    }
+    .bold { font-weight: bold; }
+    .sf9-title { text-align: center; margin: 6px 0 0 0; font-size: 15px; }
+    .sf9-subtitle { text-align: center; margin: 2px 0 10px 0; }
+    .sf9-columns { display: grid; grid-template-columns: 1.4fr 1fr; gap: 15px; align-items: start; }
+    .sf9-info-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+    .sf9-info-table td { padding: 2px 4px; }
+    .sf9-info-table .label { white-space: nowrap; }
+    .sf9-info-table .fill { border-bottom: 1px solid #000; }
+    .sf9-dear-parents { margin: 8px 0; text-align: justify; }
+    .sf9-section-heading { font-weight: bold; text-decoration: underline; margin: 10px 0 4px 0; }
+    .sf9-section-heading.center { text-align: center; }
+    table.sf9-grades, table.sf9-descriptors, table.sf9-attendance, table.sf9-signature-lines {
+        width: 100%; border-collapse: collapse;
+    }
     table.sf9-grades th, table.sf9-grades td,
-    table.sf9-attendance th, table.sf9-attendance td { padding: 8px 10px; border: 1px solid #ddd; text-align: center; }
-    table.sf9-grades th, table.sf9-attendance th { background: #2c3e50; color: white; }
-    table.sf9-grades tr:nth-child(even) { background: #f5f5f5; }
-    .sf9-signatures { display: flex; justify-content: space-around; margin-top: 40px; text-align: center; }
+    table.sf9-descriptors th, table.sf9-descriptors td,
+    table.sf9-attendance th, table.sf9-attendance td {
+        border: 1px solid #000; padding: 3px 4px; text-align: center;
+    }
+    table.sf9-grades td.subject-name { text-align: left; }
+    table.sf9-grades tr.sf9-group-row td { text-align: left; font-weight: bold; background: #eee; }
+    table.sf9-grades tr.sf9-average-row td { font-weight: bold; }
+    table.sf9-grades tr.sf9-average-row td.right { text-align: right; }
+    .sf9-comment-box { border: 1px solid #000; padding: 4px; margin-bottom: 6px; min-height: 34px; font-weight: bold; }
+    .sf9-comment-line { border-bottom: 1px solid #000; margin-top: 14px; }
+    table.sf9-signature-lines td { padding: 6px 4px; }
+    table.sf9-signature-lines td.line { border-bottom: 1px solid #000; width: 70%; }
+    .sf9-small { font-size: 11px; margin: 4px 0; }
+    .dotted { display: inline-block; min-width: 140px; border-bottom: 1px dotted #000; }
+    .sf9-signatures { display: flex; justify-content: space-around; margin-top: 24px; text-align: center; }
+    .sf9-signatures.single { justify-content: center; }
+    .sf9-signatures .line { border-bottom: 1px solid #000; width: 130px; margin: 0 auto; }
+    @media print {
+        @page { size: 13in 8.5in; margin: 0.4in; }
+        .no-print, .header, .alert { display: none !important; }
+        body { background: #fff; }
+        .container { box-shadow: none; margin: 0; padding: 0; max-width: none; }
+        .sf9-form { border: none; max-width: none; width: 100%; }
+    }
 </style>
 {% endblock %}
