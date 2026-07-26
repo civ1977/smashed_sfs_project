@@ -14,6 +14,10 @@ def school_dashboard(request):
         messages.error(request, 'Your account is not linked to a Teacher profile.')
         return redirect('login')
 
+    if teacher.role == Teacher.ROLE_ADVISER:
+        messages.error(request, 'This page is only available to registrar/principal accounts.')
+        return redirect('dashboard')
+
     school_profile = None
     if teacher.school_profile_id:
         school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
@@ -31,6 +35,10 @@ def school_student_list(request):
     except Teacher.DoesNotExist:
         messages.error(request, 'Your account is not linked to a Teacher profile.')
         return redirect('login')
+
+    if teacher.role == Teacher.ROLE_ADVISER:
+        messages.error(request, 'This page is only available to registrar/principal accounts.')
+        return redirect('dashboard')
 
     students = []
     if teacher.school_profile_id:
