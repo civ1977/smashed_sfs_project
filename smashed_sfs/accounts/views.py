@@ -90,6 +90,9 @@ def dashboard(request):
         messages.error(request, 'Your account is not linked to a Teacher profile. Please contact the administrator.')
         return render(request, 'accounts/dashboard.html', {'teacher': None, 'profile_incomplete': False})
 
+    if teacher.role != Teacher.ROLE_ADVISER:
+        return redirect('school_dashboard')
+
     profile_incomplete = not teacher.school_profile_id or not Section.objects.filter(adviser_id=teacher.teacher_id).exists()
 
     return render(request, 'accounts/dashboard.html', {

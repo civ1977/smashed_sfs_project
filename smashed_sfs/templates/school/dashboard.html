@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>🏫 School Dashboard</h1>
+<p>Welcome, {{ teacher.full_name|default:user.username }}!</p>
+<p>Role: <strong>{{ teacher.get_role_display }}</strong></p>
+<p>School: <strong>{{ school_profile.school_name|default:"Not set" }}</strong></p>
+
+<div class="dashboard-grid">
+    <div class="card">
+        <h3>📋 Students</h3>
+        <p>View all students across the school</p>
+        <a href="{% url 'school_student_list' %}" class="btn">View Students</a>
+    </div>
+</div>
+
+<p style="color: #999; margin-top: 20px;">More school-wide pages (sections, accounts) are coming in later steps.</p>
+{% endblock %}
