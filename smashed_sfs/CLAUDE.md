@@ -85,16 +85,21 @@ Grades are stored per (student, subject mapping, term); `grades.views.save_grade
 grade is in the 60–100 range and dynamically creates/updates `SubjectMapping` rows for subjects
 1–30 when `update_subjects` is checked on the form.
 
-## `reports` app is scaffolded but not implemented
+## `reports` app is implemented (SF9/SF10 view + print-to-PDF)
 
-`reports/urls.py` declares routes (`select_student_report`, `view_sf9`, `view_sf10`,
-`generate_sf9_excel`, `generate_sf10_excel`) but `reports/views.py` is still the empty Django
-stub — none of these view functions exist yet. `reports/urls.py` is also **not included** in
-`smashed_sfs/urls.py`'s `urlpatterns`, so the app isn't reachable at all currently. If asked to
-build out SF9/SF10 report generation, you'll need to both implement the views in
-`reports/views.py` and wire `path('reports/', include('reports.urls'))` into the root urlconf.
-`reports/models.py` is empty — report data is expected to be assembled from `students`/`grades`
-models at render time, not stored.
+`reports/urls.py` is wired into `smashed_sfs/urls.py` at `path('reports/', include('reports.urls'))`.
+`reports/views.py` implements `select_student_for_report`, `view_sf9`, and `view_sf10` (see commits
+3b0027b, 0e75964, 463f79a), rendering `reports/select_student.html`, `reports/sf9.html`, and
+`reports/sf10.html`. There are no `generate_sf9_excel`/`generate_sf10_excel` views — an earlier Excel
+export was deliberately replaced by print-to-PDF (commit 0e75964): the SF9/SF10 templates are styled
+to match the DepEd form and are meant to be printed/saved as PDF straight from the browser, not
+exported server-side. Don't reintroduce Excel export unless explicitly asked.
+
+As with `students`/`grades`, both view functions resolve the current teacher via
+`Teacher.objects.get(username=request.user.username)` and redirect with an error message on
+`Teacher.DoesNotExist` rather than raising. `reports/models.py` is empty — report data is assembled
+from `students`/`grades` models at render time (helper functions in `reports/views.py` like
+`_build_subject_rows`, `_attendance_rows`, `_gate_finals_pending_term3`), not stored.
 
 ## Templates
 
