@@ -7,6 +7,18 @@
     {% csrf_token %}
     
     <div class="form-group">
+        <label>Select Grade Level:</label>
+        <select name="grade_level" required class="form-control">
+            {% for g in grade_levels %}
+            <option value="{{ g.value }}" {% if grade_level == g.value %}selected{% endif %}>
+                {{ g.label }}
+            </option>
+            {% endfor %}
+        </select>
+        <small>Grade 12 uploads are not implemented yet &mdash; selecting it will just show a notice.</small>
+    </div>
+
+    <div class="form-group">
         <label>Select Term:</label>
         <select name="term" required class="form-control">
             <option value="">-- Select Term --</option>
@@ -17,7 +29,7 @@
             {% endfor %}
         </select>
     </div>
-    
+
     <div class="form-group">
         <label>Select CSV File:</label>
         <input type="file" name="csv_file" accept=".csv" required>
@@ -53,6 +65,7 @@
 <form method="POST" action="{% url 'save_grades' %}">
     {% csrf_token %}
     <input type="hidden" name="term" value="{{ term }}">
+    <input type="hidden" name="grade_level" value="{{ grade_level }}">
     <input type="hidden" name="replace_all" value="{{ request.POST.replace_all|default:'off' }}">
     <input type="hidden" name="row_count" value="{{ preview_data|length }}">
     
