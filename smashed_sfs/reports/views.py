@@ -8,6 +8,8 @@ from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
 from grades.models import Grade, SubjectMapping, Attendance
 
+ATTENDANCE_MONTHS = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr']
+
 
 def _get_teacher(request):
     return Teacher.objects.get(username=request.user.username)
@@ -77,6 +79,23 @@ def _attendance_rows(lrn):
     return rows
 
 
+def _attendance_totals(attendance_rows):
+    """Year-to-date totals for the SF9 monthly attendance grid, whose
+    'Total' column is the only cell this app has real data for (there's
+    no monthly breakdown in the Attendance model, just per-term totals)."""
+    present = [r['attendance'].days_present for r in attendance_rows if r['attendance'] is not None]
+    absent = [r['attendance'].days_absent for r in attendance_rows if r['attendance'] is not None]
+    if not present and not absent:
+        return {'class_days': None, 'present': None, 'absent': None}
+    total_present = sum(present)
+    total_absent = sum(absent)
+    return {
+        'class_days': total_present + total_absent,
+        'present': total_present,
+        'absent': total_absent,
+    }
+
+
 def _age_from_birthday(birthday):
     if not birthday:
         return None
@@ -144,6 +163,8 @@ def view_sf9(request, student_lrn):
     finals = [row['final'] for row in subject_rows if row['final'] is not None]
     general_average = round(sum(finals) / len(finals), 2) if (all_finals_ready and finals) else None
 
+    attendance_rows = _attendance_rows(student_lrn)
+
     return render(request, 'reports/sf9.html', {
         'student': student,
         'school_profile': school_profile,
@@ -152,7 +173,9 @@ def view_sf9(request, student_lrn):
         'core_rows': core_rows,
         'elective_rows': elective_rows,
         'general_average': general_average,
-        'attendance_rows': _attendance_rows(student_lrn),
+        'attendance_rows': attendance_rows,
+        'attendance_totals': _attendance_totals(attendance_rows),
+        'attendance_months': ATTENDANCE_MONTHS,
         'teacher': teacher,
     })
 

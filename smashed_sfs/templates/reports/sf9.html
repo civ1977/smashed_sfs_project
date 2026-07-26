@@ -7,7 +7,13 @@
     <a href="{% url 'select_student_report' %}" class="btn">← Back to Students</a>
     <a href="{% url 'view_sf10' student.lrn %}" class="btn">📘 View SF10</a>
     <a href="{% url 'dashboard' %}" class="btn">← Dashboard</a>
+    <button type="button" class="btn" onclick="window.print()">Print</button>
     <button type="button" class="btn btn-success" onclick="window.print()">Save As PDF</button>
+    <button type="button" class="btn" onclick="document.getElementById('deped-logo-input').click()">🖼️ Insert DepEd Logo</button>
+    <button type="button" class="btn" onclick="document.getElementById('school-logo-input').click()">🖼️ Insert School Logo</button>
+    <input type="file" id="deped-logo-input" accept="image/*" style="display:none;" onchange="sf9HandleLogoUpload(this, 'sf9_deped_logo', 'deped-logo-img')">
+    <input type="file" id="school-logo-input" accept="image/*" style="display:none;" onchange="sf9HandleLogoUpload(this, 'sf9_school_logo', 'school-logo-img')">
+    <p style="color: #999; font-size: 12px; margin-top: 6px;">Logos are kept only in this browser (not uploaded to the server) and stay applied whenever you view an SF9 here.</p>
 
     {% if not school_profile %}
     <p style="color: #999;">No school profile linked to your account. <a href="{% url 'complete_profile' %}">Complete your profile</a>.</p>
@@ -17,32 +23,39 @@
 </div>
 
 <div class="sf9-form">
-    <div class="sf9-header">
-        <div class="sf9-header-text">
-            <p>Republic of the Philippines</p>
-            <p>Department of Education</p>
-            {% if school_profile %}
-                <p>{{ school_profile.region }}</p>
-                <p class="bold">{{ school_profile.division }}</p>
-                <p>{{ school_profile.district }}</p>
-                <p>{{ school_profile.municipality }}</p>
-                <p>School: <span class="bold">{{ school_profile.school_name }}</span></p>
-            {% else %}
-                <p>&nbsp;</p>
-                <p class="bold">&nbsp;</p>
-                <p>&nbsp;</p>
-                <p>&nbsp;</p>
-                <p>School: <span class="bold">&mdash;</span></p>
-            {% endif %}
-        </div>
-        <div class="sf9-logo">School<br>Logo</div>
-    </div>
-
-    <h3 class="sf9-title">LEARNER'S PERFORMANCE REPORT</h3>
-    <p class="sf9-subtitle">School Year {{ school_profile.school_year|default:"—" }}</p>
-
     <div class="sf9-columns">
         <div class="sf9-col-left">
+            <div class="sf9-header">
+                <div class="sf9-logo sf9-seal">
+                    <span class="sf9-logo-placeholder">Division<br>Seal</span>
+                    <img id="deped-logo-img" class="sf9-logo-img" alt="DepEd Logo">
+                </div>
+                <div class="sf9-header-text">
+                    <p>Republic of the Philippines</p>
+                    <p>Department of Education</p>
+                    {% if school_profile %}
+                        <p>{{ school_profile.region }}</p>
+                        <p class="bold">{{ school_profile.division }}</p>
+                        <p>{{ school_profile.district }}</p>
+                        <p>{{ school_profile.municipality }}</p>
+                        <p>School: <span class="bold">{{ school_profile.school_name }}</span></p>
+                    {% else %}
+                        <p>&nbsp;</p>
+                        <p class="bold">&nbsp;</p>
+                        <p>&nbsp;</p>
+                        <p>&nbsp;</p>
+                        <p>School: <span class="bold">&mdash;</span></p>
+                    {% endif %}
+                </div>
+                <div class="sf9-logo sf9-school-logo">
+                    <span class="sf9-logo-placeholder">School<br>Logo</span>
+                    <img id="school-logo-img" class="sf9-logo-img" alt="School Logo">
+                </div>
+            </div>
+
+            <h3 class="sf9-title">LEARNER'S PERFORMANCE REPORT</h3>
+            <p class="sf9-subtitle">School Year {{ school_profile.school_year|default:"—" }}</p>
+
             <table class="sf9-info-table">
                 <tr>
                     <td class="label">Name:</td>
@@ -74,7 +87,7 @@
                 progress.
             </p>
 
-            <p class="sf9-section-heading">LEARNING PROGRESS AND ACHIEVEMENT</p>
+            <p class="sf9-section-heading center">LEARNING PROGRESS AND ACHIEVEMENT</p>
             <table class="sf9-grades">
                 <thead>
                     <tr>
@@ -152,28 +165,34 @@
             <table class="sf9-attendance">
                 <thead>
                     <tr>
-                        <th>Term</th>
-                        <th>No. of Class Days</th>
-                        <th>No. of Days Present</th>
-                        <th>No. of Days Absent</th>
+                        <th class="month-label">Month</th>
+                        {% for m in attendance_months %}<th>{{ m }}</th>{% endfor %}
+                        <th>Total</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in attendance_rows %}
                     <tr>
-                        <td>Term {{ row.term }}</td>
-                        <td>{{ row.total|default:"—" }}</td>
-                        <td>{{ row.attendance.days_present|default:"—" }}</td>
-                        <td>{{ row.attendance.days_absent|default:"—" }}</td>
+                        <td class="month-label">No. of Class Days</td>
+                        {% for m in attendance_months %}<td></td>{% endfor %}
+                        <td>{{ attendance_totals.class_days|default:"" }}</td>
                     </tr>
-                    {% endfor %}
+                    <tr>
+                        <td class="month-label">No. of Days Present</td>
+                        {% for m in attendance_months %}<td></td>{% endfor %}
+                        <td>{{ attendance_totals.present|default:"" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="month-label">No. of Days Absent</td>
+                        {% for m in attendance_months %}<td></td>{% endfor %}
+                        <td>{{ attendance_totals.absent|default:"" }}</td>
+                    </tr>
                 </tbody>
             </table>
 
             <p class="sf9-section-heading center">TEACHER'S COMMENTS/REMARKS</p>
-            <div class="sf9-comment-box">Term 1<div class="sf9-comment-line"></div></div>
-            <div class="sf9-comment-box">Term 2<div class="sf9-comment-line"></div></div>
-            <div class="sf9-comment-box">Term 3<div class="sf9-comment-line"></div></div>
+            <div class="sf9-comment-box">Term 1</div>
+            <div class="sf9-comment-box">Term 2</div>
+            <div class="sf9-comment-box">Term 3</div>
 
             <p class="sf9-section-heading center">PARENTS/GUARDIAN'S SIGNATURE</p>
             <table class="sf9-signature-lines">
@@ -202,7 +221,7 @@
             </div>
 
             <p class="sf9-section-heading center">CANCELLATION OF ELIGIBILITY TO TRANSFER</p>
-            <p class="sf9-small">Admitted in: <span class="dotted"></span> &nbsp;&nbsp; Date: <span class="dotted"></span></p>
+            <p class="sf9-small" style="margin-top: 14px;">Admitted in: <span class="dotted"></span> &nbsp;&nbsp; Date: <span class="dotted"></span></p>
             <div class="sf9-signatures single">
                 <div>
                     <p class="line"></p>
@@ -220,21 +239,26 @@
         color: #000;
         border: 2px solid #000;
         padding: 15px;
-        max-width: 950px;
+        width: 100%;
         margin: 0 auto;
+        box-sizing: border-box;
     }
-    .sf9-header { display: flex; justify-content: space-between; align-items: flex-start; }
-    .sf9-header-text { flex: 1; text-align: center; }
+    .sf9-header { display: flex; justify-content: center; align-items: flex-start; }
+    .sf9-header-text { text-align: center; padding: 0 8px; }
     .sf9-header-text p { margin: 1px 0; }
     .sf9-logo {
-        width: 55px; height: 55px; border-radius: 50%; border: 1px dashed #999;
+        width: 44px; height: 44px; border-radius: 50%; border: 1px dashed #999;
         display: flex; align-items: center; justify-content: center; text-align: center;
-        font-size: 9px; color: #999; margin-left: 10px; flex-shrink: 0;
+        font-size: 8px; color: #999; flex-shrink: 0; position: relative; overflow: hidden;
     }
+    .sf9-logo-img { display: none; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+    .sf9-logo.has-image { border-style: solid; }
+    .sf9-logo.has-image .sf9-logo-placeholder { display: none; }
+    .sf9-logo.has-image .sf9-logo-img { display: block; }
     .bold { font-weight: bold; }
     .sf9-title { text-align: center; margin: 6px 0 0 0; font-size: 15px; }
     .sf9-subtitle { text-align: center; margin: 2px 0 10px 0; }
-    .sf9-columns { display: grid; grid-template-columns: 1.4fr 1fr; gap: 15px; align-items: start; }
+    .sf9-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; align-items: start; }
     .sf9-info-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
     .sf9-info-table td { padding: 2px 4px; }
     .sf9-info-table .label { white-space: nowrap; }
@@ -242,11 +266,10 @@
     .sf9-dear-parents { margin: 8px 0; text-align: justify; }
     .sf9-section-heading { font-weight: bold; text-decoration: underline; margin: 10px 0 4px 0; }
     .sf9-section-heading.center { text-align: center; }
-    table.sf9-grades, table.sf9-descriptors, table.sf9-attendance, table.sf9-signature-lines {
+    table.sf9-grades, table.sf9-attendance, table.sf9-signature-lines {
         width: 100%; border-collapse: collapse;
     }
     table.sf9-grades th, table.sf9-grades td,
-    table.sf9-descriptors th, table.sf9-descriptors td,
     table.sf9-attendance th, table.sf9-attendance td {
         border: 1px solid #000; padding: 3px 4px; text-align: center;
     }
@@ -254,8 +277,13 @@
     table.sf9-grades tr.sf9-group-row td { text-align: left; font-weight: bold; background: #eee; }
     table.sf9-grades tr.sf9-average-row td { font-weight: bold; }
     table.sf9-grades tr.sf9-average-row td.right { text-align: right; }
+    table.sf9-attendance th, table.sf9-attendance td { padding: 3px 2px; font-size: 10px; }
+    table.sf9-attendance .month-label { text-align: left; white-space: nowrap; width: 1%; }
+    table.sf9-attendance th:last-child, table.sf9-attendance td:last-child { font-weight: bold; }
+    table.sf9-descriptors { width: 100%; border-collapse: collapse; }
+    table.sf9-descriptors th, table.sf9-descriptors td { padding: 2px 6px; text-align: left; }
+    table.sf9-descriptors th { border-bottom: 1px solid #000; font-weight: bold; }
     .sf9-comment-box { border: 1px solid #000; padding: 4px; margin-bottom: 6px; min-height: 34px; font-weight: bold; }
-    .sf9-comment-line { border-bottom: 1px solid #000; margin-top: 14px; }
     table.sf9-signature-lines td { padding: 6px 4px; }
     table.sf9-signature-lines td.line { border-bottom: 1px solid #000; width: 70%; }
     .sf9-small { font-size: 11px; margin: 4px 0; }
@@ -271,4 +299,29 @@
         .sf9-form { border: none; max-width: none; width: 100%; }
     }
 </style>
+
+<script>
+    function sf9ApplyLogo(dataUrl, imgId) {
+        var img = document.getElementById(imgId);
+        if (!img || !dataUrl) return;
+        img.src = dataUrl;
+        img.closest('.sf9-logo').classList.add('has-image');
+    }
+
+    function sf9HandleLogoUpload(input, storageKey, imgId) {
+        var file = input.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            try { localStorage.setItem(storageKey, e.target.result); } catch (err) { /* storage full/unavailable, still show it for this view */ }
+            sf9ApplyLogo(e.target.result, imgId);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        sf9ApplyLogo(localStorage.getItem('sf9_deped_logo'), 'deped-logo-img');
+        sf9ApplyLogo(localStorage.getItem('sf9_school_logo'), 'school-logo-img');
+    });
+</script>
 {% endblock %}
