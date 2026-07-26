@@ -85,18 +85,8 @@
     
     <!-- General Average -->
     <div style="margin-top: 15px; padding: 15px; background: #eef2ff; border-radius: 5px;">
-        <strong>General Average:</strong> 
-        {% with subject_grades.items as items %}
-            {% with items|length as count %}
-                {% if count > 0 %}
-                    {% with items|map:"1" as finals %}
-                        {{ finals }}
-                    {% endwith %}
-                {% else %}
-                    <span style="color: #999;">No grades available</span>
-                {% endif %}
-            {% endwith %}
-        {% endwith %}
+        <strong>General Average:</strong>
+        {{ general_average|default:"No grades available" }}
     </div>
 {% else %}
     <p style="color: #999; text-align: center; padding: 40px;">

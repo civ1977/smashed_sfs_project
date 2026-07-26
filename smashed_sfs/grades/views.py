@@ -324,10 +324,14 @@ def view_grades(request, lrn):
             except SubjectMapping.DoesNotExist:
                 subject_names[mapping_id] = f'Subject {mapping_id}'
 
+        finals = [data['final'] for data in subject_grades.values() if data['final'] is not None]
+        general_average = round(sum(finals) / len(finals), 2) if finals else None
+
         return render(request, 'grades/view.html', {
             'student': student,
             'subject_grades': subject_grades,
             'subject_names': subject_names,
+            'general_average': general_average,
             'grades': grades,
         })
 
