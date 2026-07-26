@@ -26,8 +26,9 @@ def _remarks_for(final):
 
 def _build_subject_rows(lrn, grade_level=None, term=None):
     """Build per-subject grade rows for a student, optionally scoped to one
-    subject grade_level (for SF10, which spans grade 11 and grade 12) and/or
-    one term (for a single-quarter SF9 export)."""
+    subject grade_level (a student's Grade table can hold both Grade 11 and
+    Grade 12 rows once they've been promoted) and/or one term (for a
+    single-quarter SF9 export)."""
     grades = Grade.objects.filter(lrn=lrn)
     if term is not None:
         grades = grades.filter(term=term)
@@ -158,7 +159,7 @@ def view_sf9(request, student_lrn):
 
     section = Section.objects.filter(section_id=student.section_id).first()
 
-    subject_rows = _build_subject_rows(student_lrn)
+    subject_rows = _build_subject_rows(student_lrn, grade_level=section.grade_level if section else None)
     all_finals_ready = _gate_finals_pending_term3(subject_rows)
     core_rows, elective_rows = _split_core_elective(subject_rows)
 

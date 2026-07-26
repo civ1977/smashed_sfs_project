@@ -6,7 +6,7 @@ from django.http import HttpResponse
 import csv
 import io
 from datetime import datetime
-from students.models import Student
+from students.models import Student, Section
 from accounts.models import Teacher
 from .models import Grade, SubjectMapping, Attendance, ATTENDANCE_MONTHS
 
@@ -20,7 +20,7 @@ ATTENDANCE_MONTH_OPTIONS = [{'value': m, 'label': m} for m in ATTENDANCE_MONTHS]
 
 GRADE_LEVELS = [
     {'value': '11', 'label': 'Grade 11'},
-    {'value': '12', 'label': 'Grade 12 (coming soon)'},
+    {'value': '12', 'label': 'Grade 12'},
 ]
 
 
@@ -65,17 +65,6 @@ def upload_grades(request):
         skip_header = request.POST.get('skip_header') == 'on'
         replace_all = request.POST.get('replace_all') == 'on'
 
-        if grade_level == '12':
-            messages.warning(request, 'Grade 12 uploads are not yet supported. Please select Grade 11 for now.')
-            return render(request, 'grades/upload.html', {
-                'preview_data': None,
-                'term': term,
-                'terms': GRADE_TERMS,
-                'grade_level': grade_level,
-                'grade_levels': GRADE_LEVELS,
-                'headers': None,
-            })
-
         try:
             decoded_file = csv_file.read().decode('utf-8-sig')
             io_string = io.StringIO(decoded_file)
@@ -102,17 +91,19 @@ def upload_grades(request):
             
             request.session['grade_preview_data'] = preview_data
             request.session['grade_term'] = term
+            request.session['grade_level'] = grade_level
             request.session['grade_replace_all'] = replace_all
             request.session['grade_headers'] = headers
-            
+
             messages.info(request, f'📋 Preview loaded: {len(preview_data)} students found for Term {term}.')
-            
+
         except Exception as e:
             messages.error(request, f'Error reading CSV: {str(e)}')
-    
+
     if 'grade_preview_data' in request.session and not preview_data:
         preview_data = request.session.get('grade_preview_data')
         term = request.session.get('grade_term')
+        grade_level = request.session.get('grade_level')
         headers = request.session.get('grade_headers')
 
     return render(request, 'grades/upload.html', {
@@ -130,6 +121,7 @@ def save_grades(request):
     if request.method == 'POST':
         row_count = int(request.POST.get('row_count', 0))
         term = int(request.POST.get('term', 1))
+        grade_level = request.POST.get('grade_level') or '11'
         replace_all = request.POST.get('replace_all') == 'on'
         update_subjects = request.POST.get('update_subjects') == 'on'
         
@@ -155,7 +147,7 @@ def save_grades(request):
             if subject_name and update_subjects:
                 mapping, created = SubjectMapping.objects.get_or_create(
                     school_profile_id=teacher.school_profile_id,
-                    grade_level='11',
+                    grade_level=grade_level,
                     strand='STEM',
                     subject_number=i,
                     defaults={
@@ -171,7 +163,7 @@ def save_grades(request):
                 try:
                     mapping = SubjectMapping.objects.get(
                         school_profile_id=teacher.school_profile_id,
-                        grade_level='11',
+                        grade_level=grade_level,
                         strand='STEM',
                         subject_number=i
                     )
@@ -179,12 +171,19 @@ def save_grades(request):
                 except SubjectMapping.DoesNotExist:
                     pass
         
-        # Delete existing grades for this term if replace_all
+        # Delete existing grades for this term if replace_all - scoped to this
+        # grade level's mappings only, so a Grade 12 replace doesn't wipe a
+        # student's Grade 11 history for the same term number.
         if replace_all:
+            grade_level_mapping_ids = set(subject_mappings.values())
             students = Student.objects.filter(adviser_id=teacher.teacher_id)
             for student in students:
-                Grade.objects.filter(lrn=student.lrn, term=term).delete()
-            messages.info(request, f'🗑️ Existing Term {term} grades deleted.')
+                Grade.objects.filter(
+                    lrn=student.lrn,
+                    term=term,
+                    mapping_id__in=grade_level_mapping_ids
+                ).delete()
+            messages.info(request, f'🗑️ Existing Grade {grade_level} Term {term} grades deleted.')
         
         for i in range(row_count):
             try:
@@ -237,8 +236,9 @@ def save_grades(request):
         
         request.session.pop('grade_preview_data', None)
         request.session.pop('grade_term', None)
+        request.session.pop('grade_level', None)
         request.session.pop('grade_headers', None)
-        
+
         if saved_count > 0:
             messages.success(request, f'✅ {saved_count} grades saved successfully for Term {term}!')
         if error_count > 0:
@@ -259,21 +259,27 @@ def view_grades(request, lrn):
     
     if lrn == 'all':
         students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
-        
-        subjects = SubjectMapping.objects.filter(
-            school_profile_id=teacher.school_profile_id
-        ).order_by('subject_number')
-        
+
+        # Scope the subject list to this teacher's own grade level so Grade
+        # 11 and Grade 12 mappings (which share a school_profile_id) don't
+        # get mixed into the same gradesheet.
+        teacher_section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
+        subjects = SubjectMapping.objects.filter(school_profile_id=teacher.school_profile_id)
+        if teacher_section:
+            subjects = subjects.filter(grade_level=teacher_section.grade_level)
+        subjects = subjects.order_by('subject_number')
+        subject_ids = set(subjects.values_list('mapping_id', flat=True))
+
         grades_data = {}
         for student in students:
-            grades = Grade.objects.filter(lrn=student.lrn)
+            grades = Grade.objects.filter(lrn=student.lrn, mapping_id__in=subject_ids)
             subject_grades = {}
             for grade in grades:
                 if grade.mapping_id not in subject_grades:
                     subject_grades[grade.mapping_id] = {1: None, 2: None, 3: None}
                 subject_grades[grade.mapping_id][grade.term] = grade.grade
             grades_data[student.lrn] = subject_grades
-        
+
         return render(request, 'grades/list.html', {
             'students': students,
             'grades_data': grades_data,
@@ -282,8 +288,18 @@ def view_grades(request, lrn):
         })
     else:
         student = get_object_or_404(Student, lrn=lrn, adviser_id=teacher.teacher_id)
+
+        # Scope to the student's own current grade level, same reasoning as
+        # the 'all' branch above.
+        student_section = Section.objects.filter(section_id=student.section_id).first()
         grades = Grade.objects.filter(lrn=lrn).order_by('term', 'mapping_id')
-        
+        if student_section:
+            grade_level_mapping_ids = set(SubjectMapping.objects.filter(
+                school_profile_id=teacher.school_profile_id,
+                grade_level=student_section.grade_level
+            ).values_list('mapping_id', flat=True))
+            grades = grades.filter(mapping_id__in=grade_level_mapping_ids)
+
         subject_grades = {}
         for grade in grades:
             if grade.mapping_id not in subject_grades:
@@ -307,7 +323,7 @@ def view_grades(request, lrn):
                 subject_names[mapping_id] = subject.subject_name
             except SubjectMapping.DoesNotExist:
                 subject_names[mapping_id] = f'Subject {mapping_id}'
-        
+
         return render(request, 'grades/view.html', {
             'student': student,
             'subject_grades': subject_grades,
