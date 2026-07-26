@@ -161,5 +161,32 @@ def student_list(request):
     except Teacher.DoesNotExist:
         messages.error(request, 'Your account is not linked to a Teacher profile.')
         students = []
-    
+
     return render(request, 'students/list.html', {'students': students})
+
+
+@login_required
+def update_student(request, lrn):
+    if request.method != 'POST':
+        return redirect('student_list')
+
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('student_list')
+
+    student = Student.objects.filter(lrn=lrn, adviser_id=teacher.teacher_id).first()
+    if not student:
+        messages.error(request, 'Student not found.')
+        return redirect('student_list')
+
+    student.surname = request.POST.get('surname', '').strip()
+    student.name = request.POST.get('name', '').strip()
+    student.middle_name = request.POST.get('middle_name', '').strip() or None
+    student.sex = request.POST.get('sex', student.sex)
+    student.birthday = convert_date(request.POST.get('birthday', ''))
+    student.save()
+
+    messages.success(request, f'✅ Updated {student.surname}, {student.name}.')
+    return redirect('student_list')
