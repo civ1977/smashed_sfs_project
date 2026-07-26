@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>🎓 Student Portal</h1>
+<p>Welcome, {{ student.surname }}, {{ student.name }}!</p>
+<p>LRN: <strong>{{ account.lrn }}</strong></p>
+
+<div class="dashboard-grid">
+    <div class="card">
+        <h3>📝 My Grades</h3>
+        <p>View your grades per subject and term</p>
+        <a href="{% url 'portal_grades' %}" class="btn">View Grades</a>
+    </div>
+</div>
+{% endblock %}

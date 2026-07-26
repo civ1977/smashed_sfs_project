@@ -6,4 +6,6 @@ urlpatterns = [
     path('save/', views.save_students, name='save_students'),
     path('list/', views.student_list, name='student_list'),
     path('<str:lrn>/edit/', views.update_student, name='update_student'),
+    path('access-requests/', views.access_requests, name='access_requests'),
+    path('access-requests/<int:account_id>/decide/', views.decide_access_request, name='decide_access_request'),
 ]

@@ -249,6 +249,56 @@ def save_grades(request):
     return redirect('upload_grades')
 
 
+def build_student_grade_sheet(lrn):
+    """Shared gradesheet data-shaping for a single student: per-subject
+    term grades, final average, and remarks, scoped to the student's own
+    current grade level via their Section. Used by the adviser-facing
+    view_grades(lrn) below and by the student portal (portal.views), so
+    the shaping logic isn't duplicated between the two.
+
+    Returns (subject_grades, subject_names, general_average, grades).
+    """
+    student = Student.objects.filter(lrn=lrn).first()
+    student_section = Section.objects.filter(section_id=student.section_id).first() if student else None
+
+    grades = Grade.objects.filter(lrn=lrn).order_by('term', 'mapping_id')
+    if student_section:
+        grade_level_mapping_ids = set(SubjectMapping.objects.filter(
+            school_profile_id=student_section.school_profile_id,
+            grade_level=student_section.grade_level
+        ).values_list('mapping_id', flat=True))
+        grades = grades.filter(mapping_id__in=grade_level_mapping_ids)
+
+    subject_grades = {}
+    for grade in grades:
+        if grade.mapping_id not in subject_grades:
+            subject_grades[grade.mapping_id] = {1: None, 2: None, 3: None}
+        subject_grades[grade.mapping_id][grade.term] = grade.grade
+
+    for mapping_id in subject_grades:
+        grades_list = [
+            subject_grades[mapping_id][1],
+            subject_grades[mapping_id][2],
+            subject_grades[mapping_id][3]
+        ]
+        valid_grades = [g for g in grades_list if g is not None]
+        subject_grades[mapping_id]['final'] = round(sum(valid_grades) / len(valid_grades)) if valid_grades else None
+        subject_grades[mapping_id]['remarks'] = 'Passed' if subject_grades[mapping_id]['final'] and subject_grades[mapping_id]['final'] >= 75 else 'Failed'
+
+    subject_names = {}
+    for mapping_id in subject_grades.keys():
+        try:
+            subject = SubjectMapping.objects.get(mapping_id=mapping_id)
+            subject_names[mapping_id] = subject.subject_name
+        except SubjectMapping.DoesNotExist:
+            subject_names[mapping_id] = f'Subject {mapping_id}'
+
+    finals = [data['final'] for data in subject_grades.values() if data['final'] is not None]
+    general_average = round(sum(finals) / len(finals), 2) if finals else None
+
+    return subject_grades, subject_names, general_average, grades
+
+
 @login_required
 def view_grades(request, lrn):
     try:
@@ -288,44 +338,7 @@ def view_grades(request, lrn):
         })
     else:
         student = get_object_or_404(Student, lrn=lrn, adviser_id=teacher.teacher_id)
-
-        # Scope to the student's own current grade level, same reasoning as
-        # the 'all' branch above.
-        student_section = Section.objects.filter(section_id=student.section_id).first()
-        grades = Grade.objects.filter(lrn=lrn).order_by('term', 'mapping_id')
-        if student_section:
-            grade_level_mapping_ids = set(SubjectMapping.objects.filter(
-                school_profile_id=teacher.school_profile_id,
-                grade_level=student_section.grade_level
-            ).values_list('mapping_id', flat=True))
-            grades = grades.filter(mapping_id__in=grade_level_mapping_ids)
-
-        subject_grades = {}
-        for grade in grades:
-            if grade.mapping_id not in subject_grades:
-                subject_grades[grade.mapping_id] = {1: None, 2: None, 3: None}
-            subject_grades[grade.mapping_id][grade.term] = grade.grade
-        
-        for mapping_id in subject_grades:
-            grades_list = [
-                subject_grades[mapping_id][1],
-                subject_grades[mapping_id][2],
-                subject_grades[mapping_id][3]
-            ]
-            valid_grades = [g for g in grades_list if g is not None]
-            subject_grades[mapping_id]['final'] = round(sum(valid_grades) / len(valid_grades)) if valid_grades else None
-            subject_grades[mapping_id]['remarks'] = 'Passed' if subject_grades[mapping_id]['final'] and subject_grades[mapping_id]['final'] >= 75 else 'Failed'
-        
-        subject_names = {}
-        for mapping_id in subject_grades.keys():
-            try:
-                subject = SubjectMapping.objects.get(mapping_id=mapping_id)
-                subject_names[mapping_id] = subject.subject_name
-            except SubjectMapping.DoesNotExist:
-                subject_names[mapping_id] = f'Subject {mapping_id}'
-
-        finals = [data['final'] for data in subject_grades.values() if data['final'] is not None]
-        general_average = round(sum(finals) / len(finals), 2) if finals else None
+        subject_grades, subject_names, general_average, grades = build_student_grade_sheet(lrn)
 
         return render(request, 'grades/view.html', {
             'student': student,

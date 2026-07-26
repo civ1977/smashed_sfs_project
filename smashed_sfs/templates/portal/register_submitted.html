@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>✅ Request Submitted</h2>
+<div class="alert alert-info">
+    Your account request has been submitted and is waiting for your adviser to approve it.
+    You'll be able to log in once they do.
+</div>
+<a href="{% url 'login' %}" class="btn">Back to Login</a>
+{% endblock %}

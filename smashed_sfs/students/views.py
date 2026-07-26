@@ -1,11 +1,13 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.utils import timezone
 import csv
 import io
 from datetime import datetime
 from .models import Student, Section
 from accounts.models import Teacher
+from portal.models import StudentAccount
 
 
 def convert_date(date_str):
@@ -190,3 +192,65 @@ def update_student(request, lrn):
 
     messages.success(request, f'✅ Updated {student.surname}, {student.name}.')
     return redirect('student_list')
+
+
+@login_required
+def access_requests(request):
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    my_lrns = Student.objects.filter(adviser_id=teacher.teacher_id).values_list('lrn', flat=True)
+    pending_accounts = StudentAccount.objects.filter(
+        status=StudentAccount.STATUS_PENDING,
+        lrn__in=my_lrns
+    ).order_by('requested_at')
+
+    students_by_lrn = {
+        s.lrn: s for s in Student.objects.filter(lrn__in=[a.lrn for a in pending_accounts])
+    }
+    requests = [
+        {'account': account, 'student': students_by_lrn.get(account.lrn)}
+        for account in pending_accounts
+    ]
+
+    return render(request, 'students/access_requests.html', {'requests': requests})
+
+
+@login_required
+def decide_access_request(request, account_id):
+    if request.method != 'POST':
+        return redirect('access_requests')
+
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('access_requests')
+
+    account = get_object_or_404(StudentAccount, account_id=account_id, status=StudentAccount.STATUS_PENDING)
+
+    # Only this adviser's own students - never another section's requests.
+    student = Student.objects.filter(lrn=account.lrn, adviser_id=teacher.teacher_id).first()
+    if not student:
+        messages.error(request, 'That request does not belong to one of your students.')
+        return redirect('access_requests')
+
+    decision = request.POST.get('decision')
+    if decision == 'approve':
+        account.status = StudentAccount.STATUS_APPROVED
+        messages.success(request, f'✅ Approved account access for {student.surname}, {student.name}.')
+    elif decision == 'reject':
+        account.status = StudentAccount.STATUS_REJECTED
+        messages.info(request, f'Rejected account access for {student.surname}, {student.name}.')
+    else:
+        messages.error(request, 'Invalid decision.')
+        return redirect('access_requests')
+
+    account.decided_at = timezone.now()
+    account.decided_by = teacher.teacher_id
+    account.save()
+
+    return redirect('access_requests')

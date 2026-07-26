@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>🎓 Student Portal</h2>
+
+{% if account.status == 'rejected' %}
+<div class="alert alert-error">
+    ❌ Your account request for LRN {{ account.lrn }} was not approved by your adviser.
+    Please contact your adviser if you believe this is a mistake.
+</div>
+{% else %}
+<div class="alert alert-info">
+    ⏳ Your account request for LRN {{ account.lrn }} is still waiting for your adviser to approve it.
+    Check back later.
+</div>
+{% endif %}
+{% endblock %}

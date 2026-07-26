@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load grade_filters %}
+
+{% block content %}
+<h2>📝 My Grades</h2>
+
+<p><strong>LRN:</strong> {{ student.lrn|stringformat:"s" }}</p>
+
+<a href="{% url 'portal_dashboard' %}" class="btn">← Portal Dashboard</a>
+
+<hr>
+
+{% if subject_grades %}
+    <table border="1" cellpadding="6" style="border-collapse: collapse; width: 100%; font-size: 13px;">
+        <thead>
+            <tr style="background: #2c3e50; color: white;">
+                <th style="text-align: left;">Subject</th>
+                <th>Term 1</th>
+                <th>Term 2</th>
+                <th>Term 3</th>
+                <th>Final Grade</th>
+                <th>Remarks</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for mapping_id, data in subject_grades.items %}
+            <tr>
+                <td style="text-align: left; font-weight: 500;">
+                    {{ subject_names|get:mapping_id|default:"Subject "|add:mapping_id }}
+                </td>
+                <td>
+                    {% if data.1 %}
+                        <span style="font-weight: bold; color: {% if data.1 >= 75 %}green{% else %}red{% endif %};">
+                            {{ data.1 }}
+                        </span>
+                    {% else %}
+                        <span style="color: #999;">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if data.2 %}
+                        <span style="font-weight: bold; color: {% if data.2 >= 75 %}green{% else %}red{% endif %};">
+                            {{ data.2 }}
+                        </span>
+                    {% else %}
+                        <span style="color: #999;">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if data.3 %}
+                        <span style="font-weight: bold; color: {% if data.3 >= 75 %}green{% else %}red{% endif %};">
+                            {{ data.3 }}
+                        </span>
+                    {% else %}
+                        <span style="color: #999;">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if data.final %}
+                        <span style="font-weight: bold; color: {% if data.final >= 75 %}green{% else %}red{% endif %};">
+                            {{ data.final }}
+                        </span>
+                    {% else %}
+                        <span style="color: #999;">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if data.remarks %}
+                        {% if data.remarks == 'Passed' %}
+                            <span style="color: green;">✅ Passed</span>
+                        {% else %}
+                            <span style="color: red;">❌ Failed</span>
+                        {% endif %}
+                    {% else %}
+                        <span style="color: #999;">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- General Average -->
+    <div style="margin-top: 15px; padding: 15px; background: #eef2ff; border-radius: 5px;">
+        <strong>General Average:</strong>
+        {{ general_average|default:"No grades available" }}
+    </div>
+{% else %}
+    <p style="color: #999; text-align: center; padding: 40px;">
+        No grades found yet.
+    </p>
+{% endif %}
+
+<style>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    th, td {
+        padding: 8px 10px;
+        text-align: center;
+        border: 1px solid #ddd;
+    }
+    th {
+        background: #2c3e50;
+        color: white;
+    }
+    td:first-child {
+        text-align: left;
+    }
+    tr:nth-child(even) {
+        background: #f5f5f5;
+    }
+    tr:hover {
+        background: #e8f4fd;
+    }
+    .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        background: #3498db;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        margin-right: 10px;
+        margin-bottom: 10px;
+    }
+    .btn:hover {
+        background: #2980b9;
+    }
+</style>
+{% endblock %}
