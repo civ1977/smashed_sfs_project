@@ -37,10 +37,14 @@ class Grade(models.Model):
         return f"{self.lrn} - Term {self.term}: {self.grade}"
 
 
+ATTENDANCE_MONTHS = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr']
+MONTH_CHOICES = [(m, m) for m in ATTENDANCE_MONTHS]
+
+
 class Attendance(models.Model):
     attendance_id = models.AutoField(primary_key=True)
     lrn = models.CharField(max_length=12)
-    term = models.IntegerField()
+    month = models.CharField(max_length=3, choices=MONTH_CHOICES)
     days_present = models.IntegerField(default=0)
     days_absent = models.IntegerField(default=0)
     uploaded_by = models.IntegerField()

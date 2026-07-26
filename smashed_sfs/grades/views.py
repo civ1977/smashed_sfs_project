@@ -2,12 +2,26 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
+from django.http import HttpResponse
 import csv
 import io
 from datetime import datetime
 from students.models import Student
 from accounts.models import Teacher
-from .models import Grade, SubjectMapping
+from .models import Grade, SubjectMapping, Attendance, ATTENDANCE_MONTHS
+
+GRADE_TERMS = [
+    {'value': 1, 'label': 'Term 1'},
+    {'value': 2, 'label': 'Term 2'},
+    {'value': 3, 'label': 'Term 3'},
+]
+
+ATTENDANCE_MONTH_OPTIONS = [{'value': m, 'label': m} for m in ATTENDANCE_MONTHS]
+
+GRADE_LEVELS = [
+    {'value': '11', 'label': 'Grade 11'},
+    {'value': '12', 'label': 'Grade 12 (coming soon)'},
+]
 
 
 def convert_date(date_str):
@@ -41,14 +55,27 @@ def convert_date(date_str):
 def upload_grades(request):
     preview_data = None
     term = request.POST.get('term') if request.method == 'POST' else None
+    grade_level = request.POST.get('grade_level') if request.method == 'POST' else None
     headers = None
-    
+
     if request.method == 'POST' and 'csv_file' in request.FILES:
         csv_file = request.FILES['csv_file']
         term = request.POST.get('term')
+        grade_level = request.POST.get('grade_level')
         skip_header = request.POST.get('skip_header') == 'on'
         replace_all = request.POST.get('replace_all') == 'on'
-        
+
+        if grade_level == '12':
+            messages.warning(request, 'Grade 12 uploads are not yet supported. Please select Grade 11 for now.')
+            return render(request, 'grades/upload.html', {
+                'preview_data': None,
+                'term': term,
+                'terms': GRADE_TERMS,
+                'grade_level': grade_level,
+                'grade_levels': GRADE_LEVELS,
+                'headers': None,
+            })
+
         try:
             decoded_file = csv_file.read().decode('utf-8-sig')
             io_string = io.StringIO(decoded_file)
@@ -87,17 +114,13 @@ def upload_grades(request):
         preview_data = request.session.get('grade_preview_data')
         term = request.session.get('grade_term')
         headers = request.session.get('grade_headers')
-    
-    terms = [
-        {'value': 1, 'label': 'Term 1'},
-        {'value': 2, 'label': 'Term 2'},
-        {'value': 3, 'label': 'Term 3'},
-    ]
-    
+
     return render(request, 'grades/upload.html', {
         'preview_data': preview_data,
         'term': term,
-        'terms': terms,
+        'terms': GRADE_TERMS,
+        'grade_level': grade_level or '11',
+        'grade_levels': GRADE_LEVELS,
         'headers': headers,
     })
 
@@ -290,4 +313,203 @@ def view_grades(request, lrn):
             'subject_grades': subject_grades,
             'subject_names': subject_names,
             'grades': grades,
+        })
+
+
+@login_required
+def download_attendance_template(request):
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('upload_attendance')
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="attendance_template.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['LRN', 'Days Present', 'Days Absent'])
+
+    students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+    for student in students:
+        writer.writerow([student.lrn, '', ''])
+
+    return response
+
+
+@login_required
+def upload_attendance(request):
+    preview_data = None
+    month = request.POST.get('month') if request.method == 'POST' else None
+
+    if request.method == 'POST' and 'csv_file' in request.FILES:
+        csv_file = request.FILES['csv_file']
+        month = request.POST.get('month')
+        skip_header = request.POST.get('skip_header') == 'on'
+        replace_all = request.POST.get('replace_all') == 'on'
+
+        if month not in ATTENDANCE_MONTHS:
+            messages.error(request, 'Please select a valid month.')
+            return render(request, 'grades/attendance_upload.html', {
+                'preview_data': None,
+                'month': month,
+                'months': ATTENDANCE_MONTH_OPTIONS,
+            })
+
+        try:
+            decoded_file = csv_file.read().decode('utf-8-sig')
+            io_string = io.StringIO(decoded_file)
+            reader = csv.reader(io_string, delimiter=',', quotechar='"')
+
+            preview_data = []
+
+            if skip_header:
+                next(reader, None)
+
+            for row in reader:
+                if row:
+                    preview_data.append(row)
+
+            request.session['attendance_preview_data'] = preview_data
+            request.session['attendance_month'] = month
+            request.session['attendance_replace_all'] = replace_all
+
+            messages.info(request, f'📋 Preview loaded: {len(preview_data)} students found for {month}.')
+
+        except Exception as e:
+            messages.error(request, f'Error reading CSV: {str(e)}')
+
+    if 'attendance_preview_data' in request.session and not preview_data:
+        preview_data = request.session.get('attendance_preview_data')
+        month = request.session.get('attendance_month')
+
+    return render(request, 'grades/attendance_upload.html', {
+        'preview_data': preview_data,
+        'month': month,
+        'months': ATTENDANCE_MONTH_OPTIONS,
+    })
+
+
+@login_required
+def save_attendance(request):
+    if request.method == 'POST':
+        row_count = int(request.POST.get('row_count', 0))
+        month = request.POST.get('month', '')
+        replace_all = request.POST.get('replace_all') == 'on'
+
+        saved_count = 0
+        error_count = 0
+
+        try:
+            teacher = Teacher.objects.get(username=request.user.username)
+        except Teacher.DoesNotExist:
+            messages.error(request, 'Your account is not linked to a Teacher profile.')
+            return redirect('upload_attendance')
+
+        if month not in ATTENDANCE_MONTHS:
+            messages.error(request, 'Please select a valid month.')
+            return redirect('upload_attendance')
+
+        # Delete existing attendance for this month if replace_all
+        if replace_all:
+            students = Student.objects.filter(adviser_id=teacher.teacher_id)
+            for student in students:
+                Attendance.objects.filter(lrn=student.lrn, month=month).delete()
+            messages.info(request, f'🗑️ Existing {month} attendance deleted.')
+
+        for i in range(row_count):
+            try:
+                lrn = request.POST.get(f'lrn_{i}', '').strip()
+                if not lrn:
+                    continue
+
+                try:
+                    student = Student.objects.get(lrn=lrn, adviser_id=teacher.teacher_id)
+                except Student.DoesNotExist:
+                    messages.warning(request, f'Student {lrn} not found. Skipping.')
+                    continue
+
+                days_present_str = request.POST.get(f'days_present_{i}', '').strip()
+                days_absent_str = request.POST.get(f'days_absent_{i}', '').strip()
+
+                try:
+                    days_present = int(days_present_str) if days_present_str else 0
+                    days_absent = int(days_absent_str) if days_absent_str else 0
+                except ValueError:
+                    messages.warning(request, f'Invalid attendance value for {lrn}. Skipping.')
+                    continue
+
+                if days_present < 0 or days_absent < 0:
+                    messages.warning(request, f'Attendance for {lrn} cannot be negative. Skipping.')
+                    continue
+
+                existing = Attendance.objects.filter(lrn=lrn, month=month).first()
+                if existing:
+                    existing.days_present = days_present
+                    existing.days_absent = days_absent
+                    existing.save()
+                else:
+                    Attendance.objects.create(
+                        lrn=lrn,
+                        month=month,
+                        days_present=days_present,
+                        days_absent=days_absent,
+                        uploaded_by=teacher.teacher_id
+                    )
+                saved_count += 1
+
+            except Exception as e:
+                error_count += 1
+                messages.error(request, f'Error saving attendance for row {i+1}: {str(e)}')
+
+        request.session.pop('attendance_preview_data', None)
+        request.session.pop('attendance_month', None)
+        request.session.pop('attendance_replace_all', None)
+
+        if saved_count > 0:
+            messages.success(request, f'✅ {saved_count} attendance records saved for {month}!')
+        if error_count > 0:
+            messages.warning(request, f'⚠️ {error_count} rows had errors.')
+
+        return redirect('view_attendance', lrn='all')
+
+    return redirect('upload_attendance')
+
+
+@login_required
+def view_attendance(request, lrn):
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    if lrn == 'all':
+        students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+
+        attendance_data = {}
+        for student in students:
+            records = Attendance.objects.filter(lrn=student.lrn)
+            month_attendance = {m: None for m in ATTENDANCE_MONTHS}
+            for record in records:
+                month_attendance[record.month] = record
+            attendance_data[student.lrn] = month_attendance
+
+        return render(request, 'grades/attendance_list.html', {
+            'students': students,
+            'attendance_data': attendance_data,
+            'months': ATTENDANCE_MONTH_OPTIONS,
+        })
+    else:
+        student = get_object_or_404(Student, lrn=lrn, adviser_id=teacher.teacher_id)
+        records = Attendance.objects.filter(lrn=lrn)
+
+        month_attendance = {m: None for m in ATTENDANCE_MONTHS}
+        for record in records:
+            month_attendance[record.month] = record
+
+        return render(request, 'grades/attendance_view.html', {
+            'student': student,
+            'month_attendance': month_attendance,
+            'months': ATTENDANCE_MONTH_OPTIONS,
         })

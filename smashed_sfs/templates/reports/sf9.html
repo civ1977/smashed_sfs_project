@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load grade_filters %}
 
 {% block content %}
 <div class="no-print">
@@ -173,17 +174,17 @@
                 <tbody>
                     <tr>
                         <td class="month-label">No. of Class Days</td>
-                        {% for m in attendance_months %}<td></td>{% endfor %}
+                        {% for m in attendance_months %}<td>{{ attendance_by_month|get:m|get:"total"|default:"" }}</td>{% endfor %}
                         <td>{{ attendance_totals.class_days|default:"" }}</td>
                     </tr>
                     <tr>
                         <td class="month-label">No. of Days Present</td>
-                        {% for m in attendance_months %}<td></td>{% endfor %}
+                        {% for m in attendance_months %}<td>{{ attendance_by_month|get:m|get:"present"|default:"" }}</td>{% endfor %}
                         <td>{{ attendance_totals.present|default:"" }}</td>
                     </tr>
                     <tr>
                         <td class="month-label">No. of Days Absent</td>
-                        {% for m in attendance_months %}<td></td>{% endfor %}
+                        {% for m in attendance_months %}<td>{{ attendance_by_month|get:m|get:"absent"|default:"" }}</td>{% endfor %}
                         <td>{{ attendance_totals.absent|default:"" }}</td>
                     </tr>
                 </tbody>

@@ -26,6 +26,12 @@
         <a href="{% url 'upload_grades' %}" class="btn">Upload CSV</a>
     </div>
     <div class="card">
+        <h3>🗓️ Attendance</h3>
+        <p>Upload attendance per month</p>
+        <a href="{% url 'upload_attendance' %}" class="btn">Upload CSV</a>
+        <a href="{% url 'view_attendance' 'all' %}" class="btn">View Class</a>
+    </div>
+    <div class="card">
         <h3>📄 SF9</h3>
         <p>Generate report cards</p>
         <a href="{% url 'select_student_report' %}" class="btn">Generate</a>

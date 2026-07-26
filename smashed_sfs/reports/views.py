@@ -6,9 +6,7 @@ from django.contrib import messages
 
 from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
-from grades.models import Grade, SubjectMapping, Attendance
-
-ATTENDANCE_MONTHS = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr']
+from grades.models import Grade, SubjectMapping, Attendance, ATTENDANCE_MONTHS
 
 
 def _get_teacher(request):
@@ -70,21 +68,25 @@ def _grade_levels_for_student(lrn):
 
 def _attendance_rows(lrn):
     rows = []
-    for term in (1, 2, 3):
-        attendance = Attendance.objects.filter(lrn=lrn, term=term).first()
-        total = None
-        if attendance is not None:
-            total = attendance.days_present + attendance.days_absent
-        rows.append({'term': term, 'attendance': attendance, 'total': total})
+    for month in ATTENDANCE_MONTHS:
+        attendance = Attendance.objects.filter(lrn=lrn, month=month).first()
+        present = attendance.days_present if attendance is not None else None
+        absent = attendance.days_absent if attendance is not None else None
+        total = (present + absent) if attendance is not None else None
+        rows.append({
+            'month': month,
+            'attendance': attendance,
+            'present': present,
+            'absent': absent,
+            'total': total,
+        })
     return rows
 
 
 def _attendance_totals(attendance_rows):
-    """Year-to-date totals for the SF9 monthly attendance grid, whose
-    'Total' column is the only cell this app has real data for (there's
-    no monthly breakdown in the Attendance model, just per-term totals)."""
-    present = [r['attendance'].days_present for r in attendance_rows if r['attendance'] is not None]
-    absent = [r['attendance'].days_absent for r in attendance_rows if r['attendance'] is not None]
+    """Year-to-date totals for the SF9 monthly attendance grid."""
+    present = [r['present'] for r in attendance_rows if r['attendance'] is not None]
+    absent = [r['absent'] for r in attendance_rows if r['attendance'] is not None]
     if not present and not absent:
         return {'class_days': None, 'present': None, 'absent': None}
     total_present = sum(present)
@@ -164,6 +166,7 @@ def view_sf9(request, student_lrn):
     general_average = round(sum(finals) / len(finals), 2) if (all_finals_ready and finals) else None
 
     attendance_rows = _attendance_rows(student_lrn)
+    attendance_by_month = {row['month']: row for row in attendance_rows}
 
     return render(request, 'reports/sf9.html', {
         'student': student,
@@ -174,6 +177,7 @@ def view_sf9(request, student_lrn):
         'elective_rows': elective_rows,
         'general_average': general_average,
         'attendance_rows': attendance_rows,
+        'attendance_by_month': attendance_by_month,
         'attendance_totals': _attendance_totals(attendance_rows),
         'attendance_months': ATTENDANCE_MONTHS,
         'teacher': teacher,
