@@ -1,15 +1,14 @@
 {% extends 'base.html' %}
 
+{% block breadcrumb %}STUDENTS{% endblock %}
+
 {% block content %}
-<h2>📋 My Students</h2>
+<h1>My Students</h1>
 
 <a href="{% url 'upload_students' %}" class="btn">+ Upload CSV</a>
-<a href="{% url 'dashboard' %}" class="btn">← Dashboard</a>
-
-<hr>
 
 {% if students %}
-    <p>Total: <strong>{{ students|length }}</strong> students</p>
+    <p style="margin-top: var(--space-4);">Total: <strong>{{ students|length }}</strong> students</p>
 
     <div style="display:none;">
         {% for student in students %}
@@ -17,9 +16,9 @@
         {% endfor %}
     </div>
 
-    <table border="1" cellpadding="8" style="border-collapse: collapse; width: 100%;">
+    <table>
         <thead>
-            <tr style="background: #2c3e50; color: white;">
+            <tr>
                 <th>LRN</th>
                 <th>Surname</th>
                 <th>Name</th>
@@ -33,18 +32,18 @@
         <tbody>
             {% for student in students %}
             <tr id="row-{{ student.lrn }}">
-                <td><strong>{{ student.lrn }}</strong></td>
+                <td class="mono"><strong>{{ student.lrn }}</strong></td>
                 <td>
                     <span class="view-val">{{ student.surname }}</span>
-                    <input class="edit-val" type="text" name="surname" value="{{ student.surname }}" form="edit-form-{{ student.lrn }}" style="display:none; width: 100%;">
+                    <input class="edit-val" type="text" name="surname" value="{{ student.surname }}" form="edit-form-{{ student.lrn }}" style="display:none;">
                 </td>
                 <td>
                     <span class="view-val">{{ student.name }}</span>
-                    <input class="edit-val" type="text" name="name" value="{{ student.name }}" form="edit-form-{{ student.lrn }}" style="display:none; width: 100%;">
+                    <input class="edit-val" type="text" name="name" value="{{ student.name }}" form="edit-form-{{ student.lrn }}" style="display:none;">
                 </td>
                 <td>
                     <span class="view-val">{{ student.middle_name|default:"—" }}</span>
-                    <input class="edit-val" type="text" name="middle_name" value="{{ student.middle_name|default:'' }}" form="edit-form-{{ student.lrn }}" style="display:none; width: 100%;">
+                    <input class="edit-val" type="text" name="middle_name" value="{{ student.middle_name|default:'' }}" form="edit-form-{{ student.lrn }}" style="display:none;">
                 </td>
                 <td>
                     <span class="view-val">{{ student.sex }}</span>
@@ -53,73 +52,23 @@
                         <option value="FEMALE" {% if student.sex == 'FEMALE' %}selected{% endif %}>FEMALE</option>
                     </select>
                 </td>
-                <td>
+                <td class="mono">
                     <span class="view-val">{{ student.birthday|date:"Y-m-d" }}</span>
                     <input class="edit-val" type="date" name="birthday" value="{{ student.birthday|date:'Y-m-d' }}" form="edit-form-{{ student.lrn }}" style="display:none;">
                 </td>
                 <td>{{ student.section_id }}</td>
                 <td style="white-space: nowrap;">
-                    <button type="button" class="btn edit-btn" onclick="toggleEdit('{{ student.lrn }}')">Edit</button>
-                    <button type="submit" class="btn btn-success save-btn" form="edit-form-{{ student.lrn }}" style="display:none;">Save</button>
-                    <button type="button" class="btn cancel-btn" onclick="toggleEdit('{{ student.lrn }}')" style="display:none;">Cancel</button>
+                    <button type="button" class="btn ghost edit-btn" onclick="toggleEdit('{{ student.lrn }}')">Edit</button>
+                    <button type="submit" class="btn good save-btn" form="edit-form-{{ student.lrn }}" style="display:none;">Save</button>
+                    <button type="button" class="btn ghost cancel-btn" onclick="toggleEdit('{{ student.lrn }}')" style="display:none;">Cancel</button>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 {% else %}
-    <p style="color: #999; text-align: center; padding: 40px;">
-        No students uploaded yet.<br>
-        Click <strong>"Upload CSV"</strong> to add students.
-    </p>
+    <p>No students uploaded yet. Click <strong>"Upload CSV"</strong> to add students.</p>
 {% endif %}
-
-<style>
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    th, td {
-        padding: 8px 10px;
-        text-align: left;
-        border: 1px solid #ddd;
-    }
-    th {
-        background: #2c3e50;
-        color: white;
-    }
-    tr:nth-child(even) {
-        background: #f5f5f5;
-    }
-    tr:hover {
-        background: #e8f4fd;
-    }
-    .btn {
-        display: inline-block;
-        padding: 10px 20px;
-        background: #3498db;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        text-decoration: none;
-        margin-right: 10px;
-    }
-    .btn:hover {
-        background: #2980b9;
-    }
-    td .btn {
-        padding: 5px 12px;
-        margin-right: 5px;
-        font-size: 13px;
-    }
-    .btn-success {
-        background: #2ecc71;
-    }
-    .btn-success:hover {
-        background: #27ae60;
-    }
-</style>
 
 <script>
     function toggleEdit(lrn) {

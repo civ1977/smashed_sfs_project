@@ -1,37 +1,40 @@
 {% extends 'base.html' %}
 
-{% block content %}
-<h2>📋 Upload Student Profiles</h2>
+{% block breadcrumb %}UPLOAD STUDENTS{% endblock %}
 
-<form method="POST" enctype="multipart/form-data">
-    {% csrf_token %}
-    <div class="form-group">
-        <label>Select CSV File:</label>
-        <input type="file" name="csv_file" accept=".csv" required>
-    </div>
-    <div class="form-group">
-        <label>
-            <input type="checkbox" name="skip_header" checked>
-            Skip first row (header/column names)
-        </label>
-        <small>Uncheck if your CSV does NOT have a header row.</small>
-    </div>
-    <button type="submit" class="btn">Preview Data</button>
-    <a href="{% url 'dashboard' %}" class="btn">Cancel</a>
-</form>
+{% block content %}
+<h1>Upload Student Profiles</h1>
+
+<div class="card" style="max-width: 480px;">
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>Select CSV File:</label>
+            <input type="file" name="csv_file" accept=".csv" required>
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="skip_header" checked style="width: auto;">
+                Skip first row (header/column names)
+            </label>
+            <small>Uncheck if your CSV does NOT have a header row.</small>
+        </div>
+        <button type="submit" class="btn">Preview Data</button>
+        <a href="{% url 'dashboard' %}" class="btn ghost">Cancel</a>
+    </form>
+</div>
 
 {% if preview_data %}
-<hr>
-<h3>📋 Preview Student Data</h3>
+<h3 style="margin-top: var(--space-6);">Preview Student Data</h3>
 <p>Review the data below. You can edit any field before saving.</p>
 <p><strong>Note:</strong> Dates should be in format: <strong>YYYY-MM-DD</strong> (e.g., 2008-06-30)</p>
 
 <form method="POST" action="{% url 'save_students' %}">
     {% csrf_token %}
     <div style="overflow-x: auto;">
-        <table border="1" cellpadding="6" style="border-collapse: collapse; font-size: 12px;">
+        <table>
             <thead>
-                <tr style="background: #2c3e50; color: white;">
+                <tr>
                     <th>LRN</th>
                     <th>Surname</th>
                     <th>Name</th>
@@ -71,56 +74,13 @@
             </tbody>
         </table>
     </div>
-    
+
     <input type="hidden" name="row_count" value="{{ preview_data|length }}">
-    
-    <div style="margin-top: 15px;">
-        <button type="submit" class="btn btn-success">✅ Confirm & Save to Database</button>
-        <a href="{% url 'upload_students' %}" class="btn">Cancel</a>
+
+    <div style="margin-top: var(--space-4);">
+        <button type="submit" class="btn good">Confirm &amp; Save to Database</button>
+        <a href="{% url 'upload_students' %}" class="btn ghost">Cancel</a>
     </div>
 </form>
 {% endif %}
-
-<style>
-    table input, table select {
-        width: 100%;
-        padding: 3px;
-        border: 1px solid #ddd;
-        border-radius: 3px;
-        box-sizing: border-box;
-        font-size: 11px;
-    }
-    table td {
-        padding: 3px;
-        min-width: 60px;
-    }
-    .btn-success {
-        background: #2ecc71;
-        color: white;
-        padding: 10px 20px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-    .btn-success:hover {
-        background: #27ae60;
-    }
-    .btn {
-        display: inline-block;
-        padding: 10px 20px;
-        background: #3498db;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        text-decoration: none;
-    }
-    .btn:hover {
-        background: #2980b9;
-    }
-    small {
-        color: #666;
-        font-size: 11px;
-    }
-</style>
 {% endblock %}

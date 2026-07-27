@@ -1,54 +1,57 @@
 {% extends 'base.html' %}
 
+{% block breadcrumb %}UPLOAD ATTENDANCE{% endblock %}
+
 {% block content %}
-<h2>🗓️ Upload Attendance</h2>
+<h1>Upload Attendance</h1>
 
-<form method="POST" enctype="multipart/form-data">
-    {% csrf_token %}
+<div class="card" style="max-width: 480px;">
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
 
-    <div class="form-group">
-        <label>Select Month:</label>
-        <select name="month" required class="form-control">
-            <option value="">-- Select Month --</option>
-            {% for m in months %}
-            <option value="{{ m.value }}" {% if month == m.value %}selected{% endif %}>
-                {{ m.label }}
-            </option>
-            {% endfor %}
-        </select>
-    </div>
+        <div class="form-group">
+            <label>Select Month:</label>
+            <select name="month" required>
+                <option value="">-- Select Month --</option>
+                {% for m in months %}
+                <option value="{{ m.value }}" {% if month == m.value %}selected{% endif %}>
+                    {{ m.label }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
 
-    <div class="form-group">
-        <label>Select CSV File:</label>
-        <input type="file" name="csv_file" accept=".csv" required>
-        <small>Format: LRN, Days Present, Days Absent &mdash;
-            <a href="{% url 'download_attendance_template' %}">Download CSV template</a>
-        </small>
-    </div>
+        <div class="form-group">
+            <label>Select CSV File:</label>
+            <input type="file" name="csv_file" accept=".csv" required>
+            <small>Format: LRN, Days Present, Days Absent &mdash;
+                <a href="{% url 'download_attendance_template' %}">Download CSV template</a>
+            </small>
+        </div>
 
-    <div class="form-group">
-        <label>
-            <input type="checkbox" name="skip_header" checked>
-            Skip first row (header/column names)
-        </label>
-        <small>Check this if your CSV has a header row.</small>
-    </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="skip_header" checked style="width: auto;">
+                Skip first row (header/column names)
+            </label>
+            <small>Check this if your CSV has a header row.</small>
+        </div>
 
-    <div class="form-group" style="border-left: 3px solid #e74c3c; padding-left: 15px;">
-        <label style="color: #c0392b;">
-            <input type="checkbox" name="replace_all">
-            ⚠️ Replace existing attendance for this term
-        </label>
-        <small style="color: #c0392b;">Warning: This will delete ALL existing attendance for this term before uploading new data.</small>
-    </div>
+        <div class="alert alert-error">
+            <label style="font-weight: 700;">
+                <input type="checkbox" name="replace_all" style="width: auto;">
+                Replace existing attendance for this term
+            </label>
+            <small>Warning: This will delete ALL existing attendance for this term before uploading new data.</small>
+        </div>
 
-    <button type="submit" class="btn">Preview Data</button>
-    <a href="{% url 'dashboard' %}" class="btn">Cancel</a>
-</form>
+        <button type="submit" class="btn">Preview Data</button>
+        <a href="{% url 'dashboard' %}" class="btn ghost">Cancel</a>
+    </form>
+</div>
 
 {% if preview_data %}
-<hr>
-<h3>📋 Preview Attendance Data</h3>
+<h3 style="margin-top: var(--space-6);">Preview Attendance Data</h3>
 <p>Month: <strong>{{ month }}</strong></p>
 <p>Review the data below. You can edit any field before saving.</p>
 
@@ -59,9 +62,9 @@
     <input type="hidden" name="row_count" value="{{ preview_data|length }}">
 
     <div style="overflow-x: auto;">
-        <table border="1" cellpadding="6" style="border-collapse: collapse; font-size: 12px;">
+        <table>
             <thead>
-                <tr style="background: #2c3e50; color: white;">
+                <tr>
                     <th>LRN</th>
                     <th>Days Present</th>
                     <th>Days Absent</th>
@@ -79,70 +82,10 @@
         </table>
     </div>
 
-    <div style="margin-top: 15px;">
-        <button type="submit" class="btn btn-success">✅ Confirm & Save to Database</button>
-        <a href="{% url 'upload_attendance' %}" class="btn">Cancel</a>
+    <div style="margin-top: var(--space-4);">
+        <button type="submit" class="btn good">Confirm &amp; Save to Database</button>
+        <a href="{% url 'upload_attendance' %}" class="btn ghost">Cancel</a>
     </div>
 </form>
 {% endif %}
-
-<style>
-    table input {
-        width: 100%;
-        padding: 3px;
-        border: 1px solid #ddd;
-        border-radius: 3px;
-        box-sizing: border-box;
-        font-size: 11px;
-    }
-    table td {
-        padding: 3px;
-        min-width: 50px;
-    }
-    .btn-success {
-        background: #2ecc71;
-        color: white;
-        padding: 10px 20px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-    }
-    .btn-success:hover {
-        background: #27ae60;
-    }
-    .btn {
-        display: inline-block;
-        padding: 10px 20px;
-        background: #3498db;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        text-decoration: none;
-    }
-    .btn:hover {
-        background: #2980b9;
-    }
-    .form-group {
-        margin-bottom: 15px;
-    }
-    .form-group label {
-        display: block;
-        margin-bottom: 5px;
-        font-weight: bold;
-    }
-    .form-group input, .form-group select {
-        padding: 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    small {
-        color: #666;
-        font-size: 11px;
-        display: block;
-        margin-top: 3px;
-    }
-</style>
 {% endblock %}

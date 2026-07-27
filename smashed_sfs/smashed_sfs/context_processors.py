@@ -52,7 +52,8 @@ def shell_context(request):
             'shell_breadcrumb_context': breadcrumb_context,
             'shell_nav_items': [
                 _nav_item(request, 'Home', 'dashboard'),
-                _nav_item(request, 'Students', 'student_list'),
+                _nav_item(request, 'Students', 'student_list',
+                          match_names={'student_list', 'upload_students', 'save_students', 'update_student'}),
                 _nav_item(request, 'Grades', 'view_grades', ['all'],
                           match_names={'view_grades', 'upload_grades', 'save_grades'}),
                 _nav_item(request, 'Attendance', 'view_attendance', ['all'],

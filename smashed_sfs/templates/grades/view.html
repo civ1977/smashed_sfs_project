@@ -1,23 +1,22 @@
 {% extends 'base.html' %}
 {% load grade_filters %}
 
-{% block content %}
-<h2>📝 Grades for {{ student.surname }}, {{ student.name }}</h2>
+{% block breadcrumb %}GRADES{% endblock %}
 
-<p><strong>LRN:</strong> {{ student.lrn|stringformat:"s" }}</p>
+{% block content %}
+<h1>Grades for {{ student.surname }}, {{ student.name }}</h1>
+
+<p><strong>LRN:</strong> <span class="mono">{{ student.lrn|stringformat:"s" }}</span></p>
 <p><strong>Section:</strong> {{ student.section_id }}</p>
 
-<a href="{% url 'view_grades' 'all' %}" class="btn">← Back to All Grades</a>
-<a href="{% url 'dashboard' %}" class="btn">← Dashboard</a>
-<a href="{% url 'view_sf9' student.lrn %}" class="btn btn-success">📄 View SF9</a>
-
-<hr>
+<a href="{% url 'view_grades' 'all' %}" class="btn ghost">← Back to All Grades</a>
+<a href="{% url 'view_sf9' student.lrn %}" class="btn">View SF9</a>
 
 {% if subject_grades %}
-    <table border="1" cellpadding="6" style="border-collapse: collapse; width: 100%; font-size: 13px;">
+    <table style="margin-top: var(--space-5);">
         <thead>
-            <tr style="background: #2c3e50; color: white;">
-                <th style="text-align: left;">Subject</th>
+            <tr>
+                <th>Subject</th>
                 <th>Term 1</th>
                 <th>Term 2</th>
                 <th>Term 3</th>
@@ -28,109 +27,66 @@
         <tbody>
             {% for mapping_id, data in subject_grades.items %}
             <tr>
-                <td style="text-align: left; font-weight: 500;">
+                <td>
                     {{ subject_names|get:mapping_id|default:"Subject "|add:mapping_id }}
                 </td>
-                <td>
+                <td class="mono">
                     {% if data.1 %}
-                        <span style="font-weight: bold; color: {% if data.1 >= 75 %}green{% else %}red{% endif %};">
+                        <span style="font-weight: 700; color: {% if data.1 >= 75 %}var(--good){% else %}var(--risk){% endif %};">
                             {{ data.1 }}
                         </span>
                     {% else %}
-                        <span style="color: #999;">—</span>
+                        <span style="color: var(--ink-faint);">—</span>
                     {% endif %}
                 </td>
-                <td>
+                <td class="mono">
                     {% if data.2 %}
-                        <span style="font-weight: bold; color: {% if data.2 >= 75 %}green{% else %}red{% endif %};">
+                        <span style="font-weight: 700; color: {% if data.2 >= 75 %}var(--good){% else %}var(--risk){% endif %};">
                             {{ data.2 }}
                         </span>
                     {% else %}
-                        <span style="color: #999;">—</span>
+                        <span style="color: var(--ink-faint);">—</span>
                     {% endif %}
                 </td>
-                <td>
+                <td class="mono">
                     {% if data.3 %}
-                        <span style="font-weight: bold; color: {% if data.3 >= 75 %}green{% else %}red{% endif %};">
+                        <span style="font-weight: 700; color: {% if data.3 >= 75 %}var(--good){% else %}var(--risk){% endif %};">
                             {{ data.3 }}
                         </span>
                     {% else %}
-                        <span style="color: #999;">—</span>
+                        <span style="color: var(--ink-faint);">—</span>
                     {% endif %}
                 </td>
-                <td>
+                <td class="mono">
                     {% if data.final %}
-                        <span style="font-weight: bold; color: {% if data.final >= 75 %}green{% else %}red{% endif %};">
+                        <span style="font-weight: 700; color: {% if data.final >= 75 %}var(--good){% else %}var(--risk){% endif %};">
                             {{ data.final }}
                         </span>
                     {% else %}
-                        <span style="color: #999;">—</span>
+                        <span style="color: var(--ink-faint);">—</span>
                     {% endif %}
                 </td>
                 <td>
                     {% if data.remarks %}
                         {% if data.remarks == 'Passed' %}
-                            <span style="color: green;">✅ Passed</span>
+                            <span class="pill good">Passed</span>
                         {% else %}
-                            <span style="color: red;">❌ Failed</span>
+                            <span class="pill risk">Failed</span>
                         {% endif %}
                     {% else %}
-                        <span style="color: #999;">—</span>
+                        <span style="color: var(--ink-faint);">—</span>
                     {% endif %}
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    
-    <!-- General Average -->
-    <div style="margin-top: 15px; padding: 15px; background: #eef2ff; border-radius: 5px;">
+
+    <div class="alert alert-info" style="margin-top: var(--space-4);">
         <strong>General Average:</strong>
         {{ general_average|default:"No grades available" }}
     </div>
 {% else %}
-    <p style="color: #999; text-align: center; padding: 40px;">
-        No grades found for this student.
-    </p>
+    <p style="margin-top: var(--space-5);">No grades found for this student.</p>
 {% endif %}
-
-<style>
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    th, td {
-        padding: 8px 10px;
-        text-align: center;
-        border: 1px solid #ddd;
-    }
-    th {
-        background: #2c3e50;
-        color: white;
-    }
-    td:first-child {
-        text-align: left;
-    }
-    tr:nth-child(even) {
-        background: #f5f5f5;
-    }
-    tr:hover {
-        background: #e8f4fd;
-    }
-    .btn {
-        display: inline-block;
-        padding: 10px 20px;
-        background: #3498db;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        text-decoration: none;
-        margin-right: 10px;
-        margin-bottom: 10px;
-    }
-    .btn:hover {
-        background: #2980b9;
-    }
-</style>
 {% endblock %}

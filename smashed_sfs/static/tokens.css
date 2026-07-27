@@ -235,6 +235,27 @@ code {
   font-size: 15px;
 }
 
+small {
+  display: block;
+  color: var(--ink-faint);
+  font-size: 12px;
+  margin-top: var(--space-1);
+}
+
+/* Editable CSV-preview tables (upload flows) - inputs sized to their cell
+   rather than the full .form-group treatment. */
+table input, table select {
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  box-sizing: border-box;
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 12px;
+}
+
 /* ---- Dashboard quick-action grid (used by templates not yet migrated) ---- */
 .dashboard-grid {
   display: grid;
