@@ -2,13 +2,21 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.utils.dateformat import format as format_date
+import calendar
 import csv
 import io
-from datetime import datetime
+import json
+from datetime import datetime, date as date_cls
 from students.models import Student, Section
 from accounts.models import Teacher
-from .models import Grade, SubjectMapping, Attendance, ATTENDANCE_MONTHS
+from .models import Grade, SubjectMapping, Attendance, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException
+
+MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+]
 
 GRADE_TERMS = [
     {'value': 1, 'label': 'Term 1'},
@@ -358,164 +366,260 @@ def view_grades(request, lrn):
         })
 
 
+def _school_days_in_month(school_profile_id, year, month):
+    """Every school day in the given month: Mon-Fri by default, adjusted by
+    SchoolCalendarException rows for this school (a Saturday added as a
+    make-up class, a weekday excluded as a holiday)."""
+    exceptions = {
+        e.date: e.is_school_day
+        for e in SchoolCalendarException.objects.filter(
+            school_profile_id=school_profile_id, date__year=year, date__month=month
+        )
+    }
+    num_days = calendar.monthrange(year, month)[1]
+    days = []
+    for day in range(1, num_days + 1):
+        d = date_cls(year, month, day)
+        is_school_day = exceptions.get(d, d.weekday() < 5)
+        if is_school_day:
+            days.append(d)
+    return days
+
+
+def _holidays_payload(school_profile_id, year, month):
+    """Holiday exceptions (is_school_day=False) marked for this school in the
+    given month, JSON-shaped for both the initial page render and the
+    add/remove-holiday AJAX responses."""
+    holidays = SchoolCalendarException.objects.filter(
+        school_profile_id=school_profile_id, date__year=year, date__month=month, is_school_day=False,
+    ).order_by('date')
+    return [
+        {
+            'exception_id': h.exception_id,
+            'date': h.date.isoformat(),
+            'label': format_date(h.date, 'M j, Y (D)'),
+        }
+        for h in holidays
+    ]
+
+
+def _grid_json_payload(teacher, section, year, month):
+    """Full attendance-grid state for one month, JSON-shaped for the
+    add/remove-holiday AJAX responses so the client can rebuild the day
+    columns and the holiday list without a page reload."""
+    school_days = _school_days_in_month(section.school_profile_id, year, month)
+    students = Student.objects.filter(adviser_id=teacher.teacher_id)
+    lrns = [s.lrn for s in students]
+    marks = AttendanceMark.objects.filter(lrn__in=lrns, date__in=school_days)
+    marks_by_key = {f'{mark.lrn}|{mark.date.isoformat()}': mark.status for mark in marks}
+    return {
+        'school_days': [d.isoformat() for d in school_days],
+        'marks': marks_by_key,
+        'holidays': _holidays_payload(section.school_profile_id, year, month),
+    }
+
+
 @login_required
-def download_attendance_template(request):
+def attendance_grid(request):
     try:
         teacher = Teacher.objects.get(username=request.user.username)
     except Teacher.DoesNotExist:
         messages.error(request, 'Your account is not linked to a Teacher profile.')
-        return redirect('upload_attendance')
+        return redirect('login')
 
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="attendance_template.csv"'
+    if teacher.role != Teacher.ROLE_ADVISER:
+        messages.error(request, 'This page is only available to adviser accounts.')
+        return redirect('school_dashboard')
 
-    writer = csv.writer(response)
-    writer.writerow(['LRN', 'Days Present', 'Days Absent'])
+    section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
+    if not section:
+        messages.error(request, 'Your profile is missing a section. Please complete your profile first.')
+        return redirect('complete_profile')
+
+    today = date_cls.today()
+    try:
+        year = int(request.GET.get('year', today.year))
+    except ValueError:
+        year = today.year
+    try:
+        month = int(request.GET.get('month', today.month))
+    except ValueError:
+        month = today.month
+    if month < 1 or month > 12:
+        month = today.month
 
     students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
-    for student in students:
-        writer.writerow([student.lrn, '', ''])
+    school_days = _school_days_in_month(section.school_profile_id, year, month)
 
-    return response
+    lrns = [s.lrn for s in students]
+    marks = AttendanceMark.objects.filter(lrn__in=lrns, date__in=school_days)
+    marks_by_key = {f'{mark.lrn}|{mark.date.isoformat()}': mark.status for mark in marks}
 
+    if month == 1:
+        prev_month, prev_year = 12, year - 1
+    else:
+        prev_month, prev_year = month - 1, year
+    if month == 12:
+        next_month, next_year = 1, year + 1
+    else:
+        next_month, next_year = month + 1, year
 
-@login_required
-def upload_attendance(request):
-    preview_data = None
-    month = request.POST.get('month') if request.method == 'POST' else None
+    month_start = date_cls(year, month, 1)
+    month_end = date_cls(year, month, calendar.monthrange(year, month)[1])
 
-    if request.method == 'POST' and 'csv_file' in request.FILES:
-        csv_file = request.FILES['csv_file']
-        month = request.POST.get('month')
-        skip_header = request.POST.get('skip_header') == 'on'
-        replace_all = request.POST.get('replace_all') == 'on'
-
-        if month not in ATTENDANCE_MONTHS:
-            messages.error(request, 'Please select a valid month.')
-            return render(request, 'grades/attendance_upload.html', {
-                'preview_data': None,
-                'month': month,
-                'months': ATTENDANCE_MONTH_OPTIONS,
-            })
-
-        try:
-            decoded_file = csv_file.read().decode('utf-8-sig')
-            io_string = io.StringIO(decoded_file)
-            reader = csv.reader(io_string, delimiter=',', quotechar='"')
-
-            preview_data = []
-
-            if skip_header:
-                next(reader, None)
-
-            for row in reader:
-                if row:
-                    preview_data.append(row)
-
-            request.session['attendance_preview_data'] = preview_data
-            request.session['attendance_month'] = month
-            request.session['attendance_replace_all'] = replace_all
-
-            messages.info(request, f'📋 Preview loaded: {len(preview_data)} students found for {month}.')
-
-        except Exception as e:
-            messages.error(request, f'Error reading CSV: {str(e)}')
-
-    if 'attendance_preview_data' in request.session and not preview_data:
-        preview_data = request.session.get('attendance_preview_data')
-        month = request.session.get('attendance_month')
-
-    return render(request, 'grades/attendance_upload.html', {
-        'preview_data': preview_data,
+    return render(request, 'grades/attendance_grid.html', {
+        'students': students,
+        'school_days': school_days,
+        'marks_json': json.dumps(marks_by_key),
+        'holidays_json': json.dumps(_holidays_payload(section.school_profile_id, year, month)),
+        'month_start': month_start.isoformat(),
+        'month_end': month_end.isoformat(),
+        'year': year,
         'month': month,
-        'months': ATTENDANCE_MONTH_OPTIONS,
+        'month_name': MONTH_NAMES[month - 1],
+        'prev_month': prev_month,
+        'prev_year': prev_year,
+        'next_month': next_month,
+        'next_year': next_year,
     })
 
 
 @login_required
-def save_attendance(request):
-    if request.method == 'POST':
-        row_count = int(request.POST.get('row_count', 0))
-        month = request.POST.get('month', '')
-        replace_all = request.POST.get('replace_all') == 'on'
+def attendance_grid_save(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
 
-        saved_count = 0
-        error_count = 0
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        return JsonResponse({'error': 'Your account is not linked to a Teacher profile.'}, status=403)
 
-        try:
-            teacher = Teacher.objects.get(username=request.user.username)
-        except Teacher.DoesNotExist:
-            messages.error(request, 'Your account is not linked to a Teacher profile.')
-            return redirect('upload_attendance')
+    if teacher.role != Teacher.ROLE_ADVISER:
+        return JsonResponse({'error': 'Adviser accounts only.'}, status=403)
 
-        if month not in ATTENDANCE_MONTHS:
-            messages.error(request, 'Please select a valid month.')
-            return redirect('upload_attendance')
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid request body.'}, status=400)
 
-        # Delete existing attendance for this month if replace_all
-        if replace_all:
-            students = Student.objects.filter(adviser_id=teacher.teacher_id)
-            for student in students:
-                Attendance.objects.filter(lrn=student.lrn, month=month).delete()
-            messages.info(request, f'🗑️ Existing {month} attendance deleted.')
+    lrn = payload.get('lrn', '')
+    date_str = payload.get('date', '')
+    status = payload.get('status', '')
+    remarks = payload.get('remarks') or None
 
-        for i in range(row_count):
-            try:
-                lrn = request.POST.get(f'lrn_{i}', '').strip()
-                if not lrn:
-                    continue
+    # Only this adviser's own students - never another section's.
+    if not Student.objects.filter(lrn=lrn, adviser_id=teacher.teacher_id).exists():
+        return JsonResponse({'error': 'Student not found in your section.'}, status=404)
 
-                try:
-                    student = Student.objects.get(lrn=lrn, adviser_id=teacher.teacher_id)
-                except Student.DoesNotExist:
-                    messages.warning(request, f'Student {lrn} not found. Skipping.')
-                    continue
+    try:
+        mark_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({'error': 'Invalid date.'}, status=400)
 
-                days_present_str = request.POST.get(f'days_present_{i}', '').strip()
-                days_absent_str = request.POST.get(f'days_absent_{i}', '').strip()
+    if status in ('', 'present'):
+        AttendanceMark.objects.filter(lrn=lrn, date=mark_date).delete()
+        return JsonResponse({'status': 'present'})
 
-                try:
-                    days_present = int(days_present_str) if days_present_str else 0
-                    days_absent = int(days_absent_str) if days_absent_str else 0
-                except ValueError:
-                    messages.warning(request, f'Invalid attendance value for {lrn}. Skipping.')
-                    continue
+    valid_statuses = {choice[0] for choice in AttendanceMark.STATUS_CHOICES}
+    if status not in valid_statuses:
+        return JsonResponse({'error': 'Invalid status.'}, status=400)
 
-                if days_present < 0 or days_absent < 0:
-                    messages.warning(request, f'Attendance for {lrn} cannot be negative. Skipping.')
-                    continue
+    mark, _ = AttendanceMark.objects.update_or_create(
+        lrn=lrn, date=mark_date,
+        defaults={'status': status, 'remarks': remarks, 'recorded_by': teacher.teacher_id},
+    )
+    return JsonResponse({'status': mark.status})
 
-                existing = Attendance.objects.filter(lrn=lrn, month=month).first()
-                if existing:
-                    existing.days_present = days_present
-                    existing.days_absent = days_absent
-                    existing.save()
-                else:
-                    Attendance.objects.create(
-                        lrn=lrn,
-                        month=month,
-                        days_present=days_present,
-                        days_absent=days_absent,
-                        uploaded_by=teacher.teacher_id
-                    )
-                saved_count += 1
 
-            except Exception as e:
-                error_count += 1
-                messages.error(request, f'Error saving attendance for row {i+1}: {str(e)}')
+def _resolve_adviser_section(request):
+    """Shared Teacher/role/section resolution for the holiday endpoints,
+    returning (teacher, section, None) on success or (None, None, error_response)."""
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        return None, None, JsonResponse({'error': 'Your account is not linked to a Teacher profile.'}, status=403)
 
-        request.session.pop('attendance_preview_data', None)
-        request.session.pop('attendance_month', None)
-        request.session.pop('attendance_replace_all', None)
+    if teacher.role != Teacher.ROLE_ADVISER:
+        return None, None, JsonResponse({'error': 'Adviser accounts only.'}, status=403)
 
-        if saved_count > 0:
-            messages.success(request, f'✅ {saved_count} attendance records saved for {month}!')
-        if error_count > 0:
-            messages.warning(request, f'⚠️ {error_count} rows had errors.')
+    section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
+    if not section:
+        return None, None, JsonResponse({'error': 'Your profile is missing a section.'}, status=400)
 
-        return redirect('view_attendance', lrn='all')
+    return teacher, section, None
 
-    return redirect('upload_attendance')
+
+@login_required
+def add_holiday(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    teacher, section, error = _resolve_adviser_section(request)
+    if error:
+        return error
+
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid request body.'}, status=400)
+
+    try:
+        year = int(payload.get('year'))
+        month = int(payload.get('month'))
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'Invalid month.'}, status=400)
+
+    try:
+        holiday_date = datetime.strptime(payload.get('date', ''), '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({'error': 'Invalid date.'}, status=400)
+
+    # Keep the added date scoped to the month currently on screen, so the
+    # rebuilt grid we hand back always matches what the adviser is looking at.
+    if holiday_date.year != year or holiday_date.month != month:
+        return JsonResponse(
+            {'error': f'Pick a date within {MONTH_NAMES[month - 1]} {year}.'}, status=400
+        )
+
+    SchoolCalendarException.objects.update_or_create(
+        school_profile_id=section.school_profile_id, date=holiday_date,
+        defaults={'is_school_day': False},
+    )
+
+    return JsonResponse({'ok': True, **_grid_json_payload(teacher, section, year, month)})
+
+
+@login_required
+def remove_holiday(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    teacher, section, error = _resolve_adviser_section(request)
+    if error:
+        return error
+
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid request body.'}, status=400)
+
+    try:
+        exception_id = int(payload.get('exception_id'))
+    except (TypeError, ValueError):
+        return JsonResponse({'error': 'Invalid holiday.'}, status=400)
+
+    # Scoped to this adviser's own school - never another school's exception
+    # row, even if the id is guessed.
+    exception = SchoolCalendarException.objects.filter(
+        exception_id=exception_id, school_profile_id=section.school_profile_id, is_school_day=False,
+    ).first()
+    if not exception:
+        return JsonResponse({'error': 'Holiday not found.'}, status=404)
+
+    year, month = exception.date.year, exception.date.month
+    exception.delete()
+
+    return JsonResponse({'ok': True, **_grid_json_payload(teacher, section, year, month)})
 
 
 @login_required

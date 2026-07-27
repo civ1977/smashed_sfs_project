@@ -1,12 +1,16 @@
 from datetime import date
+from pathlib import Path
 
+import openpyxl
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.http import HttpResponse
 
 from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
-from grades.models import Grade, SubjectMapping, Attendance, ATTENDANCE_MONTHS
+from grades.models import Grade, SubjectMapping, Attendance, ATTENDANCE_MONTHS, AttendanceMark
+from grades.views import MONTH_NAMES, _school_days_in_month
 
 
 def _get_teacher(request):
@@ -221,3 +225,188 @@ def view_sf10(request, student_lrn):
         'grade_level_sections': grade_level_sections,
         'attendance_rows': _attendance_rows(student_lrn),
     })
+
+
+# =====================================================================
+# SF2 (Daily Attendance Report) Excel export
+#
+# SF2.xlsx (reports/xlsx_templates/SF2.xlsx) is used purely as a layout
+# template - it was exported out of DepEd's LIS and most of its formulas
+# are broken external-workbook links (`[1]INPUT_Homeroom_Data!...` etc.)
+# that reference a file we don't have. Every cell we touch below is
+# overwritten with a real, static value computed from this app's own data;
+# none of the template's own formulas for these fields are read or kept.
+# =====================================================================
+
+SF2_TEMPLATE_PATH = Path(__file__).resolve().parent / 'xlsx_templates' / 'SF2.xlsx'
+
+# The 30 day-slot columns (5 weeks x Mon-Sat), left to right, as laid out in
+# the template's row 17/18 header and each student row's mark cells. Only
+# the top-left cell of each (possibly merged) day-slot is listed here - that
+# is the one real, writable cell per slot.
+DAY_COLUMNS = [
+    'K', 'M', 'N', 'O', 'S', 'V',
+    'W', 'Z', 'AA', 'AB', 'AE', 'AH',
+    'AI', 'AL', 'AN', 'AP', 'AR', 'AS',
+    'AU', 'AV', 'AW', 'AY', 'BB', 'BD',
+    'BE', 'BI', 'BJ', 'BK', 'BM', 'BO',
+]
+MAX_DAY_SLOTS = len(DAY_COLUMNS)  # 30
+MAX_STUDENTS_PER_GENDER = 55
+MALE_ROW_START = 19    # rows 19-73
+FEMALE_ROW_START = 75  # rows 75-129
+
+# date.weekday(): Monday=0 ... Sunday=6. Normally only Mon-Sat show up here
+# (Sundays are never school days by default), but a SchoolCalendarException
+# can mark any date - including a Sunday - as a school day, so all 7 are covered.
+WEEKDAY_ABBR = ['M', 'T', 'W', 'TH', 'F', 'S', 'SU']
+
+# Blank = Present (never written). "L"/"C" are plain-letter stand-ins for
+# the template's original diagonal half-shaded Late-Comer/Cutting-Classes
+# cell styling - the one intentional visual deviation from the source file.
+MARK_SYMBOL = {
+    AttendanceMark.STATUS_ABSENT: 'x',
+    AttendanceMark.STATUS_LATE_COMER: 'L',
+    AttendanceMark.STATUS_CUTTING_CLASSES: 'C',
+}
+
+# This app has no explicit semester field (grades use Term 1/2/3, not
+# semesters), so the semester shown on SF2 is inferred from where the month
+# falls in ATTENDANCE_MONTHS (Jun-Oct / Nov-Apr split).
+FIRST_SEMESTER_MONTHS = {6, 7, 8, 9, 10}
+
+
+def _semester_for_month(month):
+    return 'First Semester' if month in FIRST_SEMESTER_MONTHS else 'Second Semester'
+
+
+def _sf2_student_name(student):
+    parts = [f'{student.surname.strip()}, {student.name.strip()}']
+    if student.middle_name:
+        parts.append(student.middle_name.strip())
+    return ' '.join(parts)
+
+
+def _fill_sf2_header(ws, teacher, section, school_profile, year, month):
+    ws['I5'] = school_profile.school_name if school_profile else ''
+    ws['Y5'] = school_profile.school_id if school_profile else ''
+    ws['AQ5'] = school_profile.district if school_profile else ''
+    ws['BH5'] = school_profile.division if school_profile else ''
+    ws['BY5'] = school_profile.region if school_profile else ''
+    ws['U8'] = school_profile.school_year if school_profile else ''
+    ws['I7'] = _semester_for_month(month)
+    ws['AN8'] = f'Grade {section.grade_level}'
+    ws['I12'] = section.section_name
+    ws['BC7'] = '/'.join(part for part in (section.track, section.strand) if part)
+    ws['BN11'] = MONTH_NAMES[month - 1].upper()
+    ws['BR168'] = teacher.full_name
+    ws['BR171'] = school_profile.principal_name if school_profile else ''
+
+
+def _fill_sf2_gender_block(ws, students, row_start, school_days, warnings, gender_label):
+    if len(students) > MAX_STUDENTS_PER_GENDER:
+        warnings.append(
+            f'{len(students)} {gender_label} students found, but SF2 only has room for '
+            f'{MAX_STUDENTS_PER_GENDER}. Only the first {MAX_STUDENTS_PER_GENDER} are on this form.'
+        )
+        students = students[:MAX_STUDENTS_PER_GENDER]
+
+    lrns = [s.lrn for s in students]
+    marks_by_key = {
+        f'{m.lrn}|{m.date.isoformat()}': m.status
+        for m in AttendanceMark.objects.filter(lrn__in=lrns, date__in=school_days)
+    }
+
+    for i in range(MAX_STUDENTS_PER_GENDER):
+        row = row_start + i
+        if i >= len(students):
+            ws[f'G{row}'] = ''
+            ws[f'BS{row}'] = 0
+            ws[f'BV{row}'] = 0
+            continue
+
+        student = students[i]
+        ws[f'G{row}'] = _sf2_student_name(student)
+
+        absent_count = 0
+        for day_index, day in enumerate(school_days):
+            status = marks_by_key.get(f'{student.lrn}|{day.isoformat()}', 'present')
+            if status == AttendanceMark.STATUS_ABSENT:
+                absent_count += 1
+            ws[f'{DAY_COLUMNS[day_index]}{row}'] = MARK_SYMBOL.get(status, '')
+
+        ws[f'BS{row}'] = absent_count
+        ws[f'BV{row}'] = len(school_days) - absent_count
+
+
+def _build_sf2_workbook(teacher, section, school_profile, year, month):
+    """Returns (workbook, warnings). warnings is a list of human-readable
+    strings for anything this export had to cap/truncate rather than
+    silently drop."""
+    wb = openpyxl.load_workbook(SF2_TEMPLATE_PATH)
+    ws = wb['Sheet1']
+    warnings = []
+
+    # The template's own external-workbook link definitions (the source of
+    # every broken [1]... formula) - drop them outright rather than just
+    # overwriting the formulas that referenced them, so no dangling link
+    # survives in the saved file for Excel to prompt about on open.
+    wb._external_links = []
+
+    school_days = _school_days_in_month(section.school_profile_id, year, month)
+    if len(school_days) > MAX_DAY_SLOTS:
+        warnings.append(
+            f'{MONTH_NAMES[month - 1]} {year} has {len(school_days)} school days, but SF2 only '
+            f'has room for {MAX_DAY_SLOTS}. Only the first {MAX_DAY_SLOTS} days are on this form.'
+        )
+        school_days = school_days[:MAX_DAY_SLOTS]
+
+    _fill_sf2_header(ws, teacher, section, school_profile, year, month)
+    ws['BZ134'] = len(school_days)
+
+    for day_index, col in enumerate(DAY_COLUMNS):
+        if day_index < len(school_days):
+            ws[f'{col}17'] = school_days[day_index].day
+            ws[f'{col}18'] = WEEKDAY_ABBR[school_days[day_index].weekday()]
+        else:
+            ws[f'{col}17'] = None
+            ws[f'{col}18'] = None
+
+    students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+    males = [s for s in students if s.sex in ('MALE', 'M')]
+    females = [s for s in students if s.sex in ('FEMALE', 'F')]
+
+    _fill_sf2_gender_block(ws, males, MALE_ROW_START, school_days, warnings, 'male')
+    _fill_sf2_gender_block(ws, females, FEMALE_ROW_START, school_days, warnings, 'female')
+
+    return wb, warnings
+
+
+@login_required
+def export_sf2(request, year, month):
+    try:
+        teacher = _get_teacher(request)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
+    if not section:
+        messages.error(request, 'Your profile is missing a section. Please complete your profile first.')
+        return redirect('attendance_grid')
+
+    school_profile = None
+    if teacher.school_profile_id:
+        school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
+
+    wb, warnings = _build_sf2_workbook(teacher, section, school_profile, year, month)
+    for warning in warnings:
+        messages.warning(request, warning)
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f'SF2_{section.section_name}_{MONTH_NAMES[month - 1]}{year}.xlsx'.replace(' ', '_')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response

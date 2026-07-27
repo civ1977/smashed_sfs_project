@@ -5,8 +5,7 @@
 
 {% block content %}
 <h1>Class Attendance</h1>
-
-<a href="{% url 'upload_attendance' %}" class="btn">+ Upload Attendance</a>
+<p>This monthly summary reflects attendance uploaded the old way. New attendance is recorded in the <a href="{% url 'attendance_grid' %}">Attendance Grid</a>.</p>
 
 {% if students %}
     <p style="margin-top: var(--space-4);"><strong>Total:</strong> {{ students|length }} students</p>

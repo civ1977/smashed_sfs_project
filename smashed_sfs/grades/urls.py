@@ -6,8 +6,9 @@ urlpatterns = [
     path('save/', views.save_grades, name='save_grades'),
     path('view/<str:lrn>/', views.view_grades, name='view_grades'),
 
-    path('attendance/upload/', views.upload_attendance, name='upload_attendance'),
-    path('attendance/template/', views.download_attendance_template, name='download_attendance_template'),
-    path('attendance/save/', views.save_attendance, name='save_attendance'),
+    path('attendance/grid/', views.attendance_grid, name='attendance_grid'),
+    path('attendance/grid/save/', views.attendance_grid_save, name='attendance_grid_save'),
+    path('attendance/holiday/add/', views.add_holiday, name='add_holiday'),
+    path('attendance/holiday/remove/', views.remove_holiday, name='remove_holiday'),
     path('attendance/view/<str:lrn>/', views.view_attendance, name='view_attendance'),
 ]

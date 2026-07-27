@@ -1,0 +1,319 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}ATTENDANCE{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<h1>Attendance — {{ month_name }} {{ year }}</h1>
+<p>Click a cell to cycle Present → Absent → Late Comer → Cutting Classes → Present. Every change saves immediately.</p>
+
+<div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
+    <a href="?year={{ prev_year }}&month={{ prev_month }}" class="btn ghost">← Prev</a>
+    <strong>{{ month_name }} {{ year }}</strong>
+    <a href="?year={{ next_year }}&month={{ next_month }}" class="btn ghost">Next →</a>
+    <a href="{% url 'export_sf2' year month %}" class="btn ghost" style="margin-left: auto;">Download SF2 (.xlsx)</a>
+</div>
+
+<div class="card" style="margin-bottom: var(--space-4);">
+    <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+        <form id="add-holiday-form" style="display: flex; align-items: center; gap: var(--space-2);">
+            <label for="holiday-date" style="font-weight: 700; font-size: 13px; color: var(--ink); margin: 0;">+ Add Holiday</label>
+            <input type="date" id="holiday-date" required min="{{ month_start }}" max="{{ month_end }}"
+                   style="padding: var(--space-1) var(--space-2); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--card); color: var(--ink);">
+            <button type="submit" class="btn" style="padding: var(--space-1) var(--space-4); font-size: 13px;">Add</button>
+        </form>
+        <span id="holiday-form-error" style="color: var(--risk); font-size: 12px;"></span>
+    </div>
+    <div id="holiday-list" style="margin-top: var(--space-3); display: none;">
+        <div style="font-size: 12px; font-weight: 700; color: var(--ink-soft); margin-bottom: var(--space-2);">Holidays this month</div>
+        <div id="holiday-rows" style="display: flex; flex-direction: column; gap: var(--space-1);"></div>
+    </div>
+</div>
+
+<div style="display: flex; gap: var(--space-4); align-items: center; margin-bottom: var(--space-4); font-size: 13px; color: var(--ink-soft);">
+    <span class="att-cell" style="cursor: default;">P</span> Present
+    <span class="pill risk">A</span> Absent
+    <span class="pill warn">LC</span> Late Comer
+    <span class="pill neutral">CC</span> Cutting Classes
+</div>
+
+{% if students and school_days %}
+<div class="attendance-grid-scroll">
+    <table id="attendance-grid" class="attendance-grid">
+        <thead>
+            <tr>
+                <th class="freeze-col freeze-col-1">LRN</th>
+                <th class="freeze-col freeze-col-2">Name</th>
+                {% for d in school_days %}
+                <th class="mono" data-date="{{ d|date:'Y-m-d' }}">{{ d.day }}<br>{{ d|date:"D"|upper }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr data-lrn="{{ student.lrn }}">
+                <td class="freeze-col freeze-col-1 mono">{{ student.lrn }}</td>
+                <td class="freeze-col freeze-col-2">{{ student.surname }}, {{ student.name }}</td>
+                {% for d in school_days %}
+                <td>
+                    <button type="button" class="att-cell" data-lrn="{{ student.lrn }}" data-date="{{ d|date:'Y-m-d' }}"></button>
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+    <p>{% if not students %}No students found. Upload student profiles first.{% else %}No school days in this month.{% endif %}</p>
+{% endif %}
+
+<style>
+    .attendance-grid-scroll {
+        overflow: auto;
+        max-height: calc(100vh - 260px);
+    }
+    .attendance-grid th, .attendance-grid td {
+        text-align: center;
+        white-space: nowrap;
+        padding: var(--space-1) var(--space-2);
+    }
+    .attendance-grid thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--bg);
+    }
+    .attendance-grid .freeze-col {
+        text-align: left;
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        box-sizing: border-box;
+        background: var(--bg);
+    }
+    .attendance-grid .freeze-col-1 { left: 0; width: 120px; min-width: 120px; }
+    .attendance-grid .freeze-col-2 { left: 120px; width: 140px; min-width: 140px; }
+    .attendance-grid thead .freeze-col {
+        top: 0;
+        z-index: 4;
+    }
+
+    .att-cell {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 24px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: var(--card);
+        cursor: pointer;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--ink-faint);
+        padding: 0;
+    }
+    .att-cell:hover { border-color: var(--line-strong); }
+    .att-cell.absent { background: var(--risk-wash); color: var(--risk); border-color: var(--risk); }
+    .att-cell.late_comer { background: var(--gold-wash); color: var(--gold); border-color: var(--gold); }
+    .att-cell.cutting_classes { background: var(--accent-wash); color: var(--accent-soft); border-color: var(--accent-soft); }
+
+    .holiday-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-3);
+        font-size: 13px;
+        padding: var(--space-1) 0;
+    }
+    .holiday-remove-btn { padding: 2px 10px; font-size: 12px; }
+</style>
+
+<script id="attendance-marks-data" type="application/json">{{ marks_json|safe }}</script>
+<script id="attendance-holidays-data" type="application/json">{{ holidays_json|safe }}</script>
+<script>
+(function () {
+    var STATUS_CYCLE = ['present', 'absent', 'late_comer', 'cutting_classes'];
+    var STATUS_LABEL = {present: 'P', absent: 'A', late_comer: 'LC', cutting_classes: 'CC'};
+    var marks = JSON.parse(document.getElementById('attendance-marks-data').textContent);
+    var GRID_YEAR = {{ year }};
+    var GRID_MONTH = {{ month }};
+
+    function getCookie(name) {
+        var value = null;
+        document.cookie.split(';').forEach(function (part) {
+            part = part.trim();
+            if (part.indexOf(name + '=') === 0) {
+                value = decodeURIComponent(part.substring(name.length + 1));
+            }
+        });
+        return value;
+    }
+    var csrftoken = getCookie('csrftoken');
+
+    function renderCell(btn, status) {
+        STATUS_CYCLE.forEach(function (s) { btn.classList.remove(s); });
+        if (status !== 'present') {
+            btn.classList.add(status);
+        }
+        btn.textContent = STATUS_LABEL[status];
+        btn.dataset.status = status;
+    }
+
+    function attachCellHandler(btn) {
+        btn.addEventListener('click', function () {
+            var current = btn.dataset.status || 'present';
+            var nextIndex = (STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length;
+            var next = STATUS_CYCLE[nextIndex];
+            var previous = current;
+            renderCell(btn, next);
+
+            fetch('{% url "attendance_grid_save" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken,
+                },
+                body: JSON.stringify({lrn: btn.dataset.lrn, date: btn.dataset.date, status: next}),
+            }).then(function (response) {
+                if (!response.ok) { throw new Error('save failed'); }
+                return response.json();
+            }).catch(function () {
+                renderCell(btn, previous);
+                alert('Could not save that change. Please try again.');
+            });
+        });
+    }
+
+    document.querySelectorAll('.att-cell').forEach(function (btn) {
+        var key = btn.dataset.lrn + '|' + btn.dataset.date;
+        renderCell(btn, marks[key] || 'present');
+        attachCellHandler(btn);
+    });
+
+    // ---- Grid rebuild (after a holiday is added or removed) ----
+
+    function dayHeaderHtml(iso) {
+        var parts = iso.split('-').map(Number);
+        var d = new Date(parts[0], parts[1] - 1, parts[2]);
+        var weekday = d.toLocaleDateString('en-US', {weekday: 'short'}).toUpperCase();
+        return parts[2] + '<br>' + weekday;
+    }
+
+    function buildDayCell(lrn, iso, status) {
+        var td = document.createElement('td');
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'att-cell';
+        btn.dataset.lrn = lrn;
+        btn.dataset.date = iso;
+        renderCell(btn, status || 'present');
+        attachCellHandler(btn);
+        td.appendChild(btn);
+        return td;
+    }
+
+    function rebuildGrid(schoolDays, marksByKey) {
+        var theadRow = document.querySelector('#attendance-grid thead tr');
+        if (!theadRow) { return; }
+        Array.from(theadRow.querySelectorAll('th:not(.freeze-col)')).forEach(function (th) { th.remove(); });
+        schoolDays.forEach(function (iso) {
+            var th = document.createElement('th');
+            th.className = 'mono';
+            th.dataset.date = iso;
+            th.innerHTML = dayHeaderHtml(iso);
+            theadRow.appendChild(th);
+        });
+
+        document.querySelectorAll('#attendance-grid tbody tr').forEach(function (tr) {
+            var lrn = tr.dataset.lrn;
+            Array.from(tr.querySelectorAll('td:not(.freeze-col)')).forEach(function (td) { td.remove(); });
+            schoolDays.forEach(function (iso) {
+                var key = lrn + '|' + iso;
+                tr.appendChild(buildDayCell(lrn, iso, marksByKey[key]));
+            });
+        });
+    }
+
+    // ---- Holiday list (add / remove) ----
+
+    var holidayListEl = document.getElementById('holiday-list');
+    var holidayRowsEl = document.getElementById('holiday-rows');
+    var holidayForm = document.getElementById('add-holiday-form');
+    var holidayDateInput = document.getElementById('holiday-date');
+    var holidayErrorEl = document.getElementById('holiday-form-error');
+
+    function removeHoliday(exceptionId) {
+        holidayErrorEl.textContent = '';
+        fetch('{% url "remove_holiday" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken,
+            },
+            body: JSON.stringify({exception_id: exceptionId}),
+        }).then(function (response) {
+            return response.json().then(function (data) { return {ok: response.ok, data: data}; });
+        }).then(function (result) {
+            if (!result.ok) { throw new Error(result.data.error || 'Could not remove that holiday.'); }
+            rebuildGrid(result.data.school_days, result.data.marks);
+            rebuildHolidayList(result.data.holidays);
+        }).catch(function (err) {
+            holidayErrorEl.textContent = err.message;
+        });
+    }
+
+    function rebuildHolidayList(holidays) {
+        holidayRowsEl.innerHTML = '';
+        holidays.forEach(function (h) {
+            var row = document.createElement('div');
+            row.className = 'holiday-row';
+            row.dataset.exceptionId = h.exception_id;
+
+            var label = document.createElement('span');
+            label.textContent = h.label;
+
+            var removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'btn ghost holiday-remove-btn';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', function () { removeHoliday(h.exception_id); });
+
+            row.appendChild(label);
+            row.appendChild(removeBtn);
+            holidayRowsEl.appendChild(row);
+        });
+        holidayListEl.style.display = holidays.length ? '' : 'none';
+    }
+
+    rebuildHolidayList(JSON.parse(document.getElementById('attendance-holidays-data').textContent));
+
+    holidayForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        holidayErrorEl.textContent = '';
+        var dateValue = holidayDateInput.value;
+        if (!dateValue) { return; }
+
+        fetch('{% url "add_holiday" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken,
+            },
+            body: JSON.stringify({date: dateValue, year: GRID_YEAR, month: GRID_MONTH}),
+        }).then(function (response) {
+            return response.json().then(function (data) { return {ok: response.ok, data: data}; });
+        }).then(function (result) {
+            if (!result.ok) { throw new Error(result.data.error || 'Could not add that holiday.'); }
+            holidayDateInput.value = '';
+            rebuildGrid(result.data.school_days, result.data.marks);
+            rebuildHolidayList(result.data.holidays);
+        }).catch(function (err) {
+            holidayErrorEl.textContent = err.message;
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -53,3 +53,50 @@ class Attendance(models.Model):
 
     class Meta:
         db_table = 'attendance'
+
+
+class AttendanceMark(models.Model):
+    """Per-day attendance exception for one student, matching the SF2-SHS
+    form's own convention: a day with no mark means Present (blank cell on
+    the form) - Present is never stored as a row here."""
+
+    STATUS_ABSENT = 'absent'
+    STATUS_LATE_COMER = 'late_comer'
+    STATUS_CUTTING_CLASSES = 'cutting_classes'
+    STATUS_CHOICES = [
+        (STATUS_ABSENT, 'Absent'),
+        (STATUS_LATE_COMER, 'Late Comer'),
+        (STATUS_CUTTING_CLASSES, 'Cutting Classes'),
+    ]
+
+    mark_id = models.AutoField(primary_key=True)
+    lrn = models.CharField(max_length=12)
+    date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    remarks = models.TextField(blank=True, null=True)
+    recorded_by = models.IntegerField()
+
+    class Meta:
+        db_table = 'attendance_mark'
+        unique_together = ('lrn', 'date')
+
+    def __str__(self):
+        return f"{self.lrn} {self.date} {self.status}"
+
+
+class SchoolCalendarException(models.Model):
+    """A date that breaks the Mon-Fri school-day default for one school -
+    a Saturday added as a make-up class, or a weekday excluded as a
+    holiday. Empty by default; most months need no rows here at all."""
+
+    exception_id = models.AutoField(primary_key=True)
+    school_profile_id = models.IntegerField()
+    date = models.DateField()
+    is_school_day = models.BooleanField()
+
+    class Meta:
+        db_table = 'school_calendar_exception'
+        unique_together = ('school_profile_id', 'date')
+
+    def __str__(self):
+        return f"{self.school_profile_id} {self.date} {'school day' if self.is_school_day else 'no school'}"
