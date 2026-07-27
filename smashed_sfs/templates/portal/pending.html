@@ -1,16 +1,18 @@
 {% extends 'base.html' %}
 
+{% block breadcrumb %}PENDING APPROVAL{% endblock %}
+
 {% block content %}
-<h2>🎓 Student Portal</h2>
+<h1>Student Portal</h1>
 
 {% if account.status == 'rejected' %}
 <div class="alert alert-error">
-    ❌ Your account request for LRN {{ account.lrn }} was not approved by your adviser.
+    Your account request for LRN <span class="mono">{{ account.lrn }}</span> was not approved by your adviser.
     Please contact your adviser if you believe this is a mistake.
 </div>
 {% else %}
 <div class="alert alert-info">
-    ⏳ Your account request for LRN {{ account.lrn }} is still waiting for your adviser to approve it.
+    Your account request for LRN <span class="mono">{{ account.lrn }}</span> is still waiting for your adviser to approve it.
     Check back later.
 </div>
 {% endif %}

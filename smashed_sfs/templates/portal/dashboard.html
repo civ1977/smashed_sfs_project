@@ -1,13 +1,14 @@
 {% extends 'base.html' %}
 
+{% block breadcrumb %}HOME{% endblock %}
+
 {% block content %}
-<h1>🎓 Student Portal</h1>
-<p>Welcome, {{ student.surname }}, {{ student.name }}!</p>
-<p>LRN: <strong>{{ account.lrn }}</strong></p>
+<h1>Welcome, {{ student.surname }}, {{ student.name }}</h1>
+<p>LRN: <span class="mono">{{ account.lrn }}</span></p>
 
 <div class="dashboard-grid">
     <div class="card">
-        <h3>📝 My Grades</h3>
+        <h3>My Grades</h3>
         <p>View your grades per subject and term</p>
         <a href="{% url 'portal_grades' %}" class="btn">View Grades</a>
     </div>
