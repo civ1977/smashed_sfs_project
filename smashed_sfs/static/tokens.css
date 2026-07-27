@@ -1,0 +1,353 @@
+/*
+  Design tokens for smashed_sfs, per smashed_sfs_evaluation.html §02 and
+  smashed_sfs_pages.html §02 (updated direction: institution blue, bold
+  all-sans type, rounded corners throughout - closer to a Philippine
+  banking app than the earlier ledger/serif look). Light/dark aware.
+  Every template that uses either app shell should load this before its
+  own <style> block (if any).
+*/
+
+:root {
+  --bg: #FAFBFD;
+  --bg-exhibit: #EEF3FB;
+  --card: #FFFFFF;
+  --ink: #101828;
+  --ink-soft: #475467;
+  --ink-faint: #8A94A6;
+  --line: #E3E8EF;
+  --line-strong: #C4CDD9;
+
+  --accent: #0B3D91;       /* institution blue - primary, nav, links */
+  --accent-soft: #2554A8;
+  --accent-wash: #E8EFFC;
+
+  --gold: #C08A2E;         /* seal gold - phase/highlight only, spend sparingly */
+  --gold-wash: #FBF0DD;
+
+  --good: #1F8A5A;         /* cleared - passed, on time, complete */
+  --good-wash: #E3F5EC;
+
+  --risk: #C23B2E;         /* flagged - failed, overdue, at risk */
+  --risk-wash: #FCEAE7;
+
+  --radius: 8px;           /* default corner radius for cards */
+  --radius-lg: 12px;       /* larger cards / panels */
+  --radius-pill: 999px;    /* buttons - always a full pill regardless of height */
+
+  /* One bold system sans stack for both headings and body - no serif, no
+     webfont dependency. Weight is what differentiates: 800 for headings,
+     400 for body. */
+  --font-display: "Segoe UI", "Segoe UI Variable", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Segoe UI", "Segoe UI Variable", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Consolas", "SFMono-Regular", monospace;
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0A1628;
+    --bg-exhibit: #0F1F38;
+    --card: #142440;
+    --ink: #EAF0FA;
+    --ink-soft: #A9B8CE;
+    --ink-faint: #7488A6;
+    --line: #223452;
+    --line-strong: #304868;
+    --accent: #6FA0E8;
+    --accent-soft: #8FB4EE;
+    --accent-wash: #16273F;
+    --gold: #E0B563;
+    --gold-wash: #2E2515;
+    --good: #6FD9A6;
+    --good-wash: #15301F;
+    --risk: #F0897A;
+    --risk-wash: #341B16;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0A1628;
+  --bg-exhibit: #0F1F38;
+  --card: #142440;
+  --ink: #EAF0FA;
+  --ink-soft: #A9B8CE;
+  --ink-faint: #7488A6;
+  --line: #223452;
+  --line-strong: #304868;
+  --accent: #6FA0E8;
+  --accent-soft: #8FB4EE;
+  --accent-wash: #16273F;
+  --gold: #E0B563;
+  --gold-wash: #2E2515;
+  --good: #6FD9A6;
+  --good-wash: #15301F;
+  --risk: #F0897A;
+  --risk-wash: #341B16;
+}
+
+:root[data-theme="light"] {
+  --bg: #FAFBFD;
+  --bg-exhibit: #EEF3FB;
+  --card: #FFFFFF;
+  --ink: #101828;
+  --ink-soft: #475467;
+  --ink-faint: #8A94A6;
+  --line: #E3E8EF;
+  --line-strong: #C4CDD9;
+  --accent: #0B3D91;
+  --accent-soft: #2554A8;
+  --accent-wash: #E8EFFC;
+  --gold: #C08A2E;
+  --gold-wash: #FBF0DD;
+  --good: #1F8A5A;
+  --good-wash: #E3F5EC;
+  --risk: #C23B2E;
+  --risk-wash: #FCEAE7;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -.01em;
+  margin: 0 0 var(--space-3);
+}
+h1 { font-size: 32px; }
+h2 { font-size: 26px; }
+h3 { font-size: 20px; }
+h4 { font-size: 16px; }
+
+p {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+
+a {
+  color: var(--accent-soft);
+}
+
+strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* Anything tabular - LRNs, grades, dates - lines up in a monospace face
+   so digits align instead of drifting. */
+.mono, code, .lrn, .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+code {
+  font-size: .88em;
+  background: var(--accent-wash);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--accent-soft);
+}
+
+/* ---- Status pills: color + label together, never color alone ---- */
+.pill {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+.pill.good { background: var(--good-wash); color: var(--good); }
+.pill.risk { background: var(--risk-wash); color: var(--risk); }
+.pill.warn { background: var(--gold-wash); color: var(--gold); }
+.pill.neutral { background: var(--accent-wash); color: var(--accent-soft); }
+
+/* ---- Buttons: real rounded pills ---- */
+.btn {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 14px;
+  padding: var(--space-2) var(--space-5);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn:hover { background: var(--accent-soft); }
+.btn.ghost {
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-soft);
+}
+.btn.ghost:hover { background: var(--bg-exhibit); }
+.btn.good { background: var(--good); }
+.btn.good:hover { background: var(--good); opacity: .9; }
+.btn.risk { background: var(--risk); }
+.btn.risk:hover { background: var(--risk); opacity: .9; }
+
+/* ---- Cards ---- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+/* ---- Forms (used by templates not yet migrated off this shared shell) ---- */
+.form-group { margin-bottom: var(--space-4); }
+.form-group label { display: block; margin-bottom: var(--space-1); font-weight: 700; color: var(--ink); }
+.form-group input, .form-group select {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-sizing: border-box;
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+}
+
+/* ---- Dashboard quick-action grid (used by templates not yet migrated) ---- */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--space-5);
+  margin-top: var(--space-5);
+}
+.dashboard-grid .card { border-left: 4px solid var(--accent); }
+
+/* ---- Alerts / flash messages ---- */
+.alert {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--line);
+  font-weight: 600;
+}
+.alert-success { background: var(--good-wash); color: var(--good); border-color: var(--good); }
+.alert-error { background: var(--risk-wash); color: var(--risk); border-color: var(--risk); }
+.alert-info, .alert-warning { background: var(--accent-wash); color: var(--accent-soft); border-color: var(--accent-soft); }
+
+/* ---- Tables ---- */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+}
+th {
+  text-align: left;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 12.5px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line-strong);
+  padding: var(--space-2) var(--space-3);
+}
+td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+tr:last-child td { border-bottom: none; }
+
+/* =====================================================================
+   Public shell components (marketing-style nav for pages nobody's
+   logged into yet - login, register, and future landing/enroll pages).
+   Same tokens, different chrome from the internal sidebar shell.
+   ===================================================================== */
+
+.marketnav .utility {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  padding: var(--space-1) var(--space-5);
+  background: var(--bg-exhibit);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.marketnav .mainnav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-5);
+  background: var(--accent);
+}
+.marketnav .mainnav .brand {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 19px;
+  color: #fff;
+}
+.marketnav .mainnav .links {
+  display: flex;
+  gap: var(--space-5);
+  font-size: 14px;
+  color: rgba(255,255,255,.85);
+  font-weight: 600;
+}
+.marketnav .mainnav .links a { color: rgba(255,255,255,.85); text-decoration: none; }
+.marketnav .mainnav .links a:hover { color: #fff; }
+.marketnav .mainnav .cta {
+  background: #fff;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+}
+
+.public-hero {
+  max-width: 480px;
+  margin: var(--space-7) auto;
+  padding: 0 var(--space-4);
+  text-align: center;
+}
+.public-hero .eyebrow-mini {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+}
+.public-hero h1 {
+  font-size: 26px;
+  max-width: 26ch;
+  margin: 0 auto var(--space-4);
+}
+.public-hero .card {
+  text-align: left;
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: 0 1px 3px rgba(16,24,40,.06);
+}

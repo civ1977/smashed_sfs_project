@@ -1,0 +1,31 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>DepEd SF9/SF10 System</title>
+    <link rel="stylesheet" href="{% static 'tokens.css' %}">
+</head>
+<body>
+    <div class="marketnav">
+        <div class="utility">DepEd Senior High School Records</div>
+        <div class="mainnav">
+            <span class="brand">smashed·sfs</span>
+            <div class="links">
+                <a href="{% url 'register' %}">Teacher Registration</a>
+                <a href="{% url 'portal_register' %}">Student Portal</a>
+            </div>
+            <a href="{% url 'login' %}" class="cta">Login</a>
+        </div>
+    </div>
+
+    <div class="public-hero">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>
