@@ -293,14 +293,17 @@ def _sf2_student_name(student):
 def _sf2_day_slot_map(school_days, year, month, warnings):
     """Maps each real school day to its weekday-anchored (week, weekday)
     slot in the 30-slot (5 weeks x Mon-Sat) SF2 day grid, keyed by the
-    DAY_COLUMNS letter for that slot - not by list position. Monday is
-    always a week's first slot, Saturday its sixth; a week with no Saturday
-    class, a holiday gap, or a partial first week (the month not starting
-    on a Monday) all simply leave that slot out of the returned map rather
-    than pulling in whatever day comes next.
+    DAY_COLUMNS letter for that slot - not by list position. The grid
+    always starts at the first Monday of the month (column K), regardless
+    of what weekday the 1st itself falls on; Saturday is always a week's
+    sixth slot. Any school day before that first Monday (at most a leading
+    Sat/Sun when the month doesn't start on a Monday) has nowhere to go on
+    the grid and is left out of the returned map, same as a day that falls
+    past the 5-week grid's last slot.
     """
     month_start = date(year, month, 1)
-    grid_start = month_start - timedelta(days=month_start.weekday())
+    days_to_first_monday = (7 - month_start.weekday()) % 7
+    grid_start = month_start + timedelta(days=days_to_first_monday)
 
     slot_map = {}
     for day in school_days:
@@ -309,6 +312,13 @@ def _sf2_day_slot_map(school_days, year, month, warnings):
             warnings.append(
                 f"{day.isoformat()} is a school day that falls on a Sunday; SF2's day grid "
                 f"only has Monday-Saturday columns, so it was left off this form."
+            )
+            continue
+        if day < grid_start:
+            warnings.append(
+                f"{day.isoformat()} is a school day before {MONTH_NAMES[month - 1]}'s first "
+                f"Monday; SF2's day grid starts at the first Monday of the month, so it was "
+                f"left off this form."
             )
             continue
         week_number = (day - grid_start).days // 7
