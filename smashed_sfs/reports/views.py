@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import openpyxl
@@ -255,6 +255,9 @@ MAX_DAY_SLOTS = len(DAY_COLUMNS)  # 30
 MAX_STUDENTS_PER_GENDER = 55
 MALE_ROW_START = 19    # rows 19-73
 FEMALE_ROW_START = 75  # rows 75-129
+MALE_SUBTOTAL_ROW = 74     # '<=== MALE | TOTAL Per Day ===>'
+FEMALE_SUBTOTAL_ROW = 130  # '<=== FEMALE | TOTAL Per Day ===>'
+COMBINED_TOTAL_ROW = 131   # 'Combined TOTAL Per Day'
 
 # date.weekday(): Monday=0 ... Sunday=6. Normally only Mon-Sat show up here
 # (Sundays are never school days by default), but a SchoolCalendarException
@@ -287,6 +290,42 @@ def _sf2_student_name(student):
     return ' '.join(parts)
 
 
+def _sf2_day_slot_map(school_days, year, month, warnings):
+    """Maps each real school day to its weekday-anchored (week, weekday)
+    slot in the 30-slot (5 weeks x Mon-Sat) SF2 day grid, keyed by the
+    DAY_COLUMNS letter for that slot - not by list position. Monday is
+    always a week's first slot, Saturday its sixth; a week with no Saturday
+    class, a holiday gap, or a partial first week (the month not starting
+    on a Monday) all simply leave that slot out of the returned map rather
+    than pulling in whatever day comes next.
+    """
+    month_start = date(year, month, 1)
+    grid_start = month_start - timedelta(days=month_start.weekday())
+
+    slot_map = {}
+    for day in school_days:
+        weekday = day.weekday()  # Monday=0 ... Sunday=6
+        if weekday == 6:
+            warnings.append(
+                f"{day.isoformat()} is a school day that falls on a Sunday; SF2's day grid "
+                f"only has Monday-Saturday columns, so it was left off this form."
+            )
+            continue
+        week_number = (day - grid_start).days // 7
+        slot_index = week_number * 6 + weekday
+        if slot_index >= MAX_DAY_SLOTS:
+            warnings.append(
+                f"{day.isoformat()} falls past SF2's 5-week day grid and was left off this form."
+            )
+            continue
+        slot_map[DAY_COLUMNS[slot_index]] = day
+    return slot_map
+
+
+def _sf2_ratio(numerator, denominator):
+    return round(numerator / denominator, 4) if denominator else 0
+
+
 def _fill_sf2_header(ws, teacher, section, school_profile, year, month):
     ws['I5'] = school_profile.school_name if school_profile else ''
     ws['Y5'] = school_profile.school_id if school_profile else ''
@@ -303,7 +342,10 @@ def _fill_sf2_header(ws, teacher, section, school_profile, year, month):
     ws['BR171'] = school_profile.principal_name if school_profile else ''
 
 
-def _fill_sf2_gender_block(ws, students, row_start, school_days, warnings, gender_label):
+def _fill_sf2_gender_block(ws, students, row_start, day_slot_map, warnings, gender_label):
+    """Writes one gender's student rows - only the real students, no blank
+    placeholder rows - and returns the per-day/per-block stats needed for
+    that gender's subtotal row and the summary section below."""
     if len(students) > MAX_STUDENTS_PER_GENDER:
         warnings.append(
             f'{len(students)} {gender_label} students found, but SF2 only has room for '
@@ -312,31 +354,52 @@ def _fill_sf2_gender_block(ws, students, row_start, school_days, warnings, gende
         students = students[:MAX_STUDENTS_PER_GENDER]
 
     lrns = [s.lrn for s in students]
+    school_dates = list(day_slot_map.values())
     marks_by_key = {
         f'{m.lrn}|{m.date.isoformat()}': m.status
-        for m in AttendanceMark.objects.filter(lrn__in=lrns, date__in=school_days)
+        for m in AttendanceMark.objects.filter(lrn__in=lrns, date__in=school_dates)
     }
 
-    for i in range(MAX_STUDENTS_PER_GENDER):
-        row = row_start + i
-        if i >= len(students):
-            ws[f'G{row}'] = ''
-            ws[f'BS{row}'] = 0
-            ws[f'BV{row}'] = 0
-            continue
+    present_per_col = {col: 0 for col in day_slot_map}
+    total_absent = 0
+    total_present = 0
 
-        student = students[i]
+    for i, student in enumerate(students):
+        row = row_start + i
         ws[f'G{row}'] = _sf2_student_name(student)
 
         absent_count = 0
-        for day_index, day in enumerate(school_days):
+        for col, day in day_slot_map.items():
             status = marks_by_key.get(f'{student.lrn}|{day.isoformat()}', 'present')
             if status == AttendanceMark.STATUS_ABSENT:
                 absent_count += 1
-            ws[f'{DAY_COLUMNS[day_index]}{row}'] = MARK_SYMBOL.get(status, '')
+            else:
+                present_per_col[col] += 1
+            ws[f'{col}{row}'] = MARK_SYMBOL.get(status, '')
 
+        present_count = len(day_slot_map) - absent_count
         ws[f'BS{row}'] = absent_count
-        ws[f'BV{row}'] = len(school_days) - absent_count
+        ws[f'BV{row}'] = present_count
+        total_absent += absent_count
+        total_present += present_count
+
+    return {
+        'count': len(students),
+        'present_per_col': present_per_col,
+        'total_absent': total_absent,
+        'total_present': total_present,
+    }
+
+
+def _fill_sf2_subtotal_row(ws, row, day_slot_map, present_per_col, total_absent, total_present):
+    """Writes one 'TOTAL Per Day' row (male/female/combined): per-day
+    present-student counts in the day columns - matching what row 74/130's
+    own (broken) template formulas compute: registered minus that day's
+    absences - plus the month's ABSENT/PRESENT totals in BS/BV."""
+    for col in DAY_COLUMNS:
+        ws[f'{col}{row}'] = present_per_col[col] if col in day_slot_map else None
+    ws[f'BS{row}'] = total_absent
+    ws[f'BV{row}'] = total_present
 
 
 def _build_sf2_workbook(teacher, section, school_profile, year, month):
@@ -354,30 +417,116 @@ def _build_sf2_workbook(teacher, section, school_profile, year, month):
     wb._external_links = []
 
     school_days = _school_days_in_month(section.school_profile_id, year, month)
-    if len(school_days) > MAX_DAY_SLOTS:
-        warnings.append(
-            f'{MONTH_NAMES[month - 1]} {year} has {len(school_days)} school days, but SF2 only '
-            f'has room for {MAX_DAY_SLOTS}. Only the first {MAX_DAY_SLOTS} days are on this form.'
-        )
-        school_days = school_days[:MAX_DAY_SLOTS]
+    day_slot_map = _sf2_day_slot_map(school_days, year, month, warnings)
+    school_day_count = len(day_slot_map)
 
     _fill_sf2_header(ws, teacher, section, school_profile, year, month)
-    ws['BZ134'] = len(school_days)
 
-    for day_index, col in enumerate(DAY_COLUMNS):
-        if day_index < len(school_days):
-            ws[f'{col}17'] = school_days[day_index].day
-            ws[f'{col}18'] = WEEKDAY_ABBR[school_days[day_index].weekday()]
-        else:
-            ws[f'{col}17'] = None
-            ws[f'{col}18'] = None
+    for col in DAY_COLUMNS:
+        day = day_slot_map.get(col)
+        ws[f'{col}17'] = day.day if day else None
+        ws[f'{col}18'] = WEEKDAY_ABBR[day.weekday()] if day else None
 
     students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
     males = [s for s in students if s.sex in ('MALE', 'M')]
     females = [s for s in students if s.sex in ('FEMALE', 'F')]
 
-    _fill_sf2_gender_block(ws, males, MALE_ROW_START, school_days, warnings, 'male')
-    _fill_sf2_gender_block(ws, females, FEMALE_ROW_START, school_days, warnings, 'female')
+    male_stats = _fill_sf2_gender_block(ws, males, MALE_ROW_START, day_slot_map, warnings, 'male')
+    female_stats = _fill_sf2_gender_block(ws, females, FEMALE_ROW_START, day_slot_map, warnings, 'female')
+
+    _fill_sf2_subtotal_row(
+        ws, MALE_SUBTOTAL_ROW, day_slot_map,
+        male_stats['present_per_col'], male_stats['total_absent'], male_stats['total_present'],
+    )
+    _fill_sf2_subtotal_row(
+        ws, FEMALE_SUBTOTAL_ROW, day_slot_map,
+        female_stats['present_per_col'], female_stats['total_absent'], female_stats['total_present'],
+    )
+    combined_present_per_col = {
+        col: male_stats['present_per_col'][col] + female_stats['present_per_col'][col]
+        for col in day_slot_map
+    }
+    combined_total_absent = male_stats['total_absent'] + female_stats['total_absent']
+    combined_total_present = male_stats['total_present'] + female_stats['total_present']
+    _fill_sf2_subtotal_row(
+        ws, COMBINED_TOTAL_ROW, day_slot_map,
+        combined_present_per_col, combined_total_absent, combined_total_present,
+    )
+
+    male_count = male_stats['count']
+    female_count = female_stats['count']
+    total_count = male_count + female_count
+
+    # BZ134: "Number of School Days in reporting month" (the ADA denominator
+    # documented at row 143) - uses the days actually rendered on the
+    # 30-slot grid, not every real school day, so it always matches the
+    # per-day totals written above (a school day that overflowed the grid
+    # has no mark data on this sheet at all, so it can't be counted here
+    # either - see the warnings _sf2_day_slot_map raises for that case).
+    ws['BZ134'] = school_day_count
+
+    # "Summary" block (rows 134-148): registered-learner counts and the
+    # Enrolment%/ADA/Attendance% math documented in the template itself
+    # around F139-L145, replicated here in Python since the template's own
+    # CC/CD/CE formulas are broken (external-workbook links, and ranges that
+    # no longer line up once the unused rows below are deleted).
+    ws['CC135'] = male_count
+    ws['CD135'] = female_count
+    ws['CE135'] = total_count
+
+    # Late enrollment: this app has no data on when a student enrolled
+    # relative to the 1st-Friday cutoff, so this stays 0 rather than guessed.
+    ws['CC137'] = 0
+    ws['CD137'] = 0
+    ws['CE137'] = 0
+
+    # "Registered Learners as of end of the month" - this app tracks one
+    # live roster, not a point-in-time snapshot, so it's the same count.
+    ws['CC142'] = male_count
+    ws['CD142'] = female_count
+    ws['CE142'] = total_count
+
+    # a. Percentage of Enrolment = Registered as of end of month / Registered
+    # as of 1st Friday. Both sides are the same roster above, so this is
+    # always ~1 (100%) until this app tracks separate enrollment-date
+    # snapshots - not fabricated, just a consequence of having one roster.
+    ws['CC144'] = _sf2_ratio(male_count, male_count)
+    ws['CD144'] = _sf2_ratio(female_count, female_count)
+    ws['CE144'] = _sf2_ratio(total_count, total_count)
+
+    # b. Average Daily Attendance = Total Daily Attendance / Number of
+    # School Days in the reporting month.
+    male_ada = _sf2_ratio(male_stats['total_present'], school_day_count)
+    female_ada = _sf2_ratio(female_stats['total_present'], school_day_count)
+    ws['CC146'] = male_ada
+    ws['CD146'] = female_ada
+    ws['CE146'] = round(male_ada + female_ada, 4)
+
+    # c. Percentage of Attendance for the month = Average Daily Attendance /
+    # Registered Learners as of end of the month.
+    ws['CC148'] = _sf2_ratio(male_stats['total_present'], school_day_count * male_count)
+    ws['CD148'] = _sf2_ratio(female_stats['total_present'], school_day_count * female_count)
+    ws['CE148'] = _sf2_ratio(combined_total_present, school_day_count * total_count)
+
+    # Rows 149-161 (students absent 5+ consecutive days, NLPA reason
+    # breakdowns, transferred/shifted in-out) - this app has no data source
+    # for any of these, so they're deliberately left at the template's own
+    # static 0s rather than computed or guessed at.
+
+    # Hide unused student rows (rather than leaving them blank) for both
+    # gender blocks. This template has ~2,700 merged cell ranges, and
+    # ws.delete_rows() does not reliably preserve values in merges elsewhere
+    # on the sheet once saved - it silently wiped out the Summary block's
+    # text (rows 132+: "Month :", "Summary", the M/F/TOTAL headers, the
+    # Enrolment/ADA/Attendance% labels, etc.) on every export. Hiding
+    # instead of deleting leaves every row number and merge untouched -
+    # Excel simply skips hidden rows when printing - so nothing below can
+    # be corrupted.
+    for row in range(MALE_ROW_START + male_count, MALE_ROW_START + MAX_STUDENTS_PER_GENDER):
+        ws.row_dimensions[row].hidden = True
+
+    for row in range(FEMALE_ROW_START + female_count, FEMALE_ROW_START + MAX_STUDENTS_PER_GENDER):
+        ws.row_dimensions[row].hidden = True
 
     return wb, warnings
 
