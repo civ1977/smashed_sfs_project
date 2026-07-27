@@ -9,6 +9,13 @@
 <a href="{% url 'upload_grades' %}" class="btn">+ Upload Grades</a>
 <a href="{% url 'view_attendance' 'all' %}" class="btn ghost">Class Attendance</a>
 
+<div style="margin-top: var(--space-4);">
+    <strong>Term:</strong>
+    {% for t in terms %}
+    <a href="?term={{ t.value }}" class="btn{% if term != t.value %} ghost{% endif %}">{{ t.label }}</a>
+    {% endfor %}
+</div>
+
 {% if students %}
     <p style="margin-top: var(--space-4);"><strong>Total:</strong> {{ students|length }} students</p>
 
@@ -31,13 +38,15 @@
                     <td class="mono" style="text-align: center;">
                         {% with grades_data|get:student.lrn as student_grades %}
                             {% with student_grades|get:subject.mapping_id as subject_grade %}
-                                {% if subject_grade and subject_grade.1 %}
-                                    <span style="font-weight: 700; color: {% if subject_grade.1 >= 75 %}var(--good){% else %}var(--risk){% endif %};">
-                                        {{ subject_grade.1 }}
-                                    </span>
-                                {% else %}
-                                    <span style="color: var(--ink-faint);">—</span>
-                                {% endif %}
+                                {% with subject_grade|get:term as grade_value %}
+                                    {% if grade_value %}
+                                        <span style="font-weight: 700; color: {% if grade_value >= 75 %}var(--good){% else %}var(--risk){% endif %};">
+                                            {{ grade_value }}
+                                        </span>
+                                    {% else %}
+                                        <span style="color: var(--ink-faint);">—</span>
+                                    {% endif %}
+                                {% endwith %}
                             {% endwith %}
                         {% endwith %}
                     </td>

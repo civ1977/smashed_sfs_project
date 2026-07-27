@@ -308,6 +308,13 @@ def view_grades(request, lrn):
         return redirect('dashboard')
     
     if lrn == 'all':
+        try:
+            term = int(request.GET.get('term', 1))
+        except ValueError:
+            term = 1
+        if term not in (1, 2, 3):
+            term = 1
+
         students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
 
         # Scope the subject list to this teacher's own grade level so Grade
@@ -335,6 +342,8 @@ def view_grades(request, lrn):
             'grades_data': grades_data,
             'subjects': subjects,
             'teacher': teacher,
+            'term': term,
+            'terms': GRADE_TERMS,
         })
     else:
         student = get_object_or_404(Student, lrn=lrn, adviser_id=teacher.teacher_id)
