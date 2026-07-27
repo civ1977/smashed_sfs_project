@@ -76,5 +76,9 @@ def shell_context(request):
         'shell_nav_items': [
             _nav_item(request, 'Overview', 'school_dashboard'),
             _nav_item(request, 'Students', 'school_student_list'),
+            _nav_item(request, 'Sections', 'school_sections',
+                      match_names={'school_sections', 'reassign_section_adviser'}),
+            _nav_item(request, 'Accounts', 'school_accounts',
+                      match_names={'school_accounts', 'toggle_teacher_active', 'reassign_teacher_section'}),
         ],
     }

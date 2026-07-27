@@ -1,18 +1,16 @@
 {% extends 'base.html' %}
 
+{% block breadcrumb %}STUDENTS{% endblock %}
+
 {% block content %}
-<h2>📋 All Students</h2>
-
-<a href="{% url 'school_dashboard' %}" class="btn">← School Dashboard</a>
-
-<hr>
+<h1>All Students</h1>
 
 {% if students %}
     <p>Total: <strong>{{ students|length }}</strong> students</p>
 
-    <table border="1" cellpadding="8" style="border-collapse: collapse; width: 100%;">
+    <table>
         <thead>
-            <tr style="background: #2c3e50; color: white;">
+            <tr>
                 <th>LRN</th>
                 <th>Surname</th>
                 <th>Name</th>
@@ -25,7 +23,7 @@
         <tbody>
             {% for student in students %}
             <tr>
-                <td><strong>{{ student.lrn }}</strong></td>
+                <td class="mono">{{ student.lrn }}</td>
                 <td>{{ student.surname }}</td>
                 <td>{{ student.name }}</td>
                 <td>{{ student.middle_name|default:"—" }}</td>
@@ -37,44 +35,6 @@
         </tbody>
     </table>
 {% else %}
-    <p style="color: #999; text-align: center; padding: 40px;">
-        No students found for this school yet.
-    </p>
+    <p>No students found for this school yet.</p>
 {% endif %}
-
-<style>
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    th, td {
-        padding: 8px 10px;
-        text-align: left;
-        border: 1px solid #ddd;
-    }
-    th {
-        background: #2c3e50;
-        color: white;
-    }
-    tr:nth-child(even) {
-        background: #f5f5f5;
-    }
-    tr:hover {
-        background: #e8f4fd;
-    }
-    .btn {
-        display: inline-block;
-        padding: 10px 20px;
-        background: #3498db;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        text-decoration: none;
-        margin-right: 10px;
-    }
-    .btn:hover {
-        background: #2980b9;
-    }
-</style>
 {% endblock %}

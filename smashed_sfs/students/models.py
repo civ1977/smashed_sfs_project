@@ -34,7 +34,7 @@ class Section(models.Model):
     strand = models.CharField(max_length=50)
     section_name = models.CharField(max_length=50)
     modality = models.CharField(max_length=50)
-    adviser_id = models.IntegerField()
+    adviser_id = models.IntegerField(null=True, blank=True)
     school_profile_id = models.IntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
 

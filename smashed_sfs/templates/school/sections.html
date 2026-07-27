@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}SECTIONS{% endblock %}
+
+{% block content %}
+<h1>Sections</h1>
+
+<h3>Create a Section</h3>
+<div class="card" style="max-width: 480px; margin-bottom: var(--space-6);">
+    <form method="POST" action="{% url 'school_sections' %}">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>Grade Level:</label>
+            <input type="text" name="grade_level" placeholder="11" required>
+        </div>
+        <div class="form-group">
+            <label>Track:</label>
+            <input type="text" name="track" placeholder="Academic">
+        </div>
+        <div class="form-group">
+            <label>Strand:</label>
+            <input type="text" name="strand" placeholder="STEM">
+        </div>
+        <div class="form-group">
+            <label>Section Name:</label>
+            <input type="text" name="section_name" placeholder="B" required>
+        </div>
+        <div class="form-group">
+            <label>Modality:</label>
+            <input type="text" name="modality" placeholder="F2F">
+        </div>
+        <div class="form-group">
+            <label>Adviser (optional):</label>
+            <select name="adviser_teacher_id">
+                <option value="">— Unassigned —</option>
+                {% for t in unassigned_teachers %}
+                <option value="{{ t.teacher_id }}">{{ t.full_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn">Create Section</button>
+    </form>
+</div>
+
+<h3>All Sections</h3>
+{% if section_rows %}
+<table>
+    <thead>
+        <tr>
+            <th>Grade</th>
+            <th>Track</th>
+            <th>Strand</th>
+            <th>Section</th>
+            <th>Adviser</th>
+            <th>Students</th>
+            <th>Reassign Adviser</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in section_rows %}
+        <tr>
+            <td>{{ row.section.grade_level }}</td>
+            <td>{{ row.section.track|default:"—" }}</td>
+            <td>{{ row.section.strand|default:"—" }}</td>
+            <td>{{ row.section.section_name }}</td>
+            <td>
+                {% if row.adviser %}
+                    {{ row.adviser.full_name }}
+                {% else %}
+                    <span class="pill warn">Unassigned</span>
+                {% endif %}
+            </td>
+            <td class="num">{{ row.student_count }}</td>
+            <td>
+                <form method="POST" action="{% url 'reassign_section_adviser' row.section.section_id %}" style="display:flex; gap: var(--space-2);">
+                    {% csrf_token %}
+                    <select name="adviser_teacher_id">
+                        <option value="">— Unassigned —</option>
+                        {% for t in all_teachers %}
+                        <option value="{{ t.teacher_id }}" {% if row.adviser and row.adviser.teacher_id == t.teacher_id %}selected{% endif %}>{{ t.full_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn ghost">Save</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No sections created for this school yet.</p>
+{% endif %}
+{% endblock %}

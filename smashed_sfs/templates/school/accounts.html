@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}ACCOUNTS{% endblock %}
+
+{% block content %}
+<h1>Teacher Accounts</h1>
+<p>Provisioning a brand-new teacher account is still a manual step for now (no email invite flow yet) - add them via Django admin, then manage their status and section here.</p>
+
+{% if account_rows %}
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Position</th>
+            <th>Section</th>
+            <th>Status</th>
+            <th>Reassign Section</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in account_rows %}
+        <tr>
+            <td>{{ row.teacher.full_name }}</td>
+            <td>{{ row.teacher.position|default:"—" }}</td>
+            <td>
+                {% if row.section %}
+                    {{ row.section.grade_level }}-{{ row.section.strand }}-{{ row.section.section_name }}
+                {% else %}
+                    <span class="pill warn">Unassigned</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if row.teacher.is_active %}
+                    <span class="pill good">Active</span>
+                {% else %}
+                    <span class="pill risk">Inactive</span>
+                {% endif %}
+            </td>
+            <td>
+                <form method="POST" action="{% url 'reassign_teacher_section' row.teacher.teacher_id %}" style="display:flex; gap: var(--space-2);">
+                    {% csrf_token %}
+                    <select name="section_id">
+                        <option value="">— Unassigned —</option>
+                        {% for s in sections %}
+                        <option value="{{ s.section_id }}" {% if row.section and row.section.section_id == s.section_id %}selected{% endif %}>{{ s.grade_level }}-{{ s.strand }}-{{ s.section_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn ghost">Save</button>
+                </form>
+            </td>
+            <td>
+                <form method="POST" action="{% url 'toggle_teacher_active' row.teacher.teacher_id %}">
+                    {% csrf_token %}
+                    {% if row.teacher.is_active %}
+                        <button type="submit" class="btn risk">Deactivate</button>
+                    {% else %}
+                        <button type="submit" class="btn good">Activate</button>
+                    {% endif %}
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No teacher accounts found for this school yet.</p>
+{% endif %}
+{% endblock %}
