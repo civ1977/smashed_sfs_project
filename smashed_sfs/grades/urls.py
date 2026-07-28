@@ -5,6 +5,7 @@ urlpatterns = [
     path('upload/', views.upload_grades, name='upload_grades'),
     path('save/', views.save_grades, name='save_grades'),
     path('view/<str:lrn>/', views.view_grades, name='view_grades'),
+    path('rankings/', views.view_rankings, name='view_rankings'),
 
     path('attendance/grid/', views.attendance_grid, name='attendance_grid'),
     path('attendance/grid/save/', views.attendance_grid_save, name='attendance_grid_save'),

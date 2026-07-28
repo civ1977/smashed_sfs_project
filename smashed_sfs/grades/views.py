@@ -307,6 +307,102 @@ def build_student_grade_sheet(lrn):
     return subject_grades, subject_names, general_average, grades
 
 
+# Assumption, not data this app has: DepEd's standard published honor-roll
+# cutoffs, each also gated on no failing subject grade. The sample
+# Rank.xlsm's actual awards didn't cleanly reduce to an average-only rule
+# and may depend on a criterion (conduct, a specific subject floor, etc.)
+# this app has no data for - surfaced as a UI note on the rankings page
+# too, so confirm against the school's actual policy before relying on it.
+HONOR_HIGHEST_MIN = 98
+HONOR_HIGH_MIN = 95
+HONOR_WITH_MIN = 90
+PASSING_GRADE = 75
+
+
+def _award_for_average(general_average, has_failing_grade):
+    if has_failing_grade:
+        return None
+    if general_average >= HONOR_HIGHEST_MIN:
+        return 'With Highest Honors'
+    if general_average >= HONOR_HIGH_MIN:
+        return 'With High Honors'
+    if general_average >= HONOR_WITH_MIN:
+        return 'With Honors'
+    return None
+
+
+@login_required
+def view_rankings(request):
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+
+    # Same grade-level scoping as view_grades('all'): a subject only
+    # "counts" for completeness/ranking if it's mapped for this teacher's
+    # own grade level.
+    teacher_section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
+    subjects = SubjectMapping.objects.filter(school_profile_id=teacher.school_profile_id)
+    if teacher_section:
+        subjects = subjects.filter(grade_level=teacher_section.grade_level)
+    required_subject_ids = set(subjects.values_list('mapping_id', flat=True))
+
+    complete = []
+    incomplete_students = []
+    for student in students:
+        subject_grades, _subject_names, general_average, _grades = build_student_grade_sheet(student.lrn)
+        missing_subject = any(
+            subject_grades.get(mapping_id, {}).get('final') is None
+            for mapping_id in required_subject_ids
+        )
+        if missing_subject or general_average is None or not required_subject_ids:
+            incomplete_students.append(student)
+            continue
+
+        has_failing_grade = any(
+            subject_grades[mapping_id]['final'] < PASSING_GRADE for mapping_id in required_subject_ids
+        )
+        complete.append({
+            'student': student,
+            'general_average': general_average,
+            'has_failing_grade': has_failing_grade,
+        })
+
+    # Standard competition ranking (1224): ties share a rank, and the next
+    # distinct average is ranked by its position, skipping the ranks the
+    # tie consumed - e.g. two students tied at position 6 are both rank 6,
+    # and the next student down is rank 8, not 7.
+    complete.sort(key=lambda row: row['general_average'], reverse=True)
+    rank = 0
+    previous_average = None
+    award_counts = {'With Highest Honors': 0, 'With High Honors': 0, 'With Honors': 0}
+    for position, row in enumerate(complete, start=1):
+        if row['general_average'] != previous_average:
+            rank = position
+        row['rank'] = rank
+        previous_average = row['general_average']
+
+        row['award'] = _award_for_average(row['general_average'], row['has_failing_grade'])
+        if row['award']:
+            award_counts[row['award']] += 1
+
+    award_summary = [
+        {'label': 'With Highest Honors', 'count': award_counts['With Highest Honors']},
+        {'label': 'With High Honors', 'count': award_counts['With High Honors']},
+        {'label': 'With Honors', 'count': award_counts['With Honors']},
+    ]
+
+    return render(request, 'grades/rankings.html', {
+        'teacher': teacher,
+        'rankings': complete,
+        'incomplete_students': incomplete_students,
+        'award_summary': award_summary,
+    })
+
+
 @login_required
 def view_grades(request, lrn):
     try:
@@ -323,7 +419,10 @@ def view_grades(request, lrn):
         if term not in (1, 2, 3):
             term = 1
 
-        students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+        ordered_students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+        males = [s for s in ordered_students if s.sex in ('MALE', 'M')]
+        females = [s for s in ordered_students if s.sex in ('FEMALE', 'F')]
+        students = males + females
 
         # Scope the subject list to this teacher's own grade level so Grade
         # 11 and Grade 12 mappings (which share a school_profile_id) don't
@@ -448,7 +547,10 @@ def attendance_grid(request):
     if month < 1 or month > 12:
         month = today.month
 
-    students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+    ordered_students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+    males = [s for s in ordered_students if s.sex in ('MALE', 'M')]
+    females = [s for s in ordered_students if s.sex in ('FEMALE', 'F')]
+    students = males + females
     school_days = _school_days_in_month(section.school_profile_id, year, month)
 
     lrns = [s.lrn for s in students]
@@ -631,7 +733,10 @@ def view_attendance(request, lrn):
         return redirect('dashboard')
 
     if lrn == 'all':
-        students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+        ordered_students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+        males = [s for s in ordered_students if s.sex in ('MALE', 'M')]
+        females = [s for s in ordered_students if s.sex in ('FEMALE', 'F')]
+        students = males + females
 
         attendance_data = {}
         for student in students:

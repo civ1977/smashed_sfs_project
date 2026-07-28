@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}RANKINGS{% endblock %}
+
+{% block content %}
+<h1>Class Rankings</h1>
+
+<a href="{% url 'view_grades' 'all' %}" class="btn ghost">← Back to Grades</a>
+
+<div class="alert alert-info" style="margin-top: var(--space-4);">
+    Awards use standard DepEd honor thresholds (Highest Honors 98-100, High Honors 95-97,
+    With Honors 90-94, each also requiring no failing grade in any subject) — confirm against
+    your school's actual policy before relying on this column.
+</div>
+
+<div class="card" style="margin-top: var(--space-4);">
+    <h2 style="margin-top: 0;">Summary of Academic Awards</h2>
+    <div style="display: flex; gap: var(--space-5); flex-wrap: wrap;">
+        {% for entry in award_summary %}
+        <div>
+            <div style="font-family: var(--font-mono); font-size: 24px; font-weight: 800; color: var(--accent);">{{ entry.count }}</div>
+            <div style="font-size: 13px; color: var(--ink-soft);">{{ entry.label }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% if rankings %}
+    <p style="margin-top: var(--space-4);"><strong>Ranked:</strong> {{ rankings|length }} students</p>
+
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>No.</th>
+                    <th>Name of Learner</th>
+                    <th>Average</th>
+                    <th>Rank</th>
+                    <th>Award</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rankings %}
+                <tr>
+                    <td class="mono">{{ forloop.counter }}</td>
+                    <td>{{ row.student.surname }}, {{ row.student.name }}{% if row.student.middle_name %} {{ row.student.middle_name }}{% endif %}</td>
+                    <td class="mono">{{ row.general_average }}</td>
+                    <td class="mono">{{ row.rank }}</td>
+                    <td>
+                        {% if row.award %}
+                            <span class="pill good">{{ row.award }}</span>
+                        {% else %}
+                            <span style="color: var(--ink-faint);">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <p style="margin-top: var(--space-4);">No students have a complete gradesheet yet.</p>
+{% endif %}
+
+{% if incomplete_students %}
+<div class="card" style="margin-top: var(--space-4);">
+    <h2 style="margin-top: 0;">Incomplete Gradesheets</h2>
+    <p style="color: var(--ink-soft); font-size: 13px;">
+        These students are missing a grade in at least one subject, so they're left out of
+        ranking and awards rather than being ranked on a partial average.
+    </p>
+    <ul>
+        {% for student in incomplete_students %}
+        <li>{{ student.surname }}, {{ student.name }} <span class="pill warn">Incomplete</span></li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+{% endblock %}

@@ -8,6 +8,7 @@
 
 <a href="{% url 'upload_grades' %}" class="btn">+ Upload Grades</a>
 <a href="{% url 'attendance_grid' %}" class="btn ghost">Attendance</a>
+<a href="{% url 'view_rankings' %}" class="btn ghost">View Rankings</a>
 
 <div style="margin-top: var(--space-4);">
     <strong>Term:</strong>
@@ -19,20 +20,22 @@
 {% if students %}
     <p style="margin-top: var(--space-4);"><strong>Total:</strong> {{ students|length }} students</p>
 
-    <div style="overflow-x: auto;">
-        <table>
+    <div class="grades-list-scroll">
+        <table class="grades-list-table" id="grades-list-table">
             <thead>
                 <tr>
-                    <th style="min-width: 120px;">LRN</th>
+                    <th class="freeze-col freeze-col-1" style="min-width: 120px;">LRN</th>
+                    <th class="freeze-col freeze-col-2" style="min-width: 160px;">Name</th>
                     {% for subject in subjects %}
-                    <th style="min-width: 80px;">{{ subject.subject_name|truncatechars:10 }}</th>
+                    <th style="min-width: 80px;">{{ subject.subject_name }}</th>
                     {% endfor %}
                 </tr>
             </thead>
             <tbody>
                 {% for student in students %}
                 <tr>
-                    <td class="mono">{{ student.lrn|stringformat:"s" }}</td>
+                    <td class="mono freeze-col freeze-col-1">{{ student.lrn|stringformat:"s" }}</td>
+                    <td class="freeze-col freeze-col-2">{{ student.surname }}, {{ student.name }}</td>
 
                     {% for subject in subjects %}
                     <td class="mono" style="text-align: center;">
@@ -59,4 +62,36 @@
 {% else %}
     <p>No students found. Upload student profiles first.</p>
 {% endif %}
+
+<style>
+    .grades-list-scroll {
+        overflow: auto;
+        max-height: calc(100vh - 260px);
+    }
+    .grades-list-table th {
+        white-space: normal;
+        word-break: break-word;
+        vertical-align: bottom;
+    }
+    .grades-list-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--bg);
+    }
+    .grades-list-table .freeze-col {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        box-sizing: border-box;
+        white-space: nowrap;
+        background: var(--bg);
+    }
+    .grades-list-table .freeze-col-1 { left: 0; width: 120px; min-width: 120px; }
+    .grades-list-table .freeze-col-2 { left: 120px; width: 160px; min-width: 160px; }
+    .grades-list-table thead .freeze-col {
+        top: 0;
+        z-index: 4;
+    }
+</style>
 {% endblock %}
