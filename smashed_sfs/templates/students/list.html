@@ -16,11 +16,12 @@
         {% endfor %}
     </div>
 
-    <table>
+    <div class="student-list-scroll">
+    <table class="student-list-table" id="student-list-table">
         <thead>
             <tr>
-                <th>LRN</th>
-                <th>Surname</th>
+                <th class="freeze-col freeze-col-1">LRN</th>
+                <th class="freeze-col freeze-col-2">Surname</th>
                 <th>Name</th>
                 <th>Middle Name</th>
                 <th>Sex</th>
@@ -32,8 +33,8 @@
         <tbody>
             {% for student in students %}
             <tr id="row-{{ student.lrn }}">
-                <td class="mono"><strong>{{ student.lrn }}</strong></td>
-                <td>
+                <td class="mono freeze-col freeze-col-1"><strong>{{ student.lrn }}</strong></td>
+                <td class="freeze-col freeze-col-2">
                     <span class="view-val">{{ student.surname }}</span>
                     <input class="edit-val" type="text" name="surname" value="{{ student.surname }}" form="edit-form-{{ student.lrn }}" style="display:none;">
                 </td>
@@ -66,9 +67,37 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
 {% else %}
     <p>No students uploaded yet. Click <strong>"Upload CSV"</strong> to add students.</p>
 {% endif %}
+
+<style>
+    .student-list-scroll {
+        overflow: auto;
+        max-height: calc(100vh - 260px);
+    }
+    .student-list-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--bg);
+    }
+    .student-list-table .freeze-col {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        box-sizing: border-box;
+        white-space: nowrap;
+        background: var(--bg);
+    }
+    .student-list-table .freeze-col-1 { left: 0; width: 130px; min-width: 130px; }
+    .student-list-table .freeze-col-2 { left: 130px; width: 150px; min-width: 150px; }
+    .student-list-table thead .freeze-col {
+        top: 0;
+        z-index: 4;
+    }
+</style>
 
 <script>
     function toggleEdit(lrn) {

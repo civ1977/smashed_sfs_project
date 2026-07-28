@@ -159,7 +159,10 @@ def save_students(request):
 def student_list(request):
     try:
         teacher = Teacher.objects.get(username=request.user.username)
-        students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+        ordered_students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+        males = [s for s in ordered_students if s.sex in ('MALE', 'M')]
+        females = [s for s in ordered_students if s.sex in ('FEMALE', 'F')]
+        students = males + females
     except Teacher.DoesNotExist:
         messages.error(request, 'Your account is not linked to a Teacher profile.')
         students = []
