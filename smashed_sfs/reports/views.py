@@ -6,6 +6,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponse
+from django.urls import reverse
+from django.utils.html import format_html
 
 from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
@@ -290,20 +292,28 @@ def _sf2_student_name(student):
     return ' '.join(parts)
 
 
-def _sf2_day_slot_map(school_days, year, month, warnings):
+def _sf2_day_slot_map(school_days, year, month, warnings, reanchor_to_first_monday=False):
     """Maps each real school day to its weekday-anchored (week, weekday)
     slot in the 30-slot (5 weeks x Mon-Sat) SF2 day grid, keyed by the
-    DAY_COLUMNS letter for that slot - not by list position. The grid
-    always starts at the first Monday of the month (column K), regardless
-    of what weekday the 1st itself falls on; Saturday is always a week's
-    sixth slot. Any school day before that first Monday (at most a leading
-    Sat/Sun when the month doesn't start on a Monday) has nowhere to go on
-    the grid and is left out of the returned map, same as a day that falls
-    past the 5-week grid's last slot.
+    DAY_COLUMNS letter for that slot - not by list position. Monday is
+    always a week's first slot, Saturday its sixth; a week with no Saturday
+    class, a holiday gap, or a partial first week (the month not starting
+    on a Monday) all simply leave that slot out of the returned map rather
+    than pulling in whatever day comes next.
+
+    Normally grid_start is the Monday on/before the 1st, so a month that
+    doesn't start on a Monday just renders a partly-blank leading week.
+    reanchor_to_first_monday skips that leading week entirely and starts
+    the grid at the first Monday on/after the 1st instead - only meant for
+    the Saturday/Sunday-start edge case, where the default anchor would
+    otherwise waste an entire week of columns on nothing.
     """
     month_start = date(year, month, 1)
-    days_to_first_monday = (7 - month_start.weekday()) % 7
-    grid_start = month_start + timedelta(days=days_to_first_monday)
+    if reanchor_to_first_monday:
+        days_to_first_monday = (7 - month_start.weekday()) % 7
+        grid_start = month_start + timedelta(days=days_to_first_monday)
+    else:
+        grid_start = month_start - timedelta(days=month_start.weekday())
 
     slot_map = {}
     for day in school_days:
@@ -314,11 +324,10 @@ def _sf2_day_slot_map(school_days, year, month, warnings):
                 f"only has Monday-Saturday columns, so it was left off this form."
             )
             continue
-        if day < grid_start:
+        if reanchor_to_first_monday and day < grid_start:
             warnings.append(
                 f"{day.isoformat()} is a school day before {MONTH_NAMES[month - 1]}'s first "
-                f"Monday; SF2's day grid starts at the first Monday of the month, so it was "
-                f"left off this form."
+                f"Monday; SF2's day grid starts there for this month, so it was left off this form."
             )
             continue
         week_number = (day - grid_start).days // 7
@@ -412,7 +421,7 @@ def _fill_sf2_subtotal_row(ws, row, day_slot_map, present_per_col, total_absent,
     ws[f'BV{row}'] = total_present
 
 
-def _build_sf2_workbook(teacher, section, school_profile, year, month):
+def _build_sf2_workbook(teacher, section, school_profile, year, month, reanchor_to_first_monday=False):
     """Returns (workbook, warnings). warnings is a list of human-readable
     strings for anything this export had to cap/truncate rather than
     silently drop."""
@@ -427,7 +436,7 @@ def _build_sf2_workbook(teacher, section, school_profile, year, month):
     wb._external_links = []
 
     school_days = _school_days_in_month(section.school_profile_id, year, month)
-    day_slot_map = _sf2_day_slot_map(school_days, year, month, warnings)
+    day_slot_map = _sf2_day_slot_map(school_days, year, month, warnings, reanchor_to_first_monday)
     school_day_count = len(day_slot_map)
 
     _fill_sf2_header(ws, teacher, section, school_profile, year, month)
@@ -554,11 +563,47 @@ def export_sf2(request, year, month):
         messages.error(request, 'Your profile is missing a section. Please complete your profile first.')
         return redirect('attendance_grid')
 
+    month_start = date(year, month, 1)
+    starts_on_weekend = month_start.weekday() in (5, 6)
+    if starts_on_weekend and request.GET.get('confirmed') != '1':
+        weekday_name = 'Saturday' if month_start.weekday() == 5 else 'Sunday'
+        confirm_url = f"{reverse('export_sf2', args=[year, month])}?confirmed=1"
+
+        school_days = _school_days_in_month(section.school_profile_id, year, month)
+        preview_slot_map = _sf2_day_slot_map(school_days, year, month, [], reanchor_to_first_monday=True)
+        first_week_cols = [col for col in DAY_COLUMNS[:6] if col in preview_slot_map]
+        first_week_days = [preview_slot_map[col] for col in first_week_cols]
+
+        if first_week_days:
+            first_day, last_day = first_week_days[0], first_week_days[-1]
+            date_range = (
+                f"{first_day.strftime('%b')} {first_day.day}"
+                if first_day == last_day
+                else f"{first_day.strftime('%b')} {first_day.day}-{last_day.day}"
+            )
+            detail = (
+                f"so this month's first school week ({date_range}) will start at column "
+                f"{first_week_cols[0]} instead of its usual calendar position"
+            )
+        else:
+            detail = "so the day grid's first calendar week has no weekdays in it"
+
+        messages.warning(
+            request,
+            format_html(
+                '{} {} starts on a {}, {}. <a href="{}">Generate anyway</a>',
+                MONTH_NAMES[month - 1], year, weekday_name, detail, confirm_url,
+            ),
+        )
+        return redirect(f"{reverse('attendance_grid')}?year={year}&month={month}")
+
     school_profile = None
     if teacher.school_profile_id:
         school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
 
-    wb, warnings = _build_sf2_workbook(teacher, section, school_profile, year, month)
+    wb, warnings = _build_sf2_workbook(
+        teacher, section, school_profile, year, month, reanchor_to_first_monday=starts_on_weekend
+    )
     for warning in warnings:
         messages.warning(request, warning)
 
