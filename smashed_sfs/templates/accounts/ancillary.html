@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}ANCILLARY{% endblock %}
+
+{% block content %}
+<h1>Ancillary</h1>
+
+<div class="card" style="max-width: 480px; margin-bottom: var(--space-4);">
+    <h3>Manage My Subject Teachers</h3>
+    <p><small>Assign subject teachers - or yourself - to teach subjects in your own section.</small></p>
+    <a href="{% url 'adviser_subject_assignments' %}" class="btn">Manage My Subject Teachers</a>
+</div>
+
+<div class="card" style="max-width: 480px;">
+    <h3>My Subject Teaching</h3>
+    <p><small>Enter grades for the subjects and sections you've been assigned to teach.</small></p>
+    <a href="{% url 'my_subject_teaching' %}" class="btn">My Subject Teaching</a>
+</div>
+{% endblock %}

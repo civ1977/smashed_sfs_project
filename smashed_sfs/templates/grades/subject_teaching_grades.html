@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% load grade_filters %}
+
+{% block breadcrumb %}ENTER GRADES{% endblock %}
+
+{% block content %}
+<h1>{{ mapping.subject_name }} - {{ section.grade_level }}-{{ section.strand }}-{{ section.section_name }}</h1>
+
+<a href="{% url 'my_subject_teaching' %}" class="btn ghost">← Back to My Subject Teaching</a>
+
+{% if students %}
+<form method="POST" action="{% url 'subject_teaching_grades' assignment.assignment_id %}" style="margin-top: var(--space-4);">
+    {% csrf_token %}
+    <input type="hidden" name="row_count" value="{{ students|length }}">
+    <div class="subject-grades-scroll">
+    <table class="subject-grades-table">
+        <thead>
+            <tr>
+                <th>LRN</th>
+                <th>Name</th>
+                <th>Term 1</th>
+                <th>Term 2</th>
+                <th>Term 3</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr>
+                <td class="mono">{{ student.lrn|stringformat:"s" }}</td>
+                <td>{{ student.surname }}, {{ student.name }}</td>
+                <td>
+                    <input type="hidden" name="lrn_{{ forloop.counter0 }}" value="{{ student.lrn }}">
+                    <input type="number" min="60" max="100" name="grade_{{ forloop.counter0 }}_1"
+                           value="{{ grades_by_lrn|get:student.lrn|get:1|default_if_none:'' }}" style="width: 70px;">
+                </td>
+                <td>
+                    <input type="number" min="60" max="100" name="grade_{{ forloop.counter0 }}_2"
+                           value="{{ grades_by_lrn|get:student.lrn|get:2|default_if_none:'' }}" style="width: 70px;">
+                </td>
+                <td>
+                    <input type="number" min="60" max="100" name="grade_{{ forloop.counter0 }}_3"
+                           value="{{ grades_by_lrn|get:student.lrn|get:3|default_if_none:'' }}" style="width: 70px;">
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    <button type="submit" class="btn" style="margin-top: var(--space-4);">Save Grades</button>
+</form>
+{% else %}
+<p>No students found in this section.</p>
+{% endif %}
+
+<style>
+    .subject-grades-scroll {
+        overflow: auto;
+        max-height: calc(100vh - 320px);
+    }
+    .subject-grades-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--bg);
+    }
+</style>
+{% endblock %}

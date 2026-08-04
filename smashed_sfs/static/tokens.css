@@ -315,28 +315,25 @@ tr:last-child td { border-bottom: none; }
   color: var(--ink-faint);
 }
 .marketnav .mainnav {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   padding: var(--space-3) var(--space-5);
   background: var(--accent);
 }
-.marketnav .mainnav .brand {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 19px;
-  color: #fff;
-}
 .marketnav .mainnav .links {
   display: flex;
+  justify-self: center;
   gap: var(--space-5);
   font-size: 14px;
   color: rgba(255,255,255,.85);
   font-weight: 600;
+  text-align: center;
 }
 .marketnav .mainnav .links a { color: rgba(255,255,255,.85); text-decoration: none; }
 .marketnav .mainnav .links a:hover { color: #fff; }
 .marketnav .mainnav .cta {
+  justify-self: end;
   background: #fff;
   color: var(--accent);
   font-size: 13px;

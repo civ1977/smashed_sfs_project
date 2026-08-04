@@ -3,17 +3,18 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>DepEd SF9/SF10 System</title>
+    <title>DepEd School Forms and Reporting System</title>
     <link rel="stylesheet" href="{% static 'tokens.css' %}">
 </head>
 <body>
     <div class="marketnav">
-        <div class="utility">DepEd Senior High School Records</div>
+        <div class="utility">DepEd School Forms and Reporting System</div>
         <div class="mainnav">
-            <span class="brand">smashed·sfs</span>
+            {% include 'partials/brand.html' with brand_class='public-brand' %}
             <div class="links">
-                <a href="{% url 'register' %}">Teacher Registration</a>
-                <a href="{% url 'portal_register' %}">Student Portal</a>
+                <a href="{% url 'register' %}">Teaching</a>
+                <a href="{% url 'register' %}?type=non_teaching">Non-Teaching</a>
+                <a href="{% url 'portal_register' %}">Student</a>
             </div>
             <a href="{% url 'login' %}" class="cta">Login</a>
         </div>

@@ -11,7 +11,7 @@ import json
 from datetime import datetime, date as date_cls
 from students.models import Student, Section
 from accounts.models import Teacher
-from .models import Grade, SubjectMapping, Attendance, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException
+from .models import Grade, SubjectMapping, Attendance, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment
 
 MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -350,56 +350,76 @@ def view_rankings(request):
         subjects = subjects.filter(grade_level=teacher_section.grade_level)
     required_subject_ids = set(subjects.values_list('mapping_id', flat=True))
 
-    complete = []
-    incomplete_students = []
-    for student in students:
-        subject_grades, _subject_names, general_average, _grades = build_student_grade_sheet(student.lrn)
-        missing_subject = any(
-            subject_grades.get(mapping_id, {}).get('final') is None
-            for mapping_id in required_subject_ids
-        )
-        if missing_subject or general_average is None or not required_subject_ids:
-            incomplete_students.append(student)
-            continue
+    # Each student's raw per-term subject grades, computed once and reused
+    # across all three terms below.
+    student_subject_grades = {
+        student.lrn: build_student_grade_sheet(student.lrn)[0] for student in students
+    }
 
-        has_failing_grade = any(
-            subject_grades[mapping_id]['final'] < PASSING_GRADE for mapping_id in required_subject_ids
-        )
-        complete.append({
-            'student': student,
-            'general_average': general_average,
-            'has_failing_grade': has_failing_grade,
+    terms = []
+    for term in (1, 2, 3):
+        # Terms are ranked independently off subject_grades[mapping_id][term]
+        # (the raw grade entered for that term), not the cross-term 'final' -
+        # a student missing Term 3 still ranks in Term 1/2 on what they have.
+        complete = []
+        incomplete_students = []
+        for student in students:
+            subject_grades = student_subject_grades[student.lrn]
+            term_values = {}
+            missing_subject = not required_subject_ids
+            for mapping_id in required_subject_ids:
+                value = subject_grades.get(mapping_id, {}).get(term)
+                if value is None:
+                    missing_subject = True
+                    break
+                term_values[mapping_id] = value
+
+            if missing_subject:
+                incomplete_students.append(student)
+                continue
+
+            general_average = round(sum(term_values.values()) / len(term_values), 2)
+            has_failing_grade = any(value < PASSING_GRADE for value in term_values.values())
+            complete.append({
+                'student': student,
+                'general_average': general_average,
+                'has_failing_grade': has_failing_grade,
+            })
+
+        # Standard competition ranking (1224): ties share a rank, and the next
+        # distinct average is ranked by its position, skipping the ranks the
+        # tie consumed - e.g. two students tied at position 6 are both rank 6,
+        # and the next student down is rank 8, not 7.
+        complete.sort(key=lambda row: row['general_average'], reverse=True)
+        rank = 0
+        previous_average = None
+        award_counts = {'With Highest Honors': 0, 'With High Honors': 0, 'With Honors': 0}
+        for position, row in enumerate(complete, start=1):
+            if row['general_average'] != previous_average:
+                rank = position
+            row['rank'] = rank
+            previous_average = row['general_average']
+
+            row['award'] = _award_for_average(row['general_average'], row['has_failing_grade'])
+            if row['award']:
+                award_counts[row['award']] += 1
+
+        award_summary = [
+            {'label': 'With Highest Honors', 'count': award_counts['With Highest Honors']},
+            {'label': 'With High Honors', 'count': award_counts['With High Honors']},
+            {'label': 'With Honors', 'count': award_counts['With Honors']},
+        ]
+
+        terms.append({
+            'term': term,
+            'rankings': complete,
+            'incomplete_students': incomplete_students,
+            'award_summary': award_summary,
         })
-
-    # Standard competition ranking (1224): ties share a rank, and the next
-    # distinct average is ranked by its position, skipping the ranks the
-    # tie consumed - e.g. two students tied at position 6 are both rank 6,
-    # and the next student down is rank 8, not 7.
-    complete.sort(key=lambda row: row['general_average'], reverse=True)
-    rank = 0
-    previous_average = None
-    award_counts = {'With Highest Honors': 0, 'With High Honors': 0, 'With Honors': 0}
-    for position, row in enumerate(complete, start=1):
-        if row['general_average'] != previous_average:
-            rank = position
-        row['rank'] = rank
-        previous_average = row['general_average']
-
-        row['award'] = _award_for_average(row['general_average'], row['has_failing_grade'])
-        if row['award']:
-            award_counts[row['award']] += 1
-
-    award_summary = [
-        {'label': 'With Highest Honors', 'count': award_counts['With Highest Honors']},
-        {'label': 'With High Honors', 'count': award_counts['With High Honors']},
-        {'label': 'With Honors', 'count': award_counts['With Honors']},
-    ]
 
     return render(request, 'grades/rankings.html', {
         'teacher': teacher,
-        'rankings': complete,
-        'incomplete_students': incomplete_students,
-        'award_summary': award_summary,
+        'terms': terms,
     })
 
 
@@ -764,3 +784,129 @@ def view_attendance(request, lrn):
             'month_attendance': month_attendance,
             'months': ATTENDANCE_MONTH_OPTIONS,
         })
+
+
+@login_required
+def my_subject_teaching(request):
+    """List every TeacherSubjectAssignment row for the requesting teacher,
+    regardless of role - a Class Adviser and a Subject Teacher use this
+    identically, since both can hold assignments (see school_assignments /
+    adviser_subject_assignments in the school app)."""
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    assignments = TeacherSubjectAssignment.objects.filter(
+        teacher_id=teacher.teacher_id
+    ).order_by('assignment_id')
+
+    sections_by_id = {
+        s.section_id: s for s in Section.objects.filter(
+            section_id__in=[a.section_id for a in assignments]
+        )
+    }
+    mappings_by_id = {
+        m.mapping_id: m for m in SubjectMapping.objects.filter(
+            mapping_id__in=[a.mapping_id for a in assignments]
+        )
+    }
+
+    assignment_rows = [
+        {
+            'assignment': a,
+            'section': sections_by_id.get(a.section_id),
+            'mapping': mappings_by_id.get(a.mapping_id),
+        }
+        for a in assignments
+    ]
+
+    return render(request, 'grades/my_subject_teaching.html', {
+        'assignment_rows': assignment_rows,
+    })
+
+
+@login_required
+def subject_teaching_grades(request, assignment_id):
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    # The assignment row itself must belong to this teacher - a guessed
+    # assignment_id for someone else's assignment simply won't match.
+    assignment = TeacherSubjectAssignment.objects.filter(
+        assignment_id=assignment_id, teacher_id=teacher.teacher_id
+    ).first()
+    if not assignment:
+        messages.error(request, 'Assignment not found.')
+        return redirect('my_subject_teaching')
+
+    section = Section.objects.filter(section_id=assignment.section_id).first()
+    mapping = SubjectMapping.objects.filter(mapping_id=assignment.mapping_id).first()
+    if not section or not mapping:
+        messages.error(request, 'This assignment points at a missing section or subject.')
+        return redirect('my_subject_teaching')
+
+    if request.method == 'POST':
+        row_count = int(request.POST.get('row_count', 0))
+        saved_count = 0
+
+        for i in range(row_count):
+            lrn = request.POST.get(f'lrn_{i}', '').strip()
+            if not lrn:
+                continue
+
+            # Only students actually in this assignment's section - even a
+            # tampered lrn_i field can't reach a student outside it.
+            if not Student.objects.filter(lrn=lrn, section_id=section.section_id).exists():
+                continue
+
+            for term in (1, 2, 3):
+                grade_value = request.POST.get(f'grade_{i}_{term}', '').strip()
+                if not grade_value:
+                    continue
+                try:
+                    grade = int(grade_value)
+                except ValueError:
+                    messages.warning(request, f'Invalid grade value for {lrn} Term {term}: {grade_value}')
+                    continue
+                if grade < 60 or grade > 100:
+                    messages.warning(request, f'Grade {grade} for {lrn} Term {term} is outside 60-100 range.')
+                    continue
+
+                existing = Grade.objects.filter(
+                    lrn=lrn, mapping_id=mapping.mapping_id, term=term
+                ).first()
+                if existing:
+                    existing.grade = grade
+                    existing.save()
+                else:
+                    Grade.objects.create(
+                        lrn=lrn, mapping_id=mapping.mapping_id, term=term, grade=grade,
+                        uploaded_by=teacher.teacher_id,
+                    )
+                saved_count += 1
+
+        if saved_count:
+            messages.success(request, f'✅ {saved_count} grades saved for {mapping.subject_name}.')
+        return redirect('subject_teaching_grades', assignment_id=assignment.assignment_id)
+
+    students = Student.objects.filter(section_id=section.section_id).order_by('surname', 'name')
+    males = [s for s in students if s.sex in ('MALE', 'M')]
+    females = [s for s in students if s.sex in ('FEMALE', 'F')]
+    students = males + females
+
+    grades_by_lrn = {}
+    for g in Grade.objects.filter(lrn__in=[s.lrn for s in students], mapping_id=mapping.mapping_id):
+        grades_by_lrn.setdefault(g.lrn, {1: None, 2: None, 3: None})[g.term] = g.grade
+
+    return render(request, 'grades/subject_teaching_grades.html', {
+        'assignment': assignment,
+        'section': section,
+        'mapping': mapping,
+        'students': students,
+        'grades_by_lrn': grades_by_lrn,
+    })

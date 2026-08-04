@@ -17,6 +17,13 @@ DEBUG = True
 
 # ✅ FIXED: Added localhost to allowed hosts
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+# TEMPORARY for cloudflared tunnel testing - revert to the line above when done.
+ALLOWED_HOSTS = ['*']
+# TEMPORARY for cloudflared tunnel testing - remove when done. Django checks
+# the request's Origin header against this list for any POST (login, etc.);
+# without it, cross-origin POSTs through the tunnel's domain get rejected as
+# a possible CSRF attack even though ALLOWED_HOSTS permits the host itself.
+CSRF_TRUSTED_ORIGINS = ['https://delhi-cutting-purpose-requires.trycloudflare.com']
 
 # Application definition
 INSTALLED_APPS = [

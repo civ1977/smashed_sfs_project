@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}REPORTS{% endblock %}
+
+{% block content %}
+<h1>Student Report Cards</h1>
+
+<a href="{% url 'select_student_report' %}" class="btn ghost">← Reports</a>
+
+{% if students %}
+    <table>
+        <thead>
+            <tr>
+                <th>LRN</th>
+                <th>Surname</th>
+                <th>Name</th>
+                <th>Reports</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr>
+                <td class="mono">{{ student.lrn }}</td>
+                <td>{{ student.surname }}</td>
+                <td>{{ student.name }}</td>
+                <td>
+                    <a href="{% url 'view_sf9' student.lrn %}" class="btn">SF9</a>
+                    <a href="{% url 'view_sf10' student.lrn %}" class="btn ghost">SF10</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p style="text-align: center; padding: var(--space-6);">
+        No students found. Upload students first.
+    </p>
+{% endif %}
+{% endblock %}

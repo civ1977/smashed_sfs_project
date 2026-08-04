@@ -1,7 +1,6 @@
 {% extends 'base_public.html' %}
 
 {% block content %}
-<div class="eyebrow-mini">DepEd SF9/SF10 System</div>
 <h1>Sign in to your account</h1>
 
 <div class="card">
@@ -22,9 +21,6 @@
     </form>
     <p style="margin-top: var(--space-4);">
         Don't have an account? <a href="{% url 'register' %}">Register here</a>
-    </p>
-    <p>
-        Are you a student? <a href="{% url 'portal_register' %}">Request portal access here</a>
     </p>
 </div>
 {% endblock %}

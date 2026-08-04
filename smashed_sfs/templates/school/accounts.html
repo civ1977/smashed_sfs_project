@@ -66,4 +66,57 @@
 {% else %}
 <p>No teacher accounts found for this school yet.</p>
 {% endif %}
+
+<h1>Student Portal Accounts</h1>
+<p>Approval/rejection of new access requests is handled by the student's adviser - this only controls whether an already-approved account can still log in.</p>
+
+{% if student_account_rows %}
+<table>
+    <thead>
+        <tr>
+            <th>Student</th>
+            <th>LRN</th>
+            <th>Request Status</th>
+            <th>Login Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in student_account_rows %}
+        <tr>
+            <td>{% if row.student %}{{ row.student.surname }}, {{ row.student.name }}{% else %}—{% endif %}</td>
+            <td>{{ row.account.lrn }}</td>
+            <td>
+                {% if row.account.status == 'approved' %}
+                    <span class="pill good">Approved</span>
+                {% elif row.account.status == 'pending' %}
+                    <span class="pill warn">Pending</span>
+                {% else %}
+                    <span class="pill risk">Rejected</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if row.account.is_active %}
+                    <span class="pill good">Active</span>
+                {% else %}
+                    <span class="pill risk">Inactive</span>
+                {% endif %}
+            </td>
+            <td>
+                <form method="POST" action="{% url 'toggle_student_account_active' row.account.account_id %}">
+                    {% csrf_token %}
+                    {% if row.account.is_active %}
+                        <button type="submit" class="btn risk">Deactivate</button>
+                    {% else %}
+                        <button type="submit" class="btn good">Activate</button>
+                    {% endif %}
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No student portal accounts found for this school yet.</p>
+{% endif %}
 {% endblock %}

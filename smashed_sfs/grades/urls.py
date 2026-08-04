@@ -7,6 +7,9 @@ urlpatterns = [
     path('view/<str:lrn>/', views.view_grades, name='view_grades'),
     path('rankings/', views.view_rankings, name='view_rankings'),
 
+    path('my-subject-teaching/', views.my_subject_teaching, name='my_subject_teaching'),
+    path('my-subject-teaching/<int:assignment_id>/', views.subject_teaching_grades, name='subject_teaching_grades'),
+
     path('attendance/grid/', views.attendance_grid, name='attendance_grid'),
     path('attendance/grid/save/', views.attendance_grid_save, name='attendance_grid_save'),
     path('attendance/holiday/add/', views.add_holiday, name='add_holiday'),

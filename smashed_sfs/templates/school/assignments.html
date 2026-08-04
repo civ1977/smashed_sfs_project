@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}ASSIGNMENTS{% endblock %}
+
+{% block content %}
+<h1>Subject Teacher Assignments</h1>
+
+<h3>Create an Assignment</h3>
+<div class="card" style="max-width: 480px; margin-bottom: var(--space-6);">
+    <form method="POST" action="{% url 'school_assignments' %}">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>Teacher:</label>
+            <select name="teacher_id" required>
+                <option value="">— Select —</option>
+                {% for t in subject_teachers %}
+                <option value="{{ t.teacher_id }}">{{ t.full_name }} ({{ t.get_role_display }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Section:</label>
+            <select name="section_id" required>
+                <option value="">— Select —</option>
+                {% for s in sections %}
+                <option value="{{ s.section_id }}">{{ s.grade_level }}-{{ s.strand }}-{{ s.section_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Subject:</label>
+            <select name="mapping_id" required>
+                <option value="">— Select —</option>
+                {% for m in mappings %}
+                <option value="{{ m.mapping_id }}">Grade {{ m.grade_level }} · {{ m.strand }} · {{ m.subject_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn">Create Assignment</button>
+    </form>
+</div>
+
+<h3>Teachers Available for Subject Assignments</h3>
+{% if teacher_rows %}
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Position</th>
+            <th>Assignments</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in teacher_rows %}
+        <tr>
+            <td>{{ row.teacher.full_name }}</td>
+            <td>{{ row.teacher.get_role_display }}</td>
+            <td>{{ row.teacher.position|default:"—" }}</td>
+            <td>
+                {% if row.assignments %}
+                    {% for a in row.assignments %}
+                    <div style="display:flex; align-items:center; gap: var(--space-2); margin-bottom: var(--space-2);">
+                        <span>
+                            {% if a.mapping %}Grade {{ a.mapping.grade_level }} · {{ a.mapping.strand }} · {{ a.mapping.subject_name }}{% else %}<span class="pill risk">Unknown subject</span>{% endif %}
+                            —
+                            {% if a.section %}{{ a.section.grade_level }}-{{ a.section.strand }}-{{ a.section.section_name }}{% else %}<span class="pill risk">Unknown section</span>{% endif %}
+                        </span>
+                        <form method="POST" action="{% url 'remove_teacher_subject_assignment' a.assignment.assignment_id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn risk">Remove</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <span class="pill warn">Unassigned</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No Class Adviser or Subject Teacher accounts found for this school yet.</p>
+{% endif %}
+{% endblock %}

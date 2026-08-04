@@ -1,0 +1,41 @@
+<style>
+    .brand-wordmark {
+        font-family: var(--font-display);
+        width: max-content;
+        max-width: 100%;
+    }
+    .brand-wordmark .brand-logo {
+        position: relative;
+        font-size: 21px;
+        font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: .01em;
+        color: #C0504D;
+        text-shadow:
+            1px 1px 0 rgba(0, 0, 0, .55),
+            2px 2px 2px rgba(0, 0, 0, .45),
+            3px 4px 6px rgba(0, 0, 0, .35);
+    }
+    /* Positioned out of flow so the (R) mark doesn't extend the logo's
+       effective right edge past the final "s" - that's what "Online"
+       below aligns its own right edge (the "e") against. */
+    .brand-wordmark .brand-logo sup {
+        position: absolute;
+        top: 0;
+        font-size: 11px;
+        font-weight: 700;
+        margin-left: 1px;
+    }
+    .brand-wordmark .brand-subtitle {
+        margin-top: 2px;
+        font-size: 11px;
+        font-style: italic;
+        color: rgba(255, 255, 255, .55);
+        letter-spacing: .02em;
+        text-align: right;
+    }
+</style>
+<div class="brand-wordmark{% if brand_class %} {{ brand_class }}{% endif %}">
+    <div class="brand-logo">SMASHED - SFs<sup>&reg;</sup></div>
+    <div class="brand-subtitle">Online</div>
+</div>

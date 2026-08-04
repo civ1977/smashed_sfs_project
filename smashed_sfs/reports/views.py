@@ -11,7 +11,7 @@ from django.utils.html import format_html
 
 from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
-from grades.models import Grade, SubjectMapping, Attendance, ATTENDANCE_MONTHS, AttendanceMark
+from grades.models import Grade, SubjectMapping, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException
 from grades.views import MONTH_NAMES, _school_days_in_month
 
 
@@ -73,35 +73,98 @@ def _grade_levels_for_student(lrn):
     return sorted(set(levels))
 
 
-def _attendance_rows(lrn):
+MONTH_NUMBERS = {
+    'Jun': 6, 'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
+    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4,
+}
+
+
+def _school_year_start():
+    """First calendar year of the school year containing today - e.g. 2026
+    for any date from Jun 2026 through Apr 2027 - so Jun-Dec months below
+    resolve to that year and Jan-Apr months resolve to the year after.
+    Matches the same today-anchored convention attendance_grid/SF2 already
+    use (grades/views.py's attendance_grid defaults its year/month to
+    date.today()); SchoolProfile.school_year is a free-text display label
+    only (see its one other use at reports/views.py's SF2 export, cell
+    U8) and isn't a reliable source for real calendar-date math - trusting
+    it here previously caused SF9 to silently look up the wrong calendar
+    year whenever that label drifted from the dates attendance was
+    actually being recorded against, so it's deliberately not read here."""
+    today = date.today()
+    return today.year if today.month >= 6 else today.year - 1
+
+
+TERM_MONTHS = {
+    1: ['Jun', 'Jul', 'Aug'],
+    2: ['Sep', 'Oct', 'Nov', 'Dec'],
+    3: ['Jan', 'Feb', 'Mar', 'Apr'],
+}
+
+
+def _visible_attendance_months(lrn):
+    """SF9's Attendance Record only shows the months for terms that already
+    have grade data - Term 1's Jun-Aug always show; Sep-Dec (Term 2) and
+    Jan-Apr (Term 3) only appear once that term has at least one grade
+    entered for this student, the same signal _gate_finals_pending_term3
+    uses to gate Final Grade/Remarks."""
+    months = list(TERM_MONTHS[1])
+    if Grade.objects.filter(lrn=lrn, term=2).exists():
+        months += TERM_MONTHS[2]
+    if Grade.objects.filter(lrn=lrn, term=3).exists():
+        months += TERM_MONTHS[3]
+    return months
+
+
+def _attendance_rows(lrn, school_profile_id):
+    """Per-month class days/present/absent for the SF9/SF10 attendance
+    grids, derived from real AttendanceMark exceptions and the school
+    calendar - a school day with no mark is Present, matching the SF2
+    form's own convention (see _fill_sf2_gender_block below). The Month/
+    Total header row always covers all 11 months - only the data cells
+    for months the current term progress doesn't allow showing yet (see
+    _visible_attendance_months) are left blank; April is further capped
+    to its first 8 days once Term 3 unlocks it, rather than the full
+    month."""
+    start_year = _school_year_start()
+    visible_months = _visible_attendance_months(lrn)
     rows = []
     for month in ATTENDANCE_MONTHS:
-        attendance = Attendance.objects.filter(lrn=lrn, month=month).first()
-        present = attendance.days_present if attendance is not None else None
-        absent = attendance.days_absent if attendance is not None else None
-        total = (present + absent) if attendance is not None else None
+        if month not in visible_months:
+            rows.append({'month': month, 'total': None, 'present': None, 'absent': None})
+            continue
+        month_num = MONTH_NUMBERS[month]
+        year = start_year if month_num >= 6 else start_year + 1
+        school_days = _school_days_in_month(school_profile_id, year, month_num)
+        if month == 'Apr':
+            school_days = [d for d in school_days if d.day <= 8]
+        class_days = len(school_days)
+        if class_days:
+            absent = AttendanceMark.objects.filter(
+                lrn=lrn, date__in=school_days, status=AttendanceMark.STATUS_ABSENT,
+            ).count()
+            present = class_days - absent
+        else:
+            absent = None
+            present = None
         rows.append({
             'month': month,
-            'attendance': attendance,
+            'total': class_days or None,
             'present': present,
             'absent': absent,
-            'total': total,
         })
     return rows
 
 
 def _attendance_totals(attendance_rows):
     """Year-to-date totals for the SF9 monthly attendance grid."""
-    present = [r['present'] for r in attendance_rows if r['attendance'] is not None]
-    absent = [r['absent'] for r in attendance_rows if r['attendance'] is not None]
-    if not present and not absent:
+    known_rows = [r for r in attendance_rows if r['total'] is not None]
+    if not known_rows:
         return {'class_days': None, 'present': None, 'absent': None}
-    total_present = sum(present)
-    total_absent = sum(absent)
     return {
-        'class_days': total_present + total_absent,
-        'present': total_present,
-        'absent': total_absent,
+        'class_days': sum(r['total'] for r in known_rows),
+        'present': sum(r['present'] for r in known_rows),
+        'absent': sum(r['absent'] for r in known_rows),
     }
 
 
@@ -139,14 +202,28 @@ def _split_core_elective(subject_rows):
 @login_required
 def select_student_for_report(request):
     try:
+        _get_teacher(request)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    return render(request, 'reports/select_student.html')
+
+
+@login_required
+def report_cards(request):
+    try:
         teacher = _get_teacher(request)
     except Teacher.DoesNotExist:
         messages.error(request, 'Your account is not linked to a Teacher profile.')
         return redirect('dashboard')
 
     students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+    males = [s for s in students if s.sex in ('MALE', 'M')]
+    females = [s for s in students if s.sex in ('FEMALE', 'F')]
+    students = males + females
 
-    return render(request, 'reports/select_student.html', {'students': students})
+    return render(request, 'reports/report_cards.html', {'students': students})
 
 
 @login_required
@@ -172,7 +249,8 @@ def view_sf9(request, student_lrn):
     finals = [row['final'] for row in subject_rows if row['final'] is not None]
     general_average = round(sum(finals) / len(finals), 2) if (all_finals_ready and finals) else None
 
-    attendance_rows = _attendance_rows(student_lrn)
+    school_profile_id = section.school_profile_id if section else teacher.school_profile_id
+    attendance_rows = _attendance_rows(student_lrn, school_profile_id)
     attendance_by_month = {row['month']: row for row in attendance_rows}
 
     return render(request, 'reports/sf9.html', {
@@ -187,6 +265,7 @@ def view_sf9(request, student_lrn):
         'attendance_by_month': attendance_by_month,
         'attendance_totals': _attendance_totals(attendance_rows),
         'attendance_months': ATTENDANCE_MONTHS,
+        'attendance_complete': all(row['total'] is not None for row in attendance_rows),
         'teacher': teacher,
     })
 
@@ -225,7 +304,10 @@ def view_sf10(request, student_lrn):
         'school_profile': school_profile,
         'section': section,
         'grade_level_sections': grade_level_sections,
-        'attendance_rows': _attendance_rows(student_lrn),
+        'attendance_rows': _attendance_rows(
+            student_lrn,
+            section.school_profile_id if section else teacher.school_profile_id,
+        ),
     })
 
 
@@ -275,6 +357,11 @@ MARK_SYMBOL = {
     AttendanceMark.STATUS_CUTTING_CLASSES: 'C',
 }
 
+# Spelled vertically down a holiday column's student rows, starting at
+# MALE_ROW_START, in place of attendance marks - one letter per row, only as
+# many as fit in that gender block's visible (non-hidden) rows.
+HOLIDAY_LETTERS = ('H', 'O', 'L', 'I', 'D', 'A', 'Y')
+
 # This app has no explicit semester field (grades use Term 1/2/3, not
 # semesters), so the semester shown on SF2 is inferred from where the month
 # falls in ATTENDANCE_MONTHS (Jun-Oct / Nov-Apr split).
@@ -292,14 +379,20 @@ def _sf2_student_name(student):
     return ' '.join(parts)
 
 
-def _sf2_day_slot_map(school_days, year, month, warnings, reanchor_to_first_monday=False):
-    """Maps each real school day to its weekday-anchored (week, weekday)
-    slot in the 30-slot (5 weeks x Mon-Sat) SF2 day grid, keyed by the
-    DAY_COLUMNS letter for that slot - not by list position. Monday is
-    always a week's first slot, Saturday its sixth; a week with no Saturday
-    class, a holiday gap, or a partial first week (the month not starting
-    on a Monday) all simply leave that slot out of the returned map rather
-    than pulling in whatever day comes next.
+def _sf2_day_slot_map(school_days, holiday_days, year, month, warnings, reanchor_to_first_monday=False):
+    """Maps each real school day AND each declared holiday to its
+    weekday-anchored (week, weekday) slot in the 30-slot (5 weeks x Mon-Sat)
+    SF2 day grid, keyed by the DAY_COLUMNS letter for that slot - not by
+    list position. Monday is always a week's first slot, Saturday its
+    sixth; a week with no Saturday class, a gap, or a partial first week
+    (the month not starting on a Monday) all simply leave that slot out of
+    the returned map rather than pulling in whatever day comes next.
+
+    Returns (day_slot_map, holiday_columns): day_slot_map covers both
+    school days and holidays (so row 17/18's date/weekday header renders
+    identically for either), while holiday_columns is the subset of its
+    keys that are holidays - callers use it to skip holiday columns for
+    attendance-mark purposes without needing a second, undifferentiated map.
 
     Normally grid_start is the Monday on/before the 1st, so a month that
     doesn't start on a Monday just renders a partly-blank leading week.
@@ -316,17 +409,20 @@ def _sf2_day_slot_map(school_days, year, month, warnings, reanchor_to_first_mond
         grid_start = month_start - timedelta(days=month_start.weekday())
 
     slot_map = {}
-    for day in school_days:
+    holiday_columns = set()
+    all_days = [(day, False) for day in school_days] + [(day, True) for day in holiday_days]
+    for day, is_holiday in all_days:
+        label = 'holiday' if is_holiday else 'school day'
         weekday = day.weekday()  # Monday=0 ... Sunday=6
         if weekday == 6:
             warnings.append(
-                f"{day.isoformat()} is a school day that falls on a Sunday; SF2's day grid "
+                f"{day.isoformat()} is a {label} that falls on a Sunday; SF2's day grid "
                 f"only has Monday-Saturday columns, so it was left off this form."
             )
             continue
         if reanchor_to_first_monday and day < grid_start:
             warnings.append(
-                f"{day.isoformat()} is a school day before {MONTH_NAMES[month - 1]}'s first "
+                f"{day.isoformat()} is a {label} before {MONTH_NAMES[month - 1]}'s first "
                 f"Monday; SF2's day grid starts there for this month, so it was left off this form."
             )
             continue
@@ -337,8 +433,11 @@ def _sf2_day_slot_map(school_days, year, month, warnings, reanchor_to_first_mond
                 f"{day.isoformat()} falls past SF2's 5-week day grid and was left off this form."
             )
             continue
-        slot_map[DAY_COLUMNS[slot_index]] = day
-    return slot_map
+        col = DAY_COLUMNS[slot_index]
+        slot_map[col] = day
+        if is_holiday:
+            holiday_columns.add(col)
+    return slot_map, holiday_columns
 
 
 def _sf2_ratio(numerator, denominator):
@@ -361,10 +460,16 @@ def _fill_sf2_header(ws, teacher, section, school_profile, year, month):
     ws['BR171'] = school_profile.principal_name if school_profile else ''
 
 
-def _fill_sf2_gender_block(ws, students, row_start, day_slot_map, warnings, gender_label):
+def _fill_sf2_gender_block(ws, students, row_start, day_slot_map, holiday_columns, warnings, gender_label):
     """Writes one gender's student rows - only the real students, no blank
     placeholder rows - and returns the per-day/per-block stats needed for
-    that gender's subtotal row and the summary section below."""
+    that gender's subtotal row and the summary section below.
+
+    Holiday columns (holiday_columns) are skipped entirely here: no
+    attendance mark is written for them, and they don't count toward a
+    student's absent/present totals - a holiday isn't an instructional day,
+    so it shouldn't affect ADA/attendance-% math either. They're marked
+    separately afterward, once, with "HOLIDAY" spelled down the rows."""
     if len(students) > MAX_STUDENTS_PER_GENDER:
         warnings.append(
             f'{len(students)} {gender_label} students found, but SF2 only has room for '
@@ -372,14 +477,16 @@ def _fill_sf2_gender_block(ws, students, row_start, day_slot_map, warnings, gend
         )
         students = students[:MAX_STUDENTS_PER_GENDER]
 
+    school_cols = [col for col in day_slot_map if col not in holiday_columns]
+
     lrns = [s.lrn for s in students]
-    school_dates = list(day_slot_map.values())
+    school_dates = [day_slot_map[col] for col in school_cols]
     marks_by_key = {
         f'{m.lrn}|{m.date.isoformat()}': m.status
         for m in AttendanceMark.objects.filter(lrn__in=lrns, date__in=school_dates)
     }
 
-    present_per_col = {col: 0 for col in day_slot_map}
+    present_per_col = {col: 0 for col in school_cols}
     total_absent = 0
     total_present = 0
 
@@ -388,7 +495,8 @@ def _fill_sf2_gender_block(ws, students, row_start, day_slot_map, warnings, gend
         ws[f'G{row}'] = _sf2_student_name(student)
 
         absent_count = 0
-        for col, day in day_slot_map.items():
+        for col in school_cols:
+            day = day_slot_map[col]
             status = marks_by_key.get(f'{student.lrn}|{day.isoformat()}', 'present')
             if status == AttendanceMark.STATUS_ABSENT:
                 absent_count += 1
@@ -396,7 +504,7 @@ def _fill_sf2_gender_block(ws, students, row_start, day_slot_map, warnings, gend
                 present_per_col[col] += 1
             ws[f'{col}{row}'] = MARK_SYMBOL.get(status, '')
 
-        present_count = len(day_slot_map) - absent_count
+        present_count = len(school_cols) - absent_count
         ws[f'BS{row}'] = absent_count
         ws[f'BV{row}'] = present_count
         total_absent += absent_count
@@ -410,13 +518,15 @@ def _fill_sf2_gender_block(ws, students, row_start, day_slot_map, warnings, gend
     }
 
 
-def _fill_sf2_subtotal_row(ws, row, day_slot_map, present_per_col, total_absent, total_present):
+def _fill_sf2_subtotal_row(ws, row, present_per_col, total_absent, total_present):
     """Writes one 'TOTAL Per Day' row (male/female/combined): per-day
     present-student counts in the day columns - matching what row 74/130's
     own (broken) template formulas compute: registered minus that day's
-    absences - plus the month's ABSENT/PRESENT totals in BS/BV."""
+    absences - plus the month's ABSENT/PRESENT totals in BS/BV. Columns
+    absent from present_per_col (not a school day at all, or a holiday
+    column) are left blank rather than 0."""
     for col in DAY_COLUMNS:
-        ws[f'{col}{row}'] = present_per_col[col] if col in day_slot_map else None
+        ws[f'{col}{row}'] = present_per_col[col] if col in present_per_col else None
     ws[f'BS{row}'] = total_absent
     ws[f'BV{row}'] = total_present
 
@@ -436,8 +546,15 @@ def _build_sf2_workbook(teacher, section, school_profile, year, month, reanchor_
     wb._external_links = []
 
     school_days = _school_days_in_month(section.school_profile_id, year, month)
-    day_slot_map = _sf2_day_slot_map(school_days, year, month, warnings, reanchor_to_first_monday)
-    school_day_count = len(day_slot_map)
+    holiday_days = list(SchoolCalendarException.objects.filter(
+        school_profile_id=section.school_profile_id, date__year=year, date__month=month, is_school_day=False,
+    ).values_list('date', flat=True))
+    day_slot_map, holiday_columns = _sf2_day_slot_map(
+        school_days, holiday_days, year, month, warnings, reanchor_to_first_monday
+    )
+    # Holidays occupy a column on the grid but aren't instructional days, so
+    # they're excluded from the "Number of School Days" denominator below.
+    school_day_count = len(day_slot_map) - len(holiday_columns)
 
     _fill_sf2_header(ws, teacher, section, school_profile, year, month)
 
@@ -450,25 +567,25 @@ def _build_sf2_workbook(teacher, section, school_profile, year, month, reanchor_
     males = [s for s in students if s.sex in ('MALE', 'M')]
     females = [s for s in students if s.sex in ('FEMALE', 'F')]
 
-    male_stats = _fill_sf2_gender_block(ws, males, MALE_ROW_START, day_slot_map, warnings, 'male')
-    female_stats = _fill_sf2_gender_block(ws, females, FEMALE_ROW_START, day_slot_map, warnings, 'female')
+    male_stats = _fill_sf2_gender_block(ws, males, MALE_ROW_START, day_slot_map, holiday_columns, warnings, 'male')
+    female_stats = _fill_sf2_gender_block(ws, females, FEMALE_ROW_START, day_slot_map, holiday_columns, warnings, 'female')
 
     _fill_sf2_subtotal_row(
-        ws, MALE_SUBTOTAL_ROW, day_slot_map,
+        ws, MALE_SUBTOTAL_ROW,
         male_stats['present_per_col'], male_stats['total_absent'], male_stats['total_present'],
     )
     _fill_sf2_subtotal_row(
-        ws, FEMALE_SUBTOTAL_ROW, day_slot_map,
+        ws, FEMALE_SUBTOTAL_ROW,
         female_stats['present_per_col'], female_stats['total_absent'], female_stats['total_present'],
     )
     combined_present_per_col = {
         col: male_stats['present_per_col'][col] + female_stats['present_per_col'][col]
-        for col in day_slot_map
+        for col in male_stats['present_per_col']
     }
     combined_total_absent = male_stats['total_absent'] + female_stats['total_absent']
     combined_total_present = male_stats['total_present'] + female_stats['total_present']
     _fill_sf2_subtotal_row(
-        ws, COMBINED_TOTAL_ROW, day_slot_map,
+        ws, COMBINED_TOTAL_ROW,
         combined_present_per_col, combined_total_absent, combined_total_present,
     )
 
@@ -482,7 +599,18 @@ def _build_sf2_workbook(teacher, section, school_profile, year, month, reanchor_
     # per-day totals written above (a school day that overflowed the grid
     # has no mark data on this sheet at all, so it can't be counted here
     # either - see the warnings _sf2_day_slot_map raises for that case).
+    # Holiday columns are excluded too, per school_day_count above.
     ws['BZ134'] = school_day_count
+
+    # "HOLIDAY" spelled vertically down each holiday column's student rows,
+    # in place of attendance marks - done once here (not inside either
+    # gender block above) since it's independent of student data. Only the
+    # male block's visible rows (19-25) get the letters; a section with
+    # fewer than 7 visible male rows just gets however many letters fit.
+    for col in holiday_columns:
+        visible_rows = min(male_count, len(HOLIDAY_LETTERS))
+        for i in range(visible_rows):
+            ws[f'{col}{MALE_ROW_START + i}'] = HOLIDAY_LETTERS[i]
 
     # "Summary" block (rows 134-148): registered-learner counts and the
     # Enrolment%/ADA/Attendance% math documented in the template itself
@@ -570,7 +698,7 @@ def export_sf2(request, year, month):
         confirm_url = f"{reverse('export_sf2', args=[year, month])}?confirmed=1"
 
         school_days = _school_days_in_month(section.school_profile_id, year, month)
-        preview_slot_map = _sf2_day_slot_map(school_days, year, month, [], reanchor_to_first_monday=True)
+        preview_slot_map, _ = _sf2_day_slot_map(school_days, [], year, month, [], reanchor_to_first_monday=True)
         first_week_cols = [col for col in DAY_COLUMNS[:6] if col in preview_slot_map]
         first_week_days = [preview_slot_map[col] for col in first_week_cols]
 

@@ -3,8 +3,7 @@
 {% block breadcrumb %}HOME{% endblock %}
 
 {% block content %}
-<h1>Good day, {{ teacher.full_name|default:user.username }}</h1>
-<p>{{ teacher.position|default:"Position not set" }}</p>
+<h1>Good day, Teacher {{ first_name }}</h1>
 
 {% if profile_incomplete %}
 <div class="alert alert-error">
@@ -13,13 +12,94 @@
 </div>
 {% endif %}
 
-<h3>Quick Actions</h3>
-<div class="dashboard-grid">
+{% if teacher %}
+<div class="dashboard-charts" style="margin-top: var(--space-4);">
+    <div class="chart-panel chart-panel-enrolment">
+        <h3 class="chart-title">Enrolment</h3>
+        <div class="hbar-rows">
+            <div class="chart-gridlines-h">
+                {% for tick in enrolment_axis_ticks %}
+                <span class="chart-gridline-v" style="left: {% widthratio tick enrolment_max 100 %}%;"></span>
+                {% endfor %}
+            </div>
+            <div class="chart-bar-row">
+                <span class="chart-bar-label">Female</span>
+                <div class="chart-bar-track">
+                    <div class="chart-bar-fill chart-bar-enrolment" style="width: {% widthratio female_count enrolment_max 100 %}%;"></div>
+                </div>
+                <span class="chart-bar-value">{{ female_count }}</span>
+            </div>
+            <div class="chart-bar-row">
+                <span class="chart-bar-label">Male</span>
+                <div class="chart-bar-track">
+                    <div class="chart-bar-fill chart-bar-enrolment" style="width: {% widthratio male_count enrolment_max 100 %}%;"></div>
+                </div>
+                <span class="chart-bar-value">{{ male_count }}</span>
+            </div>
+        </div>
+        <div class="chart-axis-h">
+            <span class="chart-axis-h-spacer"></span>
+            <div class="chart-axis-h-ticks">
+                {% for tick in enrolment_axis_ticks %}
+                <span class="chart-axis-h-tick{% if forloop.first %} chart-axis-h-tick-first{% elif forloop.last %} chart-axis-h-tick-last{% endif %}" style="left: {% widthratio tick enrolment_max 100 %}%;">{{ tick }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-panel">
+        <h3 class="chart-title">Term Ratings</h3>
+        <div class="chart-body">
+            <div class="vbar-axis">
+                <div class="vbar-axis-ticks">
+                    {% for tick in term_rating_axis_ticks %}
+                    <span class="vbar-axis-tick" style="bottom: {% widthratio tick term_rating_max 100 %}%;">{{ tick }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="vbar-plot">
+                <div class="vbar-gridlines">
+                    {% for tick in term_rating_axis_ticks %}
+                    <span class="vbar-gridline" style="bottom: {% widthratio tick term_rating_max 100 %}%;"></span>
+                    {% endfor %}
+                </div>
+                <div class="vbar-chart">
+                    {% for row in term_rating_rows %}
+                    <div class="vbar-group">
+                        <div class="vbar-bars">
+                            {% for cell in row.terms %}
+                            <div class="vbar-col">
+                                <span class="vbar-value">{{ cell.count }}</span>
+                                <div class="vbar-fill chart-bar-term-{{ cell.term }}" style="height: {% widthratio cell.count term_rating_max 80 %}px;"></div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="vbar-band-label">{{ row.band }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="chart-legend">
+                <span class="chart-legend-item"><span class="chart-legend-swatch chart-bar-term-1"></span>Term 1</span>
+                <span class="chart-legend-item"><span class="chart-legend-swatch chart-bar-term-2"></span>Term 2</span>
+                <span class="chart-legend-item"><span class="chart-legend-swatch chart-bar-term-3"></span>Term 3</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<h3 style="margin-top: var(--space-5);">Quick Actions</h3>
+<div class="dashboard-grid quick-actions-row">
     <div class="card">
         <h3>Students</h3>
         <p>Upload student profiles CSV</p>
         <a href="{% url 'upload_students' %}" class="btn">Upload CSV</a>
-        <a href="{% url 'student_list' %}" class="btn ghost">View Students</a>
+    </div>
+    <div class="card">
+        <h3>Ratings</h3>
+        <p>Upload grades per term</p>
+        <a href="{% url 'upload_grades' %}" class="btn">Upload CSV</a>
     </div>
     <div class="card">
         <h3>Access Requests</h3>
@@ -27,51 +107,282 @@
         <a href="{% url 'access_requests' %}" class="btn">Review Requests</a>
     </div>
     <div class="card">
-        <h3>Grades</h3>
-        <p>Upload grades per term</p>
-        <a href="{% url 'upload_grades' %}" class="btn">Upload CSV</a>
-    </div>
-    <div class="card">
         <h3>Attendance</h3>
         <p>Mark daily attendance for your section</p>
-        <a href="{% url 'attendance_grid' %}" class="btn">Open Attendance Grid</a>
-    </div>
-    <div class="card">
-        <h3>SF9</h3>
-        <p>Generate report cards</p>
-        <a href="{% url 'select_student_report' %}" class="btn">Generate</a>
-    </div>
-    <div class="card">
-        <h3>SF10</h3>
-        <p>Generate permanent record</p>
-        <a href="#" class="btn ghost">Generate</a>
+        <a href="{% url 'attendance_grid' %}" class="btn">Open Grid</a>
     </div>
 </div>
 
-<h3 style="margin-top: var(--space-6);">My Students</h3>
-{% if students %}
-<table>
-    <thead>
-        <tr>
-            <th>LRN</th>
-            <th>Surname</th>
-            <th>Name</th>
-            <th>Section</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for student in students %}
-        <tr>
-            <td class="mono">{{ student.lrn|stringformat:"s" }}</td>
-            <td>{{ student.surname }}</td>
-            <td>{{ student.name }}</td>
-            <td>{{ student.section_id }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-<p><strong>Total:</strong> {{ students|length }} students</p>
-{% else %}
-<p>No students uploaded yet.</p>
-{% endif %}
+
+<style>
+    /* Enrolment + Term Ratings intentionally don't use this app's usual
+       light design tokens - they're styled to match a dark-panel Excel-
+       chart reference (charcoal panel, Excel-blue/red/gold series), a
+       deliberate one-off exception rather than an oversight. Every other
+       component on this page still uses the shared tokens. */
+    .dashboard-charts {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--space-4);
+        flex-wrap: wrap;
+    }
+    .chart-panel {
+        background: #3B3B3B;
+        border: 1px solid #888888;
+        border-radius: var(--radius);
+        padding: var(--space-2) var(--space-4);
+        color: #FFFFFF;
+        flex: 1;
+        min-width: 260px;
+        height: 190px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+    }
+    /* Title stays pinned to the top of the panel (not part of the
+       vertical-centering group below) - only the bars vertically center
+       in the remaining space, since Enrolment's content is naturally
+       shorter than Term Ratings' and would otherwise leave dead space. */
+    .chart-panel-enrolment .hbar-rows {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .chart-title {
+        margin: 0 0 4px 0;
+        color: #FFFFFF;
+        font-size: 13px;
+        line-height: 1.2;
+        text-align: center;
+    }
+
+    /* Legend: a vertical stack, sitting to the right of the Term Ratings
+       chart (see .chart-body) rather than a horizontal row above it. */
+    .chart-legend {
+        display: flex;
+        flex-direction: column;
+        flex: none;
+        justify-content: center;
+        gap: 6px;
+        padding-left: var(--space-3);
+        font-size: 10px;
+        line-height: 1;
+        color: #FFFFFF;
+    }
+    .chart-legend-item { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .chart-legend-swatch {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 2px;
+    }
+
+    /* Enrolment: horizontal bars, with a vertical-gridline overlay behind
+       the two rows and an X-axis scale underneath. */
+    .hbar-rows { position: relative; }
+    .chart-gridlines-h {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 64px;
+        right: 30px;
+        pointer-events: none;
+    }
+    .chart-gridline-v {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background: rgba(255, 255, 255, .12);
+    }
+    .chart-bar-row {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        line-height: 1;
+        position: relative;
+    }
+    .chart-bar-row + .chart-bar-row { margin-top: 1px; }
+    .chart-bar-label {
+        flex: none;
+        width: 56px;
+        font-size: 11px;
+        line-height: 1;
+        font-weight: 700;
+        color: #FFFFFF;
+    }
+    .chart-bar-track {
+        flex: 1;
+        height: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .chart-bar-fill { height: 100%; }
+    .chart-bar-value {
+        flex: none;
+        min-width: 22px;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        line-height: 1;
+        font-weight: 700;
+        color: #FFFFFF;
+    }
+    .chart-axis-h {
+        display: flex;
+        margin-top: 3px;
+    }
+    .chart-axis-h-spacer { flex: none; width: 64px; }
+    .chart-axis-h-ticks {
+        position: relative;
+        flex: 1;
+        margin-right: 30px;
+        height: 9px;
+    }
+    .chart-axis-h-tick {
+        position: absolute;
+        top: 0;
+        transform: translateX(-50%);
+        font-size: 9px;
+        line-height: 1;
+        color: rgba(255, 255, 255, .5);
+        white-space: nowrap;
+    }
+    .chart-axis-h-tick-first { transform: translateX(0); }
+    .chart-axis-h-tick-last { transform: translateX(-100%); }
+
+    /* Term Ratings: vertical grouped bar chart - one group of 3 bars
+       (Term 1/2/3) per score band, bars grow up from a shared baseline.
+       Laid out as a row: Y-axis | plot (gridlines + bars) | legend. */
+    .chart-body {
+        display: flex;
+        align-items: stretch;
+        flex: 1;
+        min-height: 0;
+    }
+    .vbar-axis {
+        position: relative;
+        flex: none;
+        width: 18px;
+    }
+    /* Matches .vbar-gridlines' own bottom inset (space reserved for the
+       band-label row) so a tick's % position lines up with its gridline. */
+    .vbar-axis-ticks {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 18px;
+    }
+    .vbar-axis-tick {
+        position: absolute;
+        left: 0;
+        transform: translateY(50%);
+        font-size: 8px;
+        line-height: 1;
+        color: rgba(255, 255, 255, .5);
+        white-space: nowrap;
+    }
+    .vbar-plot {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    .vbar-gridlines {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 18px;
+        pointer-events: none;
+    }
+    .vbar-gridline {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: rgba(255, 255, 255, .12);
+    }
+    .vbar-chart {
+        display: flex;
+        align-items: stretch;
+        gap: 4px;
+        flex: 1;
+        min-height: 0;
+        position: relative;
+    }
+    .vbar-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex: 1;
+        min-width: 0;
+    }
+    .vbar-bars {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 2px;
+        flex: 1;
+        width: 100%;
+    }
+    .vbar-col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        width: 10px;
+    }
+    .vbar-value {
+        font-family: var(--font-mono);
+        font-size: 8px;
+        line-height: 1;
+        margin-bottom: 2px;
+        color: #FFFFFF;
+        white-space: nowrap;
+    }
+    .vbar-fill { width: 8px; border-radius: 2px 2px 0 0; }
+    .vbar-band-label {
+        margin-top: 3px;
+        font-size: 8px;
+        line-height: 1.15;
+        color: #FFFFFF;
+        text-align: center;
+        width: 100%;
+        word-break: break-word;
+    }
+
+    /* Excel default chart palette - blue / red / gold */
+    .chart-bar-enrolment,
+    .chart-bar-term-1 { background: #4472C4; }
+    .chart-bar-term-2 { background: #C00000; }
+    .chart-bar-term-3 { background: #FFC000; }
+
+    /* Quick Actions: force a single horizontal row on this page only -
+       .dashboard-grid itself stays untouched since portal/dashboard.html
+       and school/dashboard.html also use it and shouldn't be affected. */
+    .quick-actions-row {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    @media (max-width: 760px) {
+        .quick-actions-row {
+            grid-template-columns: 1fr;
+        }
+    }
+    /* Visually align the buttons across cards - push each card's button to
+       the bottom so it lines up horizontally regardless of how much
+       description text sits above it. Scoped to this page's cards only. */
+    .quick-actions-row .card {
+        display: flex;
+        flex-direction: column;
+    }
+    .quick-actions-row .card .btn {
+        margin-top: auto;
+        align-self: center;
+        text-align: center;
+    }
+</style>
 {% endblock %}

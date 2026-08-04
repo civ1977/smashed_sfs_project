@@ -19,6 +19,22 @@ class SubjectMapping(models.Model):
         return f"{self.subject_number}: {self.subject_name}"
 
 
+class TeacherSubjectAssignment(models.Model):
+    """Links a Subject Teacher to a section/subject they teach. Empty until
+    a registrar or principal creates assignments (not built yet)."""
+
+    assignment_id = models.AutoField(primary_key=True)
+    teacher_id = models.IntegerField()
+    section_id = models.IntegerField()
+    mapping_id = models.IntegerField()
+
+    class Meta:
+        db_table = 'teacher_subject_assignment'
+
+    def __str__(self):
+        return f"teacher {self.teacher_id} -> mapping {self.mapping_id} (section {self.section_id})"
+
+
 class Grade(models.Model):
     grade_id = models.AutoField(primary_key=True)
     lrn = models.CharField(max_length=12)

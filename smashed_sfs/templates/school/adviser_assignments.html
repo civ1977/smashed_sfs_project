@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}MY SUBJECT TEACHERS{% endblock %}
+
+{% block content %}
+<h1>Subject Teachers - {{ section.grade_level }}-{{ section.strand }}-{{ section.section_name }}</h1>
+
+<h3>Assign a Subject Teacher</h3>
+<div class="card" style="max-width: 480px; margin-bottom: var(--space-6);">
+    <form method="POST" action="{% url 'adviser_subject_assignments' %}">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>Teacher:</label>
+            <select name="teacher_id" required>
+                <option value="">— Select —</option>
+                {% for t in subject_teachers %}
+                <option value="{{ t.teacher_id }}">{{ t.full_name }} ({{ t.get_role_display }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Subject:</label>
+            <select name="mapping_id" required>
+                <option value="">— Select —</option>
+                {% for m in mappings %}
+                <option value="{{ m.mapping_id }}">{{ m.subject_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn">Assign</button>
+    </form>
+</div>
+
+<h3>Current Assignments</h3>
+{% if assignment_rows %}
+<table>
+    <thead>
+        <tr>
+            <th>Teacher</th>
+            <th>Subject</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in assignment_rows %}
+        <tr>
+            <td>{% if row.teacher %}{{ row.teacher.full_name }}{% else %}<span class="pill risk">Unknown teacher</span>{% endif %}</td>
+            <td>{% if row.mapping %}{{ row.mapping.subject_name }}{% else %}<span class="pill risk">Unknown subject</span>{% endif %}</td>
+            <td>
+                <form method="POST" action="{% url 'remove_adviser_subject_assignment' row.assignment.assignment_id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn risk">Remove</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No subject teachers assigned to your section yet.</p>
+{% endif %}
+{% endblock %}

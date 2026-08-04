@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load grade_filters %}
+{% load static %}
 
 {% block content %}
 <div class="no-print">
@@ -10,11 +11,9 @@
     <a href="{% url 'dashboard' %}" class="btn">← Dashboard</a>
     <button type="button" class="btn" onclick="window.print()">Print</button>
     <button type="button" class="btn btn-success" onclick="window.print()">Save As PDF</button>
-    <button type="button" class="btn" onclick="document.getElementById('deped-logo-input').click()">🖼️ Insert DepEd Logo</button>
     <button type="button" class="btn" onclick="document.getElementById('school-logo-input').click()">🖼️ Insert School Logo</button>
-    <input type="file" id="deped-logo-input" accept="image/*" style="display:none;" onchange="sf9HandleLogoUpload(this, 'sf9_deped_logo', 'deped-logo-img')">
     <input type="file" id="school-logo-input" accept="image/*" style="display:none;" onchange="sf9HandleLogoUpload(this, 'sf9_school_logo', 'school-logo-img')">
-    <p style="color: #999; font-size: 12px; margin-top: 6px;">Logos are kept only in this browser (not uploaded to the server) and stay applied whenever you view an SF9 here.</p>
+    <p style="color: #999; font-size: 12px; margin-top: 6px;">The DepEd seal is a fixed, server-provided image shown to everyone. Your school logo is kept only in this browser (not uploaded to the server) and stays applied whenever you view an SF9 here.</p>
 
     {% if not school_profile %}
     <p style="color: #999;">No school profile linked to your account. <a href="{% url 'complete_profile' %}">Complete your profile</a>.</p>
@@ -27,9 +26,9 @@
     <div class="sf9-columns">
         <div class="sf9-col-left">
             <div class="sf9-header">
-                <div class="sf9-logo sf9-seal">
+                <div class="sf9-logo sf9-seal has-image">
                     <span class="sf9-logo-placeholder">Division<br>Seal</span>
-                    <img id="deped-logo-img" class="sf9-logo-img" alt="DepEd Logo">
+                    <img id="deped-logo-img" class="sf9-logo-img" alt="DepEd Logo" src="{% static 'images/deped_seal.png' %}">
                 </div>
                 <div class="sf9-header-text">
                     <p>Republic of the Philippines</p>
@@ -90,6 +89,14 @@
 
             <p class="sf9-section-heading center">LEARNING PROGRESS AND ACHIEVEMENT</p>
             <table class="sf9-grades">
+                <colgroup>
+                    <col style="width: 38%;">
+                    <col style="width: 12%;">
+                    <col style="width: 12%;">
+                    <col style="width: 12%;">
+                    <col style="width: 13%;">
+                    <col style="width: 13%;">
+                </colgroup>
                 <thead>
                     <tr>
                         <th rowspan="2">Learning Areas</th>
@@ -152,11 +159,11 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td>90-100</td><td>Advancing</td><td>Passed</td></tr>
-                    <tr><td>80-89</td><td>Benchmarking</td><td>Passed</td></tr>
-                    <tr><td>75-79</td><td>Correcting</td><td>Passed</td></tr>
-                    <tr><td>65-74</td><td>Developing</td><td>Failed</td></tr>
-                    <tr><td>0-64</td><td>Emerging</td><td>Failed</td></tr>
+                    <tr><td><span class="range-lo">90</span>-<span class="range-hi">100</span></td><td>Advancing</td><td>Passed</td></tr>
+                    <tr><td><span class="range-lo">80</span>-<span class="range-hi">89</span></td><td>Benchmarking</td><td>Passed</td></tr>
+                    <tr><td><span class="range-lo">75</span>-<span class="range-hi">79</span></td><td>Connecting</td><td>Passed</td></tr>
+                    <tr><td><span class="range-lo">65</span>-<span class="range-hi">74</span></td><td>Developing</td><td>Failed</td></tr>
+                    <tr><td><span class="range-lo">0</span>-<span class="range-hi">64</span></td><td>Emerging</td><td>Failed</td></tr>
                 </tbody>
             </table>
         </div>
@@ -175,17 +182,17 @@
                     <tr>
                         <td class="month-label">No. of Class Days</td>
                         {% for m in attendance_months %}<td>{{ attendance_by_month|get:m|get:"total"|default:"" }}</td>{% endfor %}
-                        <td>{{ attendance_totals.class_days|default:"" }}</td>
+                        <td>{% if attendance_complete %}{{ attendance_totals.class_days|default:"" }}{% endif %}</td>
                     </tr>
                     <tr>
                         <td class="month-label">No. of Days Present</td>
                         {% for m in attendance_months %}<td>{{ attendance_by_month|get:m|get:"present"|default:"" }}</td>{% endfor %}
-                        <td>{{ attendance_totals.present|default:"" }}</td>
+                        <td>{% if attendance_complete %}{{ attendance_totals.present|default:"" }}{% endif %}</td>
                     </tr>
                     <tr>
                         <td class="month-label">No. of Days Absent</td>
                         {% for m in attendance_months %}<td>{{ attendance_by_month|get:m|get:"absent"|default:"" }}</td>{% endfor %}
-                        <td>{{ attendance_totals.absent|default:"" }}</td>
+                        <td>{% if attendance_complete %}{{ attendance_totals.absent|default:"" }}{% endif %}</td>
                     </tr>
                 </tbody>
             </table>
@@ -197,6 +204,10 @@
 
             <p class="sf9-section-heading center">PARENTS/GUARDIAN'S SIGNATURE</p>
             <table class="sf9-signature-lines">
+                <colgroup>
+                    <col style="width: 15%;">
+                    <col style="width: 85%;">
+                </colgroup>
                 <tr><td>Term 1</td><td class="line"></td></tr>
                 <tr><td>Term 2</td><td class="line"></td></tr>
                 <tr><td>Term 3</td><td class="line"></td></tr>
@@ -212,12 +223,14 @@
             <p class="sf9-small">Approved: <span class="dotted"></span></p>
             <div class="sf9-signatures">
                 <div>
+                    {% if school_profile %}<p class="sf9-small sf9-adviser-name">{{ school_profile.principal_name }}</p>{% endif %}
                     <p class="line"></p>
                     <p>School Head</p>
                 </div>
                 <div>
+                    {% if teacher %}<p class="sf9-small sf9-adviser-name">{{ teacher.full_name }}</p>{% endif %}
                     <p class="line"></p>
-                    <p>Adviser{% if teacher %}<br><span class="sf9-small">{{ teacher.full_name }}</span>{% endif %}</p>
+                    <p>Adviser</p>
                 </div>
             </div>
 
@@ -225,6 +238,7 @@
             <p class="sf9-small" style="margin-top: 14px;">Admitted in: <span class="dotted"></span> &nbsp;&nbsp; Date: <span class="dotted"></span></p>
             <div class="sf9-signatures single">
                 <div>
+                    {% if school_profile %}<p class="sf9-small sf9-adviser-name">{{ school_profile.principal_name }}</p>{% endif %}
                     <p class="line"></p>
                     <p>School Head</p>
                 </div>
@@ -237,18 +251,19 @@
     .sf9-form {
         font-family: 'Times New Roman', Times, serif;
         font-size: 12px;
+        line-height: 1.15;
         color: #000;
         border: 2px solid #000;
-        padding: 15px;
+        padding: 8px;
         width: 100%;
         margin: 0 auto;
         box-sizing: border-box;
     }
     .sf9-header { display: flex; justify-content: center; align-items: flex-start; }
     .sf9-header-text { text-align: center; padding: 0 8px; }
-    .sf9-header-text p { margin: 1px 0; }
+    .sf9-header-text p { margin: 0; }
     .sf9-logo {
-        width: 44px; height: 44px; border-radius: 50%; border: 1px dashed #999;
+        width: 60px; height: 60px; border-radius: 50%; border: 1px dashed #999;
         display: flex; align-items: center; justify-content: center; text-align: center;
         font-size: 8px; color: #999; flex-shrink: 0; position: relative; overflow: hidden;
     }
@@ -257,39 +272,57 @@
     .sf9-logo.has-image .sf9-logo-placeholder { display: none; }
     .sf9-logo.has-image .sf9-logo-img { display: block; }
     .bold { font-weight: bold; }
-    .sf9-title { text-align: center; margin: 6px 0 0 0; font-size: 15px; }
-    .sf9-subtitle { text-align: center; margin: 2px 0 10px 0; }
+    .sf9-title { text-align: center; margin: 2px 0 0 0; font-size: 15px; }
+    .sf9-subtitle { text-align: center; margin: 1px 0 4px 0; }
     .sf9-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; align-items: start; }
-    .sf9-info-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-    .sf9-info-table td { padding: 2px 4px; }
+    .sf9-info-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 10.5px; }
+    .sf9-info-table td { padding: 1px 4px; border-bottom: none; }
     .sf9-info-table .label { white-space: nowrap; }
     .sf9-info-table .fill { border-bottom: 1px solid #000; }
-    .sf9-dear-parents { margin: 8px 0; text-align: justify; }
-    .sf9-section-heading { font-weight: bold; text-decoration: underline; margin: 10px 0 4px 0; }
+    .sf9-dear-parents { margin: 4px 0; text-align: justify; }
+    .sf9-section-heading { font-weight: bold; text-decoration: none; font-size: 11px; margin: 6px 0 2px 0; }
     .sf9-section-heading.center { text-align: center; }
     table.sf9-grades, table.sf9-attendance, table.sf9-signature-lines {
         width: 100%; border-collapse: collapse;
     }
+    table.sf9-grades, table.sf9-signature-lines { table-layout: fixed; }
     table.sf9-grades th, table.sf9-grades td,
     table.sf9-attendance th, table.sf9-attendance td {
-        border: 1px solid #000; padding: 3px 4px; text-align: center;
+        border: 1px solid #000; padding: 1px 4px; text-align: center;
     }
-    table.sf9-grades td.subject-name { text-align: left; }
+    table.sf9-grades td.subject-name { text-align: left; font-size: 10.5px; overflow-wrap: break-word; }
     table.sf9-grades tr.sf9-group-row td { text-align: left; font-weight: bold; background: #eee; }
     table.sf9-grades tr.sf9-average-row td { font-weight: bold; }
     table.sf9-grades tr.sf9-average-row td.right { text-align: right; }
-    table.sf9-attendance th, table.sf9-attendance td { padding: 3px 2px; font-size: 10px; }
+    table.sf9-attendance th, table.sf9-attendance td { padding: 7px 2px; font-size: 10px; }
     table.sf9-attendance .month-label { text-align: left; white-space: nowrap; width: 1%; }
     table.sf9-attendance th:last-child, table.sf9-attendance td:last-child { font-weight: bold; }
-    table.sf9-descriptors { width: 100%; border-collapse: collapse; }
-    table.sf9-descriptors th, table.sf9-descriptors td { padding: 2px 6px; text-align: left; }
-    table.sf9-descriptors th { border-bottom: 1px solid #000; font-weight: bold; }
-    .sf9-comment-box { border: 1px solid #000; padding: 4px; margin-bottom: 6px; min-height: 34px; font-weight: bold; }
-    table.sf9-signature-lines td { padding: 6px 4px; }
-    table.sf9-signature-lines td.line { border-bottom: 1px solid #000; width: 70%; }
+    table.sf9-descriptors { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    table.sf9-descriptors th, table.sf9-descriptors td { padding: 1px 6px; text-align: left; }
+    table.sf9-descriptors th:first-child, table.sf9-descriptors td:first-child { width: 32%; text-align: right; }
+    table.sf9-descriptors th:last-child, table.sf9-descriptors td:last-child { width: 18%; }
+    table.sf9-descriptors th:nth-child(2), table.sf9-descriptors td:nth-child(2) { text-align: center; }
+    table.sf9-descriptors th { border-bottom: none; font-weight: bold; }
+    /* Cancel the app-wide table-row divider (tokens.css: td { border-bottom:
+       1px solid var(--line); }) that otherwise leaks a grey line under every
+       data row here - this table's own reference has none. */
+    table.sf9-descriptors td { border-bottom: none; text-decoration: none; }
+    /* Fixed-width number boxes either side of the dash so it lands in the
+       same horizontal spot on every row, regardless of 1/2/3-digit values -
+       plain text-align alone can't do this since "90-100" and "0-64" are
+       different lengths. */
+    table.sf9-descriptors .range-lo { display: inline-block; width: 2.2ch; text-align: right; font-variant-numeric: tabular-nums; }
+    table.sf9-descriptors .range-hi { display: inline-block; width: 3ch; text-align: left; font-variant-numeric: tabular-nums; }
+    .sf9-comment-box { border: 1px solid #000; padding: 3px; margin-bottom: 4px; min-height: 52px; font-weight: bold; }
+    table.sf9-signature-lines td { padding: 6px 4px; border-bottom: none; }
+    table.sf9-signature-lines td.line { border-bottom: 1px solid #000; }
     .sf9-small { font-size: 11px; margin: 4px 0; }
     .dotted { display: inline-block; min-width: 140px; border-bottom: 1px dotted #000; }
     .sf9-signatures { display: flex; justify-content: space-around; margin-top: 24px; text-align: center; }
+    /* Sits above the block's normal top (negative margin) so it doesn't push
+       the line/"Adviser" label down - those stay aligned with "School Head"
+       on the other side, which has no name line above it. */
+    .sf9-adviser-name { margin: -22px 0 4px; }
     .sf9-signatures.single { justify-content: center; }
     .sf9-signatures .line { border-bottom: 1px solid #000; width: 130px; margin: 0 auto; }
     @media print {
@@ -321,7 +354,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        sf9ApplyLogo(localStorage.getItem('sf9_deped_logo'), 'deped-logo-img');
         sf9ApplyLogo(localStorage.getItem('sf9_school_logo'), 'school-logo-img');
     });
 </script>

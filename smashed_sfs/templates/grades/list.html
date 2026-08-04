@@ -1,14 +1,12 @@
 {% extends 'base.html' %}
 {% load grade_filters %}
 
-{% block breadcrumb %}GRADES{% endblock %}
+{% block breadcrumb %}RATINGS{% endblock %}
 
 {% block content %}
-<h1>Grade List</h1>
+<h1>Ratings List</h1>
 
-<a href="{% url 'upload_grades' %}" class="btn">+ Upload Grades</a>
-<a href="{% url 'attendance_grid' %}" class="btn ghost">Attendance</a>
-<a href="{% url 'view_rankings' %}" class="btn ghost">View Rankings</a>
+<a href="{% url 'upload_grades' %}" class="btn">+ Upload Ratings</a>
 
 <div style="margin-top: var(--space-4);">
     <strong>Term:</strong>

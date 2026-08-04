@@ -1,13 +1,13 @@
 {% extends 'base_public.html' %}
 
 {% block content %}
-<div class="eyebrow-mini">DepEd SF9/SF10 System</div>
-<h1>Teacher registration</h1>
-<p>Create your account to access the SF9/SF10 system.</p>
+<h1>{% if account_type == 'non_teaching' %}Non teaching registration{% else %}Teacher registration{% endif %}</h1>
+<p>Create your account to access the system.</p>
 
 <div class="card">
     <form method="POST">
         {% csrf_token %}
+        <input type="hidden" name="account_type" value="{{ account_type }}">
 
         <div class="form-group">
             <label>Username:</label>
@@ -25,6 +25,16 @@
             <label>Position:</label>
             <input type="text" name="position" placeholder="Teacher I, Teacher II, etc." required>
         </div>
+
+        {% if account_type == 'teaching' %}
+        <div class="form-group">
+            <label>Role:</label>
+            <select name="role" required>
+                <option value="adviser">Class Adviser</option>
+                <option value="subject_teacher">Subject Teacher</option>
+            </select>
+        </div>
+        {% endif %}
 
         <div class="form-group">
             <label>Email Address:</label>

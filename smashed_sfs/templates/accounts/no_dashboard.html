@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}ACCOUNT{% endblock %}
+
+{% block content %}
+<h1>Welcome, {{ teacher.full_name }}</h1>
+<div class="card">
+    <p>Your account is set up and linked to your school.</p>
+    <p><small>There's no dashboard built yet for non-teaching accounts. Check back later.</small></p>
+</div>
+{% endblock %}

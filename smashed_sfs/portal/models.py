@@ -16,6 +16,7 @@ class StudentAccount(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     lrn = models.CharField(max_length=12)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    is_active = models.BooleanField(default=True)
     requested_at = models.DateTimeField(auto_now_add=True)
     decided_at = models.DateTimeField(blank=True, null=True)
     decided_by = models.IntegerField(blank=True, null=True)

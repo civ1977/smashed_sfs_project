@@ -5,10 +5,14 @@ class Teacher(models.Model):
     ROLE_ADVISER = 'adviser'
     ROLE_REGISTRAR = 'registrar'
     ROLE_PRINCIPAL = 'principal'
+    ROLE_NON_TEACHING = 'non_teaching'
+    ROLE_SUBJECT_TEACHER = 'subject_teacher'
     ROLE_CHOICES = [
-        (ROLE_ADVISER, 'Adviser'),
+        (ROLE_ADVISER, 'Class Adviser'),
         (ROLE_REGISTRAR, 'Registrar'),
         (ROLE_PRINCIPAL, 'Principal'),
+        (ROLE_NON_TEACHING, 'Non-Teaching'),
+        (ROLE_SUBJECT_TEACHER, 'Subject Teacher'),
     ]
 
     teacher_id = models.AutoField(primary_key=True)

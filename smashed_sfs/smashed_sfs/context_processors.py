@@ -54,14 +54,16 @@ def shell_context(request):
                 _nav_item(request, 'Home', 'dashboard'),
                 _nav_item(request, 'Students', 'student_list',
                           match_names={'student_list', 'upload_students', 'save_students', 'update_student'}),
-                _nav_item(request, 'Grades', 'view_grades', ['all'],
-                          match_names={'view_grades', 'upload_grades', 'save_grades'}),
                 _nav_item(request, 'Attendance', 'attendance_grid',
                           match_names={'attendance_grid', 'attendance_grid_save', 'view_attendance'}),
+                _nav_item(request, 'Ratings', 'view_grades', ['all'],
+                          match_names={'view_grades', 'upload_grades', 'save_grades'}),
+                _nav_item(request, 'Reports', 'select_student_report',
+                          match_names={'select_student_report', 'view_sf9', 'view_sf10', 'view_rankings'}),
+                _nav_item(request, 'Ancillary', 'ancillary'),
+                _nav_item(request, 'Tools', 'tools'),
                 _nav_item(request, 'Access Requests', 'access_requests',
                           match_names={'access_requests', 'decide_access_request'}),
-                _nav_item(request, 'Reports', 'select_student_report',
-                          match_names={'select_student_report', 'view_sf9', 'view_sf10'}),
             ],
         }
 
@@ -80,5 +82,7 @@ def shell_context(request):
                       match_names={'school_sections', 'reassign_section_adviser'}),
             _nav_item(request, 'Accounts', 'school_accounts',
                       match_names={'school_accounts', 'toggle_teacher_active', 'reassign_teacher_section'}),
+            _nav_item(request, 'Assignments', 'school_assignments',
+                      match_names={'school_assignments', 'remove_teacher_subject_assignment'}),
         ],
     }

@@ -3,7 +3,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>DepEd SF9/SF10 System</title>
+    <title>DepEd School Forms and Reporting System</title>
     <link rel="stylesheet" href="{% static 'tokens.css' %}">
     <style>
         .shell { display: flex; min-height: 100vh; align-items: stretch; }
@@ -15,12 +15,8 @@
             color: #fff;
             padding: var(--space-5) var(--space-3);
         }
-        .shell-sidebar .brand {
-            font-family: var(--font-display);
-            font-size: 19px;
-            font-weight: 800;
+        .shell-sidebar .shell-brand {
             margin-bottom: var(--space-5);
-            opacity: .95;
         }
         .shell-sidebar .nav-item {
             display: block;
@@ -74,7 +70,8 @@
         @media (max-width: 860px) {
             .shell { flex-direction: column; }
             .shell-sidebar { width: 100%; display: flex; flex-wrap: wrap; gap: 4px; padding: var(--space-3); }
-            .shell-sidebar .brand { width: 100%; margin-bottom: var(--space-2); }
+            .shell-sidebar .shell-brand { width: 100%; margin-bottom: var(--space-2); }
+            .shell-sidebar .shell-brand .brand-logo { font-size: 18px; }
         }
     </style>
 </head>
@@ -82,7 +79,7 @@
     <div class="shell">
         {% if shell_nav_items %}
         <div class="shell-sidebar no-print">
-            <div class="brand">smashed·sfs</div>
+            {% include 'partials/brand.html' with brand_class='shell-brand' %}
             {% for item in shell_nav_items %}
             <a href="{{ item.href }}" class="nav-item{% if item.active %} active{% endif %}">{{ item.label }}</a>
             {% endfor %}
