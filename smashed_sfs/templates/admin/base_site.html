@@ -1,0 +1,9 @@
+{% extends "admin/base.html" %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:"Django administration" }}</a></h1>
+{% endblock %}
+
+{% block nav-global %}
+<a href="{% url 'admin:online_users' %}" style="color: #fff; margin-left: 20px;">Online Users</a>
+{% endblock %}

@@ -20,6 +20,7 @@ class StudentAccount(models.Model):
     requested_at = models.DateTimeField(auto_now_add=True)
     decided_at = models.DateTimeField(blank=True, null=True)
     decided_by = models.IntegerField(blank=True, null=True)
+    last_seen = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         db_table = 'student_account'

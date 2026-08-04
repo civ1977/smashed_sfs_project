@@ -26,6 +26,7 @@ class Teacher(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(blank=True, null=True)
+    last_seen = models.DateTimeField(blank=True, null=True)
     school_profile_id = models.IntegerField(blank=True, null=True)
 
     class Meta:

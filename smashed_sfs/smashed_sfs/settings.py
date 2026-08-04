@@ -49,6 +49,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'smashed_sfs.middleware.TrackLastSeenMiddleware',
 ]
 
 ROOT_URLCONF = 'smashed_sfs.urls'

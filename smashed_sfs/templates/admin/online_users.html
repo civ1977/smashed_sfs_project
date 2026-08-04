@@ -1,0 +1,84 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<h1>Online Users</h1>
+<p>
+    <strong>{{ total_online }}</strong> online right now
+    (active within the last {{ online_window_minutes }} minutes). Refresh this page for the latest status.
+</p>
+
+{% for division in division_blocks %}
+<h2>{{ division.name }}</h2>
+
+{% for school in division.schools %}
+<h3>
+    {{ school.name }}
+    <small style="font-weight: normal; color: #666;">
+        &mdash; {{ school.teachers_online }} teacher{{ school.teachers_online|pluralize }} online,
+        {{ school.students_online }} student{{ school.students_online|pluralize }} online
+    </small>
+</h3>
+
+<div style="display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 24px;">
+    <div style="flex: 1; min-width: 320px;">
+        <h4>Teachers</h4>
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Role</th><th>Status</th><th>Last seen</th></tr>
+            </thead>
+            <tbody>
+                {% for row in school.teacher_rows %}
+                <tr>
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.role }}</td>
+                    <td>
+                        {% if row.online %}
+                            <span style="color: #2e7d32; font-weight: bold;">&#9679; Online</span>
+                        {% else %}
+                            <span style="color: #999;">&#9675; Offline</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.label %}{{ row.label }}{% elif row.last_seen %}{{ row.last_seen|timesince }} ago{% else %}&mdash;{% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4">No teachers.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="flex: 1; min-width: 320px;">
+        <h4>Students</h4>
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Status</th><th>Last seen</th></tr>
+            </thead>
+            <tbody>
+                {% for row in school.student_rows %}
+                <tr>
+                    <td>{{ row.name }}</td>
+                    <td>
+                        {% if row.online %}
+                            <span style="color: #2e7d32; font-weight: bold;">&#9679; Online</span>
+                        {% else %}
+                            <span style="color: #999;">&#9675; Offline</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.label %}{{ row.label }}{% elif row.last_seen %}{{ row.last_seen|timesince }} ago{% else %}&mdash;{% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3">No students.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endfor %}
+{% empty %}
+<p>No schools found.</p>
+{% endfor %}
+{% endblock %}
