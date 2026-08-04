@@ -10,7 +10,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.login_view, name='login'),
     path('register/', views.register, name='register'),
-    path('dashboard/', views.dashboard, name='dashboard'),
+    path('advisory/', views.dashboard, name='dashboard'),
     path('complete-profile/', views.complete_profile, name='complete_profile'),
     path('logout/', views.logout_view, name='logout'),
     path('ancillary/', views.ancillary, name='ancillary'),
