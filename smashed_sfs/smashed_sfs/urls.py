@@ -1,6 +1,9 @@
 from django.contrib import admin
 from django.urls import path, include
 from accounts import views
+from . import admin_grouping
+
+admin_grouping.apply()
 
 urlpatterns = [
     path('admin/', admin.site.urls),
