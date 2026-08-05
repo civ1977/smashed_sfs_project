@@ -68,6 +68,15 @@ def resolve_group_keys(slug):
     return None
 
 
+def group_name_for_slug(slug):
+    for group_name, _ in ADMIN_GROUPS:
+        if group_slug(group_name) == slug:
+            return group_name
+    if slug == group_slug(OTHER_GROUP_NAME):
+        return OTHER_GROUP_NAME
+    return None
+
+
 def _grouped_get_app_list(self, request, app_label=None):
     app_dict = self._build_app_dict(request, app_label)
 

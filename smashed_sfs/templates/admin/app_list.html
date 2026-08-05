@@ -4,9 +4,12 @@
   {% for app in app_list %}
     <div class="app-{{ app.app_label }} module{% if app.app_url in request.path|urlencode %} current-app{% endif %}">
       <table>
-        <caption style="display: flex; align-items: center; justify-content: space-between;">
+        <caption>
           <a href="{{ app.app_url }}" class="section" title="{% blocktranslate with name=app.name %}Models in the {{ name }} application{% endblocktranslate %}">{{ app.name }}</a>
-          <a href="{% url 'admin:group_backup' app.app_label %}" class="button" style="font-size: 11px; padding: 2px 8px;">Download Backup</a>
+          <div style="margin-top: 4px;">
+            <a href="{% url 'admin:group_backup' app.app_label %}" class="button" style="font-size: 11px; padding: 2px 6px; white-space: nowrap;">Download Backup</a>
+            <a href="{% url 'admin:group_restore' app.app_label %}" class="button" style="font-size: 11px; padding: 2px 6px; white-space: nowrap; margin-left: 4px;">Restore Backup</a>
+          </div>
         </caption>
         <thead class="visually-hidden">
           <tr>
