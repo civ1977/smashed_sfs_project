@@ -138,6 +138,77 @@ def restore_group_view(request, slug):
     return render(request, 'admin/restore_backup.html', context)
 
 
+def delete_group_view(request, slug):
+    keys = admin_grouping.resolve_group_keys(slug)
+    group_name = admin_grouping.group_name_for_slug(slug)
+    if keys is None:
+        return HttpResponseNotFound('Unknown backup group.')
+
+    lookup = _model_lookup()
+    allowed = {(app_label, object_name) for app_label, object_name in keys}
+
+    context = {
+        **admin.site.each_context(request),
+        'title': f'Delete Records - {group_name}',
+        'group_name': group_name,
+        'slug': slug,
+    }
+
+    if request.method == 'POST' and request.POST.get('action') == 'delete_all':
+        if request.POST.get('confirm_name', '').strip() != group_name:
+            messages.error(request, f'Group name did not match "{group_name}" - nothing was deleted.')
+            return redirect('admin:group_delete', slug=slug)
+
+        total = 0
+        with transaction.atomic():
+            for app_label, object_name in keys:
+                model = lookup.get((app_label, object_name))
+                if model is None:
+                    continue
+                queryset = model.objects.all()
+                total += queryset.count()
+                queryset.delete()
+
+        messages.success(request, f'Deleted all {total} record(s) from {group_name}.')
+        return redirect('admin:index')
+
+    if request.method == 'POST' and request.POST.get('action') == 'delete_selected':
+        selected = request.POST.getlist('record')
+        deleted = 0
+        with transaction.atomic():
+            for item in selected:
+                try:
+                    model_key, pk = item.rsplit(':', 1)
+                    app_label, object_name = model_key.split('.', 1)
+                except ValueError:
+                    continue
+                if (app_label, object_name) not in allowed:
+                    continue
+                model = lookup.get((app_label, object_name))
+                if model is None:
+                    continue
+                deleted += model.objects.filter(pk=pk).delete()[0]
+
+        messages.success(request, f'Deleted {deleted} selected record(s) from {group_name}.')
+        return redirect('admin:group_delete', slug=slug)
+
+    records_by_model = []
+    total_count = 0
+    for app_label, object_name in keys:
+        model = lookup.get((app_label, object_name))
+        if model is None:
+            continue
+        rows = [
+            {'pk': obj.pk, 'label': str(obj), 'key': f'{app_label}.{object_name}:{obj.pk}'}
+            for obj in model.objects.all().order_by('pk')
+        ]
+        total_count += len(rows)
+        records_by_model.append({'model_name': model._meta.verbose_name.title(), 'rows': rows})
+
+    context.update({'records_by_model': records_by_model, 'total_count': total_count})
+    return render(request, 'admin/delete_records.html', context)
+
+
 def apply():
     original_get_urls = admin.site.get_urls
 
@@ -145,6 +216,7 @@ def apply():
         custom = [
             path('backup/<slug:slug>/', admin.site.admin_view(backup_group_view), name='group_backup'),
             path('backup/<slug:slug>/restore/', admin.site.admin_view(restore_group_view), name='group_restore'),
+            path('backup/<slug:slug>/delete/', admin.site.admin_view(delete_group_view), name='group_delete'),
         ]
         return custom + original_get_urls()
 
