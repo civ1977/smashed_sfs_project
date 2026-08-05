@@ -22,6 +22,7 @@ ADMIN_GROUPS = [
         ('students', 'SchoolProfile'),
         ('students', 'Section'),
         ('grades', 'SubjectMapping'),
+        ('grades', 'SubjectTermExclusion'),
         ('grades', 'SchoolCalendarException'),
         ('grades', 'TeacherSubjectAssignment'),
     ]),
@@ -30,10 +31,41 @@ ADMIN_GROUPS = [
     ]),
     ('Grades & Attendance', [
         ('grades', 'Grade'),
+        ('grades', 'StudentTermRemark'),
         ('grades', 'Attendance'),
         ('grades', 'AttendanceMark'),
     ]),
 ]
+
+OTHER_GROUP_NAME = 'Other'
+
+
+def group_slug(group_name):
+    return group_name.lower().replace(' & ', '_').replace(' ', '_')
+
+
+def registered_model_keys():
+    """(app_label, object_name) for every model currently registered on
+    admin.site - the same universe _grouped_get_app_list draws from."""
+    return {(model._meta.app_label, model.__name__) for model in admin.site._registry}
+
+
+def resolve_group_keys(slug):
+    """(app_label, object_name) keys belonging to one group, by its slug -
+    the single source both the index page and the backup-download feature
+    (admin_backup.py) read from, so a group's button always backs up
+    exactly the tables that group displays. Returns None for an unknown
+    slug; the 'other' slug is resolved dynamically as whatever's
+    registered but not claimed by a named group above."""
+    for group_name, keys in ADMIN_GROUPS:
+        if group_slug(group_name) == slug:
+            return list(keys)
+
+    if slug == group_slug(OTHER_GROUP_NAME):
+        claimed = {key for _, keys in ADMIN_GROUPS for key in keys}
+        return [key for key in registered_model_keys() if key not in claimed]
+
+    return None
 
 
 def _grouped_get_app_list(self, request, app_label=None):
@@ -57,7 +89,7 @@ def _grouped_get_app_list(self, request, app_label=None):
             models.sort(key=lambda m: m['name'])
             grouped.append({
                 'name': group_name,
-                'app_label': group_name.lower().replace(' & ', '_').replace(' ', '_'),
+                'app_label': group_slug(group_name),
                 'app_url': '#',
                 'has_module_perms': True,
                 'models': models,
@@ -74,8 +106,8 @@ def _grouped_get_app_list(self, request, app_label=None):
     if leftover:
         leftover.sort(key=lambda m: m['name'])
         grouped.append({
-            'name': 'Other',
-            'app_label': 'other',
+            'name': OTHER_GROUP_NAME,
+            'app_label': group_slug(OTHER_GROUP_NAME),
             'app_url': '#',
             'has_module_perms': True,
             'models': leftover,

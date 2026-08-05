@@ -1,10 +1,11 @@
 from django.contrib import admin
 from django.urls import path, include
 from accounts import views
-from . import admin_grouping, admin_monitoring
+from . import admin_grouping, admin_monitoring, admin_backup
 
 admin_grouping.apply()
 admin_monitoring.apply()
+admin_backup.apply()
 
 urlpatterns = [
     path('admin/', admin.site.urls),
