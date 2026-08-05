@@ -340,6 +340,9 @@ def view_rankings(request):
         return redirect('dashboard')
 
     students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+    males = [s for s in students if s.sex in ('MALE', 'M')]
+    females = [s for s in students if s.sex in ('FEMALE', 'F')]
+    students = males + females
 
     # Same grade-level scoping as view_grades('all'): a subject only
     # "counts" for completeness/ranking if it's mapped for this teacher's
@@ -409,6 +412,11 @@ def view_rankings(request):
             {'label': 'With High Honors', 'count': award_counts['With High Honors']},
             {'label': 'With Honors', 'count': award_counts['With Honors']},
         ]
+
+        # Displayed male-then-female, alphabetical - same roster convention
+        # used everywhere else in the app - now that each row already has
+        # its rank/award computed from the descending-average sort above.
+        complete.sort(key=lambda row: (row['student'].sex not in ('MALE', 'M'), row['student'].surname, row['student'].name))
 
         terms.append({
             'term': term,
