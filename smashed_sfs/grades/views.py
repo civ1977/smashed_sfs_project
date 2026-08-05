@@ -5,12 +5,11 @@ from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.utils.dateformat import format as format_date
 import calendar
-import csv
-import io
 import json
 from datetime import datetime, date as date_cls
 from students.models import Student, Section
 from accounts.models import Teacher
+from smashed_sfs.upload_utils import read_upload_rows, UploadFileError
 from .models import Grade, SubjectMapping, Attendance, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment
 
 MONTH_NAMES = [
@@ -74,29 +73,27 @@ def upload_grades(request):
         replace_all = request.POST.get('replace_all') == 'on'
 
         try:
-            decoded_file = csv_file.read().decode('utf-8-sig')
-            io_string = io.StringIO(decoded_file)
-            reader = csv.reader(io_string, delimiter=',', quotechar='"')
-            
+            rows = iter(read_upload_rows(csv_file))
+
             preview_data = []
             headers = None
-            
+
             if skip_header:
                 try:
-                    headers = next(reader)
+                    headers = next(rows)
                     headers = [h.strip() if h else f'Subject{i+1}' for i, h in enumerate(headers)]
                 except StopIteration:
                     pass
-            
-            for row in reader:
+
+            for row in rows:
                 if row:
                     if headers and len(row) < len(headers):
                         row.extend([''] * (len(headers) - len(row)))
                     preview_data.append(row)
-            
+
             if not headers and preview_data:
                 headers = ['LRN'] + [f'Subject{i+1}' for i in range(len(preview_data[0]) - 1)]
-            
+
             request.session['grade_preview_data'] = preview_data
             request.session['grade_term'] = term
             request.session['grade_level'] = grade_level
@@ -105,8 +102,10 @@ def upload_grades(request):
 
             messages.info(request, f'📋 Preview loaded: {len(preview_data)} students found for Term {term}.')
 
+        except UploadFileError as e:
+            messages.error(request, str(e))
         except Exception as e:
-            messages.error(request, f'Error reading CSV: {str(e)}')
+            messages.error(request, f'Error reading file: {str(e)}')
 
     if 'grade_preview_data' in request.session and not preview_data:
         preview_data = request.session.get('grade_preview_data')

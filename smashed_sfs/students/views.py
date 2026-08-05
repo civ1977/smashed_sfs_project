@@ -2,12 +2,11 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-import csv
-import io
 from datetime import datetime
 from .models import Student, Section
 from accounts.models import Teacher
 from portal.models import StudentAccount
+from smashed_sfs.upload_utils import read_upload_rows, UploadFileError
 
 
 def convert_date(date_str):
@@ -46,25 +45,21 @@ def upload_students(request):
         skip_header = request.POST.get('skip_header') == 'on'
         
         try:
-            decoded_file = csv_file.read().decode('utf-8-sig')
-            io_string = io.StringIO(decoded_file)
-            reader = csv.reader(io_string, delimiter=',', quotechar='"')
-            
-            preview_data = []
-            
+            rows = iter(read_upload_rows(csv_file))
+
             if skip_header:
-                next(reader, None)
-            
-            for row in reader:
-                if row:
-                    preview_data.append(row)
-            
+                next(rows, None)
+
+            preview_data = [row for row in rows if row]
+
             request.session['student_preview_data'] = preview_data
-            
+
             messages.info(request, f'📋 Preview loaded: {len(preview_data)} students found.')
-            
+
+        except UploadFileError as e:
+            messages.error(request, str(e))
         except Exception as e:
-            messages.error(request, f'Error reading CSV: {str(e)}')
+            messages.error(request, f'Error reading file: {str(e)}')
     
     if 'student_preview_data' in request.session and not preview_data:
         preview_data = request.session.get('student_preview_data')
