@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from django.utils.dateformat import format as format_date
@@ -548,9 +549,19 @@ def arrange_subjects(request):
         messages.error(request, 'No section found for this teacher. Please complete your profile first.')
         return redirect('complete_profile')
 
+    # Same scoping as school/views.py's adviser_subject_assignments (the
+    # subject-teacher assignment page these subjects are also managed
+    # from): active subjects only, and a blank mapping.strand applies to
+    # every strand at this grade level while a blank section.strand means
+    # this section itself makes no strand distinction at all.
     subjects = SubjectMapping.objects.filter(
-        school_profile_id=teacher.school_profile_id, grade_level=teacher_section.grade_level,
-    ).order_by('subject_number', 'subject_name')
+        school_profile_id=teacher.school_profile_id,
+        grade_level=teacher_section.grade_level,
+        is_active=True,
+    )
+    if teacher_section.strand:
+        subjects = subjects.filter(Q(strand='') | Q(strand=teacher_section.strand))
+    subjects = subjects.order_by('subject_number', 'subject_name')
 
     if request.method == 'POST':
         try:
