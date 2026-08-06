@@ -297,11 +297,11 @@
        survive that). */
     .sf9-info-table td.fill-short { border-bottom: none; }
     .sf9-info-table td.fill-short .short-line { display: inline-block; width: calc(100% - 2ch); border-bottom: 1px solid #000; }
-    /* Sex/Section/Track's line starts 2ch in from the cell's left edge
-       (a gap after the label) instead of spanning the full td width - same
+    /* Sex/Section/Track's line starts 1ch to the left of the cell's left
+       edge (moved 3ch further left from the original 2ch-in inset) - same
        inline-block technique as fill-short, mirrored to inset the other end. */
     .sf9-info-table td.fill-inset-left { border-bottom: none; }
-    .sf9-info-table td.fill-inset-left .short-line-left { display: inline-block; width: calc(100% - 2ch); margin-left: 2ch; border-bottom: 1px solid #000; }
+    .sf9-info-table td.fill-inset-left .short-line-left { display: inline-block; width: calc(100% - 2ch); margin-left: -1ch; border-bottom: 1px solid #000; }
     .sf9-dear-parents { margin: 4px 0; text-align: left; }
     .sf9-section-heading { font-weight: bold; text-decoration: none; font-size: 11px; margin: 6px 0 2px 0; }
     .sf9-section-heading.center { text-align: center; }
