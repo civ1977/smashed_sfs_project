@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    SubjectMapping, TeacherSubjectAssignment, Grade, Attendance,
+    SubjectMapping, TeacherSubjectAssignment, SubjectTermExclusion, StudentTermRemark, Grade, Attendance,
     AttendanceMark, SchoolCalendarException,
 )
 
@@ -15,6 +15,19 @@ class SubjectMappingAdmin(admin.ModelAdmin):
 @admin.register(TeacherSubjectAssignment)
 class TeacherSubjectAssignmentAdmin(admin.ModelAdmin):
     list_display = ('assignment_id', 'teacher_id', 'section_id', 'mapping_id')
+
+
+@admin.register(SubjectTermExclusion)
+class SubjectTermExclusionAdmin(admin.ModelAdmin):
+    list_display = ('exclusion_id', 'mapping_id', 'term', 'excluded_by', 'excluded_at')
+    list_filter = ('term',)
+
+
+@admin.register(StudentTermRemark)
+class StudentTermRemarkAdmin(admin.ModelAdmin):
+    list_display = ('remark_id', 'lrn', 'term', 'updated_by', 'updated_at')
+    search_fields = ('lrn',)
+    list_filter = ('term',)
 
 
 @admin.register(Grade)

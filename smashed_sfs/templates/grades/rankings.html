@@ -3,6 +3,7 @@
 {% block breadcrumb %}RANKINGS{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 <h1>Class Rankings</h1>
 
 <a href="{% url 'view_grades' 'all' %}" class="btn ghost">← Back to Grades</a>
@@ -49,6 +50,7 @@
                         <th>Average</th>
                         <th>Rank</th>
                         <th>Award</th>
+                        <th>Teacher's Comments/Remarks</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -64,6 +66,11 @@
                             {% else %}
                                 <span style="color: var(--ink-faint);">—</span>
                             {% endif %}
+                        </td>
+                        <td>
+                            <textarea class="remark-input" rows="2" style="width: 220px; font-size: 13px;"
+                                      data-lrn="{{ row.student.lrn }}" data-term="{{ term_data.term }}">{{ row.remark }}</textarea>
+                            <div class="remark-status" style="font-size: 11px; color: var(--ink-faint); min-height: 14px;"></div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -126,6 +133,49 @@
         showTerm((window.location.hash || '#term-1').slice(1));
         window.addEventListener('hashchange', function () {
             showTerm((window.location.hash || '#term-1').slice(1));
+        });
+    })();
+
+    (function () {
+        function getCookie(name) {
+            var value = null;
+            document.cookie.split(';').forEach(function (part) {
+                part = part.trim();
+                if (part.indexOf(name + '=') === 0) {
+                    value = decodeURIComponent(part.substring(name.length + 1));
+                }
+            });
+            return value;
+        }
+        var csrftoken = getCookie('csrftoken');
+
+        document.querySelectorAll('.remark-input').forEach(function (textarea) {
+            var statusEl = textarea.nextElementSibling;
+            var savedValue = textarea.value;
+
+            textarea.addEventListener('blur', function () {
+                if (textarea.value === savedValue) { return; }
+                var value = textarea.value;
+                statusEl.textContent = 'Saving...';
+
+                fetch('{% url "save_term_remark" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken,
+                    },
+                    body: JSON.stringify({lrn: textarea.dataset.lrn, term: textarea.dataset.term, remark: value}),
+                }).then(function (response) {
+                    if (!response.ok) { throw new Error('save failed'); }
+                    return response.json();
+                }).then(function () {
+                    savedValue = value;
+                    statusEl.textContent = 'Saved';
+                    setTimeout(function () { statusEl.textContent = ''; }, 1500);
+                }).catch(function () {
+                    statusEl.textContent = 'Could not save - try again';
+                });
+            });
         });
     })();
 </script>

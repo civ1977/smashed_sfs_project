@@ -43,9 +43,13 @@ class SectionForm(forms.ModelForm):
     in the system as selectable defaults (so with one school/strand in use today,
     that's the only option shown) but each also accepts free text, so a brand new
     grade level, track, strand, or modality doesn't require a code change.
+
+    Only grade_level is required - track, strand, and modality can be left
+    blank (e.g. a Junior High section has no track/strand).
     """
 
     DYNAMIC_FIELDS = ('grade_level', 'track', 'strand', 'modality')
+    REQUIRED_FIELDS = ('grade_level',)
 
     grade_level_choice = forms.ChoiceField(label='Grade Level', required=False)
     grade_level_new = forms.CharField(label='Or enter a new grade level', required=False, max_length=10)
@@ -73,6 +77,13 @@ class SectionForm(forms.ModelForm):
             choice_field.choices = [('', '-- Select --')] + [(v, v) for v in existing]
             if len(existing) == 1:
                 choice_field.initial = existing[0]
+            # Editing an existing section: default each dropdown to its
+            # current value rather than whatever the single-option shortcut
+            # above picked (or blank).
+            if self.instance and self.instance.pk:
+                current = getattr(self.instance, field_name, '')
+                if current:
+                    choice_field.initial = current
 
     def clean(self):
         cleaned = super().clean()
@@ -80,9 +91,9 @@ class SectionForm(forms.ModelForm):
             chosen = cleaned.get(f'{field_name}_choice')
             typed = (cleaned.get(f'{field_name}_new') or '').strip()
             value = typed or chosen
-            if not value:
+            if not value and field_name in self.REQUIRED_FIELDS:
                 self.add_error(f'{field_name}_new', 'Select an existing value or enter a new one.')
-            cleaned[field_name] = value
+            cleaned[field_name] = value or ''
         return cleaned
 
     def save(self, commit=True):

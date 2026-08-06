@@ -32,7 +32,7 @@
             <div class="chart-bar-row">
                 <span class="chart-bar-label">Male</span>
                 <div class="chart-bar-track">
-                    <div class="chart-bar-fill chart-bar-enrolment" style="width: {% widthratio male_count enrolment_max 100 %}%;"></div>
+                    <div class="chart-bar-fill chart-bar-enrolment-male" style="width: {% widthratio male_count enrolment_max 100 %}%;"></div>
                 </div>
                 <span class="chart-bar-value">{{ male_count }}</span>
             </div>
@@ -70,7 +70,7 @@
                             {% for cell in row.terms %}
                             <div class="vbar-col">
                                 <span class="vbar-value">{{ cell.count }}</span>
-                                <div class="vbar-fill chart-bar-term-{{ cell.term }}" style="height: {% widthratio cell.count term_rating_max 80 %}px;"></div>
+                                <div class="vbar-fill chart-bar-term-{{ cell.term }}" style="height: {% widthratio cell.count term_rating_max 68 %}px;"></div>
                             </div>
                             {% endfor %}
                         </div>
@@ -134,7 +134,7 @@
         color: #FFFFFF;
         flex: 1;
         min-width: 260px;
-        height: 190px;
+        height: 161.5px;
         box-sizing: border-box;
         display: flex;
         flex-direction: column;
@@ -359,7 +359,8 @@
     .chart-bar-enrolment,
     .chart-bar-term-1 { background: #4472C4; }
     .chart-bar-term-2 { background: #C00000; }
-    .chart-bar-term-3 { background: #FFC000; }
+    .chart-bar-term-3,
+    .chart-bar-enrolment-male { background: #FFC000; }
 
     /* Quick Actions: force a single horizontal row on this page only -
        .dashboard-grid itself stays untouched since portal/dashboard.html

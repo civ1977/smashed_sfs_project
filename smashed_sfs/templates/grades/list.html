@@ -15,6 +15,21 @@
     {% endfor %}
 </div>
 
+{% if excluded_subjects %}
+    <div class="card" style="margin-top: var(--space-4); max-width: 480px;">
+        <h3>Removed from Term {{ term }}</h3>
+        <p><small>These subjects aren't required for Term {{ term }}'s gradesheet or ranking, but still count for the other terms.</small></p>
+        {% for subject in excluded_subjects %}
+        <form method="POST" action="{% url 'restore_subject_term' subject.mapping_id %}" style="display: inline-block; margin: 2px;">
+            {% csrf_token %}
+            <input type="hidden" name="term" value="{{ term }}">
+            <span>{{ subject.subject_name }}</span>
+            <button type="submit" class="btn ghost" style="font-size: 11px; padding: 2px 6px;">Restore</button>
+        </form>
+        {% endfor %}
+    </div>
+{% endif %}
+
 {% if students %}
     <p style="margin-top: var(--space-4);"><strong>Total:</strong> {{ students|length }} students</p>
 
@@ -25,7 +40,15 @@
                     <th class="freeze-col freeze-col-1" style="min-width: 120px;">LRN</th>
                     <th class="freeze-col freeze-col-2" style="min-width: 160px;">Name</th>
                     {% for subject in subjects %}
-                    <th style="min-width: 80px;">{{ subject.subject_name }}</th>
+                    <th style="min-width: 80px;">
+                        {{ subject.subject_name }}
+                        <form method="POST" action="{% url 'exclude_subject_term' subject.mapping_id %}"
+                              onsubmit="return confirm('Remove {{ subject.subject_name|escapejs }} from Term {{ term }}? Students will no longer need a grade for it to rank this term.');">
+                            {% csrf_token %}
+                            <input type="hidden" name="term" value="{{ term }}">
+                            <button type="submit" class="btn ghost" style="font-size: 11px; padding: 2px 6px; font-weight: normal; white-space: nowrap;" title="Remove this subject from Term {{ term }}">Remove</button>
+                        </form>
+                    </th>
                     {% endfor %}
                 </tr>
             </thead>

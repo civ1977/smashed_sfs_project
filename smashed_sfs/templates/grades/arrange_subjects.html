@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}ARRANGE SUBJECTS{% endblock %}
+
+{% block content %}
+<h1>Arrange Subjects</h1>
+<p>Set the order your subjects appear in on the gradesheet, SF9, and SF10 - all three follow this same order.</p>
+
+<a href="{% url 'tools' %}" class="btn ghost">← Back to Tools</a>
+
+{% if subjects %}
+<form method="POST" style="margin-top: var(--space-4); max-width: 480px;">
+    {% csrf_token %}
+    <ul id="subject-order-list" style="list-style: none; padding: 0; margin: 0;">
+        {% for s in subjects %}
+        <li style="display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--border); padding: 8px 12px; margin-bottom: 6px; border-radius: 6px; background: var(--bg);">
+            <input type="hidden" name="mapping_id" value="{{ s.mapping_id }}">
+            <span>{{ s.subject_name }}</span>
+            <span>
+                <button type="button" class="btn ghost move-up" style="padding: 2px 8px;">↑</button>
+                <button type="button" class="btn ghost move-down" style="padding: 2px 8px;">↓</button>
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
+    <button type="submit" class="btn" style="margin-top: var(--space-3);">Save Order</button>
+</form>
+{% else %}
+<p style="margin-top: var(--space-4);">No subjects found for {{ teacher_section.grade_level }} yet.</p>
+{% endif %}
+
+<script>
+    (function () {
+        var list = document.getElementById('subject-order-list');
+        if (!list) return;
+
+        list.addEventListener('click', function (e) {
+            var btn = e.target.closest('.move-up, .move-down');
+            if (!btn) return;
+            var li = btn.closest('li');
+            if (btn.classList.contains('move-up')) {
+                var prev = li.previousElementSibling;
+                if (prev) list.insertBefore(li, prev);
+            } else {
+                var next = li.nextElementSibling;
+                if (next) list.insertBefore(next, li);
+            }
+        });
+    })();
+</script>
+{% endblock %}

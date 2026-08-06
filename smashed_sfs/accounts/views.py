@@ -320,6 +320,9 @@ def ancillary(request):
 
 @login_required
 def tools(request):
-    """Placeholder - content to be defined later."""
-    return render(request, 'accounts/coming_soon.html', {'page_title': 'Tools'
+    teacher = Teacher.objects.filter(username=request.user.username).first()
+    is_adviser = bool(teacher and teacher.role == Teacher.ROLE_ADVISER)
+    return render(request, 'accounts/tools.html', {
+        'page_title': 'Tools',
+        'is_adviser': is_adviser,
     })

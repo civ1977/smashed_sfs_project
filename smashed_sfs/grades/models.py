@@ -35,6 +35,46 @@ class TeacherSubjectAssignment(models.Model):
         return f"teacher {self.teacher_id} -> mapping {self.mapping_id} (section {self.section_id})"
 
 
+class SubjectTermExclusion(models.Model):
+    """Marks a subject as not offered in one specific term - e.g. a subject
+    that only runs Term 1-2 shouldn't be required for a Term 3 gradesheet or
+    count against a student's Term 3 ranking completeness. The subject stays
+    required for whichever terms it isn't excluded from."""
+
+    exclusion_id = models.AutoField(primary_key=True)
+    mapping_id = models.IntegerField()
+    term = models.IntegerField()
+    excluded_by = models.IntegerField()
+    excluded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'subject_term_exclusion'
+        unique_together = ('mapping_id', 'term')
+
+    def __str__(self):
+        return f"mapping {self.mapping_id} excluded from term {self.term}"
+
+
+class StudentTermRemark(models.Model):
+    """A teacher's free-text comment for one student for one term - edited
+    from the rankings table's Comments/Remarks column and mirrored into the
+    SF9 report's Teacher's Comments/Remarks box for that same term."""
+
+    remark_id = models.AutoField(primary_key=True)
+    lrn = models.CharField(max_length=12)
+    term = models.IntegerField()
+    remark = models.TextField(blank=True, default='')
+    updated_by = models.IntegerField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'student_term_remark'
+        unique_together = ('lrn', 'term')
+
+    def __str__(self):
+        return f"{self.lrn} term {self.term} remark"
+
+
 class Grade(models.Model):
     grade_id = models.AutoField(primary_key=True)
     lrn = models.CharField(max_length=12)

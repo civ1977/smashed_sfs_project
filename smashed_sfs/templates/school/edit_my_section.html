@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}EDIT CLASSROOM DETAILS{% endblock %}
+
+{% block content %}
+<h1>Edit Classroom Details</h1>
+<p>Update your section's grade level, track, strand, section name, and modality.</p>
+
+<form method="POST">
+    {% csrf_token %}
+
+    <div class="card" style="margin-bottom: var(--space-5); max-width: 480px;">
+        <h3>Your Section</h3>
+
+        <div class="form-group">
+            <label>Section Name</label>
+            {{ section_form.section_name }}
+            {% for error in section_form.section_name.errors %}
+                <small style="color: var(--risk);">{{ error }}</small>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label>{{ section_form.grade_level_choice.label }}</label>
+            {{ section_form.grade_level_choice }}
+            {{ section_form.grade_level_new }}
+            {% for error in section_form.grade_level_new.errors %}
+                <small style="color: var(--risk);">{{ error }}</small>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label>{{ section_form.track_choice.label }}</label>
+            {{ section_form.track_choice }}
+            {{ section_form.track_new }}
+            {% for error in section_form.track_new.errors %}
+                <small style="color: var(--risk);">{{ error }}</small>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label>{{ section_form.strand_choice.label }}</label>
+            {{ section_form.strand_choice }}
+            {{ section_form.strand_new }}
+            {% for error in section_form.strand_new.errors %}
+                <small style="color: var(--risk);">{{ error }}</small>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label>{{ section_form.modality_choice.label }}</label>
+            {{ section_form.modality_choice }}
+            {{ section_form.modality_new }}
+            {% for error in section_form.modality_new.errors %}
+                <small style="color: var(--risk);">{{ error }}</small>
+            {% endfor %}
+        </div>
+    </div>
+
+    <button type="submit" class="btn good">Save Changes</button>
+    <a href="{% url 'tools' %}" class="btn ghost">Cancel</a>
+</form>
+{% endblock %}

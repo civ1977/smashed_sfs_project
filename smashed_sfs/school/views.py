@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q
 
+from accounts.forms import SectionForm
 from accounts.models import Teacher
 from students.models import SchoolProfile, Section, Student
 from portal.models import StudentAccount
@@ -372,7 +373,7 @@ def school_assignments(request):
         # grade level (and, when the subject specifies one, the same
         # strand) - otherwise a Grade 11 STEM subject could end up
         # assigned against a Grade 12 ABM section.
-        strand_mismatch = mapping.strand and mapping.strand != section.strand
+        strand_mismatch = section.strand and mapping.strand and mapping.strand != section.strand
         if mapping.grade_level != section.grade_level or strand_mismatch:
             messages.error(
                 request,
@@ -487,6 +488,27 @@ def _get_adviser_with_section(request):
 
 
 @login_required
+def edit_my_section(request):
+    teacher, section, error = _get_adviser_with_section(request)
+    if error:
+        return error
+
+    if request.method == 'POST':
+        form = SectionForm(request.POST, instance=section, prefix='section')
+        if form.is_valid():
+            form.save()
+            messages.success(request, '✅ Classroom details updated.')
+            return redirect('tools')
+    else:
+        form = SectionForm(instance=section, prefix='section')
+
+    return render(request, 'school/edit_my_section.html', {
+        'section': section,
+        'section_form': form,
+    })
+
+
+@login_required
 def adviser_subject_assignments(request):
     teacher, section, error = _get_adviser_with_section(request)
     if error:
@@ -516,7 +538,7 @@ def adviser_subject_assignments(request):
         # The subject dropdown is already scoped to this section's grade
         # level/strand, but keep the mismatch check as a safety net anyway
         # (mirrors school_assignments above).
-        strand_mismatch = mapping.strand and mapping.strand != section.strand
+        strand_mismatch = section.strand and mapping.strand and mapping.strand != section.strand
         if mapping.grade_level != section.grade_level or strand_mismatch:
             messages.error(
                 request,
@@ -544,13 +566,17 @@ def adviser_subject_assignments(request):
         role__in=(Teacher.ROLE_ADVISER, Teacher.ROLE_SUBJECT_TEACHER),
     ).order_by('full_name')
 
-    # A blank mapping.strand applies to every strand at that grade level.
+    # A blank mapping.strand applies to every strand at that grade level, and
+    # a blank section.strand (no strand distinction for this section at all)
+    # matches every mapping regardless of its strand.
     mappings = SubjectMapping.objects.filter(
-        Q(strand='') | Q(strand=section.strand),
         school_profile_id=teacher.school_profile_id,
         grade_level=section.grade_level,
         is_active=True,
-    ).order_by('subject_name')
+    )
+    if section.strand:
+        mappings = mappings.filter(Q(strand='') | Q(strand=section.strand))
+    mappings = mappings.order_by('subject_name')
 
     teachers_by_id = {t.teacher_id: t for t in subject_teachers}
     mappings_by_id = {m.mapping_id: m for m in mappings}

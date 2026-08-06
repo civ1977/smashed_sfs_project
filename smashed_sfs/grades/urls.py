@@ -6,6 +6,10 @@ urlpatterns = [
     path('save/', views.save_grades, name='save_grades'),
     path('view/<str:lrn>/', views.view_grades, name='view_grades'),
     path('rankings/', views.view_rankings, name='view_rankings'),
+    path('subjects/arrange/', views.arrange_subjects, name='arrange_subjects'),
+    path('subject/<int:mapping_id>/exclude/', views.exclude_subject_term, name='exclude_subject_term'),
+    path('subject/<int:mapping_id>/restore/', views.restore_subject_term, name='restore_subject_term'),
+    path('term-remark/save/', views.save_term_remark, name='save_term_remark'),
 
     path('my-subject-teaching/', views.my_subject_teaching, name='my_subject_teaching'),
     path('my-subject-teaching/<int:assignment_id>/', views.subject_teaching_grades, name='subject_teaching_grades'),

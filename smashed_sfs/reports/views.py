@@ -11,7 +11,7 @@ from django.utils.html import format_html
 
 from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
-from grades.models import Grade, SubjectMapping, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException
+from grades.models import Grade, SubjectMapping, StudentTermRemark, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException
 from grades.views import MONTH_NAMES, _school_days_in_month
 
 
@@ -57,13 +57,18 @@ def _build_subject_rows(lrn, grade_level=None, term=None):
         final = _final_average(term_grades)
         subject_rows.append({
             'subject_name': subject_name,
+            # Same field the class gradesheet orders by and the adviser's
+            # own "Arrange Subjects" tool writes to (grades/views.py's
+            # arrange_subjects) - one shared order across gradesheet,
+            # SF9, and SF10 instead of each picking its own sort.
+            'subject_number': mapping.subject_number if mapping else 0,
             'term_1': terms[1],
             'term_2': terms[2],
             'term_3': terms[3],
             'final': final,
             'remarks': _remarks_for(final),
         })
-    subject_rows.sort(key=lambda row: row['subject_name'])
+    subject_rows.sort(key=lambda row: (row['subject_number'], row['subject_name']))
     return subject_rows
 
 
@@ -247,11 +252,13 @@ def view_sf9(request, student_lrn):
     core_rows, elective_rows = _split_core_elective(subject_rows)
 
     finals = [row['final'] for row in subject_rows if row['final'] is not None]
-    general_average = round(sum(finals) / len(finals), 2) if (all_finals_ready and finals) else None
+    general_average = round(sum(finals) / len(finals)) if (all_finals_ready and finals) else None
 
     school_profile_id = section.school_profile_id if section else teacher.school_profile_id
     attendance_rows = _attendance_rows(student_lrn, school_profile_id)
     attendance_by_month = {row['month']: row for row in attendance_rows}
+
+    term_remarks = {r.term: r.remark for r in StudentTermRemark.objects.filter(lrn=student_lrn)}
 
     return render(request, 'reports/sf9.html', {
         'student': student,
@@ -261,6 +268,7 @@ def view_sf9(request, student_lrn):
         'core_rows': core_rows,
         'elective_rows': elective_rows,
         'general_average': general_average,
+        'term_remarks': term_remarks,
         'attendance_rows': attendance_rows,
         'attendance_by_month': attendance_by_month,
         'attendance_totals': _attendance_totals(attendance_rows),

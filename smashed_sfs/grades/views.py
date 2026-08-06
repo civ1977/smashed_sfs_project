@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
+from django.urls import reverse
 from django.utils.dateformat import format as format_date
 import calendar
 import json
@@ -10,7 +11,7 @@ from datetime import datetime, date as date_cls
 from students.models import Student, Section
 from accounts.models import Teacher
 from smashed_sfs.upload_utils import read_upload_rows, UploadFileError
-from .models import Grade, SubjectMapping, Attendance, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment
+from .models import Grade, SubjectMapping, SubjectTermExclusion, StudentTermRemark, Attendance, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment
 
 MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -350,7 +351,14 @@ def view_rankings(request):
     subjects = SubjectMapping.objects.filter(school_profile_id=teacher.school_profile_id)
     if teacher_section:
         subjects = subjects.filter(grade_level=teacher_section.grade_level)
-    required_subject_ids = set(subjects.values_list('mapping_id', flat=True))
+    base_subject_ids = set(subjects.values_list('mapping_id', flat=True))
+
+    # A subject removed from a specific term (SubjectTermExclusion) doesn't
+    # count toward that term's ranking-completeness requirement, even though
+    # it's still required for whichever other terms it isn't excluded from.
+    exclusions_by_term = {1: set(), 2: set(), 3: set()}
+    for exclusion in SubjectTermExclusion.objects.filter(mapping_id__in=base_subject_ids):
+        exclusions_by_term.setdefault(exclusion.term, set()).add(exclusion.mapping_id)
 
     # Each student's raw per-term subject grades, computed once and reused
     # across all three terms below.
@@ -358,8 +366,15 @@ def view_rankings(request):
         student.lrn: build_student_grade_sheet(student.lrn)[0] for student in students
     }
 
+    remarks_by_key = {
+        (r.lrn, r.term): r.remark
+        for r in StudentTermRemark.objects.filter(lrn__in=[s.lrn for s in students])
+    }
+
     terms = []
     for term in (1, 2, 3):
+        required_subject_ids = base_subject_ids - exclusions_by_term.get(term, set())
+
         # Terms are ranked independently off subject_grades[mapping_id][term]
         # (the raw grade entered for that term), not the cross-term 'final' -
         # a student missing Term 3 still ranks in Term 1/2 on what they have.
@@ -386,6 +401,7 @@ def view_rankings(request):
                 'student': student,
                 'general_average': general_average,
                 'has_failing_grade': has_failing_grade,
+                'remark': remarks_by_key.get((student.lrn, term), ''),
             })
 
         # Standard competition ranking (1224): ties share a rank, and the next
@@ -459,7 +475,19 @@ def view_grades(request, lrn):
         if teacher_section:
             subjects = subjects.filter(grade_level=teacher_section.grade_level)
         subjects = subjects.order_by('subject_number')
-        subject_ids = set(subjects.values_list('mapping_id', flat=True))
+
+        # A subject not actually offered this term (e.g. a one-semester
+        # subject) can be removed from just this term via the gradesheet's
+        # Remove button - it stays required for whichever terms it isn't
+        # excluded from.
+        excluded_mapping_ids = set(
+            SubjectTermExclusion.objects.filter(
+                term=term, mapping_id__in=subjects.values_list('mapping_id', flat=True)
+            ).values_list('mapping_id', flat=True)
+        )
+        excluded_subjects = [s for s in subjects if s.mapping_id in excluded_mapping_ids]
+        subjects = [s for s in subjects if s.mapping_id not in excluded_mapping_ids]
+        subject_ids = {s.mapping_id for s in subjects}
 
         grades_data = {}
         for student in students:
@@ -475,6 +503,7 @@ def view_grades(request, lrn):
             'students': students,
             'grades_data': grades_data,
             'subjects': subjects,
+            'excluded_subjects': excluded_subjects,
             'teacher': teacher,
             'term': term,
             'terms': GRADE_TERMS,
@@ -490,6 +519,160 @@ def view_grades(request, lrn):
             'general_average': general_average,
             'grades': grades,
         })
+
+
+def _term_from_post(request):
+    try:
+        term = int(request.POST.get('term', 1))
+    except ValueError:
+        term = 1
+    return term if term in (1, 2, 3) else 1
+
+
+@login_required
+def arrange_subjects(request):
+    """Lets an adviser set the display order of their own grade level's
+    subjects - saved into SubjectMapping.subject_number, the same field
+    the class gradesheet already orders by (see the .order_by
+    ('subject_number') a few hundred lines up), so this one ordering
+    drives the gradesheet, SF9, and SF10 identically rather than each
+    picking its own sort."""
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    teacher_section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
+    if not teacher_section:
+        messages.error(request, 'No section found for this teacher. Please complete your profile first.')
+        return redirect('complete_profile')
+
+    subjects = SubjectMapping.objects.filter(
+        school_profile_id=teacher.school_profile_id, grade_level=teacher_section.grade_level,
+    ).order_by('subject_number', 'subject_name')
+
+    if request.method == 'POST':
+        try:
+            ordered_ids = [int(v) for v in request.POST.getlist('mapping_id')]
+        except ValueError:
+            messages.error(request, 'Something went wrong reading the new order - please try again.')
+            return redirect('arrange_subjects')
+
+        valid_ids = set(subjects.values_list('mapping_id', flat=True))
+        if set(ordered_ids) != valid_ids or len(ordered_ids) != len(valid_ids):
+            messages.error(request, 'The subject list changed before you saved - please try again.')
+            return redirect('arrange_subjects')
+
+        with transaction.atomic():
+            # Two passes so a subject never briefly lands on a number
+            # another subject in this same grade level still holds - safe
+            # even if a future migration reintroduces a unique constraint
+            # on (school_profile_id, grade_level, strand, subject_number).
+            for offset, mapping_id in enumerate(ordered_ids, start=1):
+                SubjectMapping.objects.filter(mapping_id=mapping_id).update(subject_number=100000 + offset)
+            for position, mapping_id in enumerate(ordered_ids, start=1):
+                SubjectMapping.objects.filter(mapping_id=mapping_id).update(subject_number=position)
+
+        messages.success(request, 'Subject order saved - the gradesheet, SF9, and SF10 now show this same order.')
+        return redirect('arrange_subjects')
+
+    return render(request, 'grades/arrange_subjects.html', {
+        'subjects': subjects,
+        'teacher_section': teacher_section,
+    })
+
+
+@login_required
+def exclude_subject_term(request, mapping_id):
+    if request.method != 'POST':
+        return redirect('view_grades', lrn='all')
+
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    term = _term_from_post(request)
+
+    mapping = SubjectMapping.objects.filter(
+        mapping_id=mapping_id, school_profile_id=teacher.school_profile_id
+    ).first()
+    if not mapping:
+        messages.error(request, 'Subject not found in your school.')
+    else:
+        SubjectTermExclusion.objects.get_or_create(
+            mapping_id=mapping.mapping_id, term=term,
+            defaults={'excluded_by': teacher.teacher_id},
+        )
+        messages.success(request, f'✅ {mapping.subject_name} removed from Term {term}.')
+
+    return redirect(f"{reverse('view_grades', args=['all'])}?term={term}")
+
+
+@login_required
+def restore_subject_term(request, mapping_id):
+    if request.method != 'POST':
+        return redirect('view_grades', lrn='all')
+
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    term = _term_from_post(request)
+
+    mapping = SubjectMapping.objects.filter(
+        mapping_id=mapping_id, school_profile_id=teacher.school_profile_id
+    ).first()
+    if not mapping:
+        messages.error(request, 'Subject not found in your school.')
+    else:
+        SubjectTermExclusion.objects.filter(mapping_id=mapping.mapping_id, term=term).delete()
+        messages.success(request, f'✅ {mapping.subject_name} restored for Term {term}.')
+
+    return redirect(f"{reverse('view_grades', args=['all'])}?term={term}")
+
+
+@login_required
+def save_term_remark(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        return JsonResponse({'error': 'Your account is not linked to a Teacher profile.'}, status=403)
+
+    if teacher.role != Teacher.ROLE_ADVISER:
+        return JsonResponse({'error': 'Adviser accounts only.'}, status=403)
+
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid request body.'}, status=400)
+
+    lrn = payload.get('lrn', '')
+    try:
+        term = int(payload.get('term'))
+    except (TypeError, ValueError):
+        term = None
+    remark = (payload.get('remark') or '').strip()
+
+    if term not in (1, 2, 3):
+        return JsonResponse({'error': 'Invalid term.'}, status=400)
+
+    # Only this adviser's own students - never another section's.
+    if not Student.objects.filter(lrn=lrn, adviser_id=teacher.teacher_id).exists():
+        return JsonResponse({'error': 'Student not found in your section.'}, status=404)
+
+    StudentTermRemark.objects.update_or_create(
+        lrn=lrn, term=term,
+        defaults={'remark': remark, 'updated_by': teacher.teacher_id},
+    )
+    return JsonResponse({'status': 'ok'})
 
 
 def _school_days_in_month(school_profile_id, year, month):

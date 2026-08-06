@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}TOOLS{% endblock %}
+
+{% block content %}
+<h1>Tools</h1>
+
+{% if is_adviser %}
+<div class="card" style="max-width: 480px;">
+    <h3>Classroom Details</h3>
+    <p><small>Update your section's grade level, track, strand, section name, and modality.</small></p>
+    <a href="{% url 'edit_my_section' %}" class="btn">Edit Classroom Details</a>
+</div>
+
+<div class="card" style="max-width: 480px; margin-top: var(--space-4);">
+    <h3>Arrange Subjects</h3>
+    <p><small>Set the order your subjects appear in on the gradesheet, SF9, and SF10.</small></p>
+    <a href="{% url 'arrange_subjects' %}" class="btn">Arrange Subjects</a>
+</div>
+{% else %}
+<div class="card">
+    <p>No tools available for your role yet.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -8,7 +8,7 @@
 
     <a href="{% url 'select_student_report' %}" class="btn">← Back to Students</a>
     <a href="{% url 'view_sf10' student.lrn %}" class="btn">📘 View SF10</a>
-    <a href="{% url 'dashboard' %}" class="btn">← Dashboard</a>
+    <a href="{% url 'report_cards' %}" class="btn">← Report Card</a>
     <button type="button" class="btn" onclick="window.print()">Print</button>
     <button type="button" class="btn btn-success" onclick="window.print()">Save As PDF</button>
     <button type="button" class="btn" onclick="document.getElementById('school-logo-input').click()">🖼️ Insert School Logo</button>
@@ -59,23 +59,23 @@
             <table class="sf9-info-table">
                 <tr>
                     <td class="label">Name:</td>
-                    <td class="fill">{{ student.surname }}, {{ student.name }} {{ student.middle_name }}</td>
+                    <td class="fill fill-short"><span class="short-line">{{ student.surname }}, {{ student.name }} {{ student.middle_name }}</span></td>
                     <td class="label">Age:</td>
                     <td class="fill">{{ age|default:"—" }}</td>
                     <td class="label">Sex:</td>
-                    <td class="fill">{{ student.sex }}</td>
+                    <td class="fill fill-inset-left"><span class="short-line-left">{{ student.sex }}</span></td>
                 </tr>
                 <tr>
                     <td class="label">LRN:</td>
-                    <td class="fill">{{ student.lrn }}</td>
+                    <td class="fill fill-short"><span class="short-line">{{ student.lrn }}</span></td>
                     <td class="label">Grade:</td>
                     <td class="fill">{{ section.grade_level|default:"—" }}</td>
                     <td class="label">Section:</td>
-                    <td class="fill">{{ section.section_name|default:"—" }}</td>
+                    <td class="fill fill-inset-left"><span class="short-line-left">{{ section.section_name|default:"—" }}</span></td>
                 </tr>
                 <tr>
                     <td class="label">Track (SHS only):</td>
-                    <td class="fill" colspan="5">{{ section.track|default:"—" }}{% if section.strand %} - {{ section.strand }}{% endif %}</td>
+                    <td class="fill fill-inset-left" colspan="5"><span class="short-line-left">{{ section.track|default:"—" }}{% if section.strand %} - {{ section.strand }}{% endif %}</span></td>
                 </tr>
             </table>
 
@@ -198,44 +198,49 @@
             </table>
 
             <p class="sf9-section-heading center">TEACHER'S COMMENTS/REMARKS</p>
-            <div class="sf9-comment-box">Term 1</div>
-            <div class="sf9-comment-box">Term 2</div>
-            <div class="sf9-comment-box">Term 3</div>
+            <div class="sf9-comment-box"><span class="sf9-comment-term">Term 1</span>{% if term_remarks.1 %}: {{ term_remarks.1 }}{% endif %}</div>
+            <div class="sf9-comment-box"><span class="sf9-comment-term">Term 2</span>{% if term_remarks.2 %}: {{ term_remarks.2 }}{% endif %}</div>
+            <div class="sf9-comment-box"><span class="sf9-comment-term">Term 3</span>{% if term_remarks.3 %}: {{ term_remarks.3 }}{% endif %}</div>
 
             <p class="sf9-section-heading center">PARENTS/GUARDIAN'S SIGNATURE</p>
             <table class="sf9-signature-lines">
                 <colgroup>
-                    <col style="width: 15%;">
-                    <col style="width: 85%;">
+                    <col style="width: 30%;">
+                    <col style="width: 42.5%;">
+                    <col style="width: 27.5%;">
                 </colgroup>
-                <tr><td>Term 1</td><td class="line"></td></tr>
-                <tr><td>Term 2</td><td class="line"></td></tr>
-                <tr><td>Term 3</td><td class="line"></td></tr>
+                <tr><td style="padding-left: 10ch;">Term 1</td><td class="line"></td><td></td></tr>
+                <tr><td style="padding-left: 10ch;">Term 2</td><td class="line"></td><td></td></tr>
+                <tr><td style="padding-left: 10ch;">Term 3</td><td class="line"></td><td></td></tr>
             </table>
 
             <p class="sf9-section-heading center">CERTIFICATE OF TRANSFER</p>
-            <p class="sf9-small">
-                This is to certify that the above-named learner has satisfactorily completed the requirements for
-                the grade level indicated.
-            </p>
-            <p class="sf9-small">Admitted to Grade: <span class="dotted"></span></p>
-            <p class="sf9-small">Eligible for Admission to Grade: <span class="dotted"></span></p>
-            <p class="sf9-small">Approved: <span class="dotted"></span></p>
-            <div class="sf9-signatures">
-                <div>
-                    {% if school_profile %}<p class="sf9-small sf9-adviser-name">{{ school_profile.principal_name }}</p>{% endif %}
-                    <p class="line"></p>
-                    <p>School Head</p>
+            <div style="margin-left: 3em;">
+                <p class="sf9-small">
+                    This is to certify that the above-named learner has satisfactorily completed the requirements for
+                    the grade level indicated.
+                </p>
+                <p class="sf9-small">Admitted to Grade: <span class="dotted"></span></p>
+                <p class="sf9-small">Eligible for Admission to Grade: <span class="dotted"></span></p>
+                <p class="sf9-small">Approved: <span class="dotted"></span></p>
+                <br>
+                <div class="sf9-signatures">
+                    <div>
+                        {% if school_profile %}<p class="sf9-small sf9-adviser-name">{{ school_profile.principal_name }}</p>{% endif %}
+                        <p class="line"></p>
+                        <p>School Head</p>
+                    </div>
+                    <div>
+                        {% if teacher %}<p class="sf9-small sf9-adviser-name">{{ teacher.full_name }}</p>{% endif %}
+                        <p class="line"></p>
+                        <p>Adviser</p>
+                    </div>
                 </div>
-                <div>
-                    {% if teacher %}<p class="sf9-small sf9-adviser-name">{{ teacher.full_name }}</p>{% endif %}
-                    <p class="line"></p>
-                    <p>Adviser</p>
-                </div>
-            </div>
 
-            <p class="sf9-section-heading center">CANCELLATION OF ELIGIBILITY TO TRANSFER</p>
-            <p class="sf9-small" style="margin-top: 14px;">Admitted in: <span class="dotted"></span> &nbsp;&nbsp; Date: <span class="dotted"></span></p>
+                <p class="sf9-section-heading center">CANCELLATION OF ELIGIBILITY TO TRANSFER</p>
+                <p class="sf9-small" style="margin-top: 14px;">Admitted in: <span class="dotted"></span> &nbsp;&nbsp; Date: <span class="dotted"></span></p>
+            </div>
+            <br><br>
             <div class="sf9-signatures single">
                 <div>
                     {% if school_profile %}<p class="sf9-small sf9-adviser-name">{{ school_profile.principal_name }}</p>{% endif %}
@@ -271,21 +276,36 @@
     .sf9-logo.has-image { border-style: solid; }
     .sf9-logo.has-image .sf9-logo-placeholder { display: none; }
     .sf9-logo.has-image .sf9-logo-img { display: block; }
+    .sf9-logo.sf9-seal.has-image { border: none; }
     .bold { font-weight: bold; }
     .sf9-title { text-align: center; margin: 2px 0 0 0; font-size: 15px; }
     .sf9-subtitle { text-align: center; margin: 1px 0 4px 0; }
     .sf9-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; align-items: start; }
     .sf9-info-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 10.5px; }
-    .sf9-info-table td { padding: 1px 4px; border-bottom: none; }
+    .sf9-info-table td { padding: 1px 4px; border-bottom: none; text-align: left; }
     .sf9-info-table .label { white-space: nowrap; }
     .sf9-info-table .fill { border-bottom: 1px solid #000; }
-    .sf9-dear-parents { margin: 4px 0; text-align: justify; }
+    /* Name/LRN's line stops 2ch short of the cell's right edge (instead of
+       spanning it via the td's own border-bottom) so there's a visible gap
+       before "Age:"/"Grade:" - the columns themselves aren't resized, since
+       this table has no colgroup and auto-layout shares each column's width
+       across every row (a padding tweak on just the label cell wouldn't
+       survive that). */
+    .sf9-info-table td.fill-short { border-bottom: none; }
+    .sf9-info-table td.fill-short .short-line { display: inline-block; width: calc(100% - 2ch); border-bottom: 1px solid #000; }
+    /* Sex/Section/Track's line starts 2ch in from the cell's left edge
+       (a gap after the label) instead of spanning the full td width - same
+       inline-block technique as fill-short, mirrored to inset the other end. */
+    .sf9-info-table td.fill-inset-left { border-bottom: none; }
+    .sf9-info-table td.fill-inset-left .short-line-left { display: inline-block; width: calc(100% - 2ch); margin-left: 2ch; border-bottom: 1px solid #000; }
+    .sf9-dear-parents { margin: 4px 0; text-align: left; }
     .sf9-section-heading { font-weight: bold; text-decoration: none; font-size: 11px; margin: 6px 0 2px 0; }
     .sf9-section-heading.center { text-align: center; }
     table.sf9-grades, table.sf9-attendance, table.sf9-signature-lines {
         width: 100%; border-collapse: collapse;
     }
     table.sf9-grades, table.sf9-signature-lines { table-layout: fixed; }
+    table.sf9-grades { width: calc(100% - 4ch); margin: 0 2ch; }
     table.sf9-grades th, table.sf9-grades td,
     table.sf9-attendance th, table.sf9-attendance td {
         border: 1px solid #000; padding: 1px 4px; text-align: center;
@@ -313,7 +333,8 @@
        different lengths. */
     table.sf9-descriptors .range-lo { display: inline-block; width: 2.2ch; text-align: right; font-variant-numeric: tabular-nums; }
     table.sf9-descriptors .range-hi { display: inline-block; width: 3ch; text-align: left; font-variant-numeric: tabular-nums; }
-    .sf9-comment-box { border: 1px solid #000; padding: 3px; margin-bottom: 4px; min-height: 52px; font-weight: bold; }
+    .sf9-comment-box { border: 1px solid #000; padding: 3px; margin-bottom: 4px; min-height: 52px; font-weight: normal; font-style: italic; }
+    .sf9-comment-term { font-weight: bold; font-style: normal; }
     table.sf9-signature-lines td { padding: 6px 4px; border-bottom: none; }
     table.sf9-signature-lines td.line { border-bottom: 1px solid #000; }
     .sf9-small { font-size: 11px; margin: 4px 0; }
