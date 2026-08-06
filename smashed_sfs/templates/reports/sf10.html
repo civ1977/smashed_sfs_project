@@ -56,7 +56,9 @@
             </tr>
         </thead>
         <tbody>
-            {% for row in section_data.subject_rows %}
+            {% if section_data.core_rows %}
+            <tr class="sf9-group-row"><td colspan="6">Core Subjects</td></tr>
+            {% for row in section_data.core_rows %}
             <tr>
                 <td>{{ row.subject_name }}</td>
                 <td style="text-align: center;">{{ row.term_1|default:"—" }}</td>
@@ -76,6 +78,30 @@
                 </td>
             </tr>
             {% endfor %}
+            {% endif %}
+            {% if section_data.elective_rows %}
+            <tr class="sf9-group-row"><td colspan="6">Elective Subjects</td></tr>
+            {% for row in section_data.elective_rows %}
+            <tr>
+                <td>{{ row.subject_name }}</td>
+                <td style="text-align: center;">{{ row.term_1|default:"—" }}</td>
+                <td style="text-align: center;">{{ row.term_2|default:"—" }}</td>
+                <td style="text-align: center;">{{ row.term_3|default:"—" }}</td>
+                <td style="text-align: center; font-weight: bold; color: {% if row.final == None %}#999{% elif row.final >= 75 %}green{% else %}red{% endif %};">
+                    {{ row.final|default:"—" }}
+                </td>
+                <td style="text-align: center;">
+                    {% if row.remarks == 'Passed' %}
+                        <span style="color: green;">✅ Passed</span>
+                    {% elif row.remarks == 'Failed' %}
+                        <span style="color: red;">❌ Failed</span>
+                    {% else %}
+                        <span style="color: #999;">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            {% endif %}
         </tbody>
     </table>
     <div style="margin-top: 10px; margin-bottom: 10px; padding: 15px; background: #eef2ff; border-radius: 5px;">
@@ -134,6 +160,8 @@
     table.sf9-attendance th, table.sf9-attendance td { padding: 8px 10px; border: 1px solid #ddd; text-align: center; }
     table.sf9-grades th, table.sf9-attendance th { background: #2c3e50; color: white; }
     table.sf9-grades tr:nth-child(even) { background: #f5f5f5; }
+    table.sf9-grades tr.sf9-group-row { background: #f5f5f5; }
+    table.sf9-grades tr.sf9-group-row td { text-align: left; font-weight: bold; background: #eee; }
     .sf9-signatures { display: flex; justify-content: space-around; margin-top: 40px; text-align: center; }
     @media print {
         @page { size: 13in 8.5in; margin: 0.4in; }

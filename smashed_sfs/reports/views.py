@@ -62,6 +62,7 @@ def _build_subject_rows(lrn, grade_level=None, term=None):
             # arrange_subjects) - one shared order across gradesheet,
             # SF9, and SF10 instead of each picking its own sort.
             'subject_number': mapping.subject_number if mapping else 0,
+            'is_elective': mapping.is_elective if mapping else False,
             'term_1': terms[1],
             'term_2': terms[2],
             'term_3': terms[3],
@@ -197,10 +198,11 @@ def _gate_finals_pending_term3(subject_rows):
 
 def _split_core_elective(subject_rows):
     """SF9 groups Learning Areas under 'Core Subjects' and 'Elective Subjects'
-    headers. There's no core/elective flag in SubjectMapping, so use the
-    'Elective' naming convention already used for elective subject names."""
-    core_rows = [r for r in subject_rows if 'elective' not in r['subject_name'].lower()]
-    elective_rows = [r for r in subject_rows if 'elective' in r['subject_name'].lower()]
+    headers, using SubjectMapping.is_elective - set from the adviser's own
+    "Arrange Subjects" Core/Elective drag-and-drop page (grades/views.py's
+    arrange_subjects), not guessed from the subject's name."""
+    core_rows = [r for r in subject_rows if not r['is_elective']]
+    elective_rows = [r for r in subject_rows if r['is_elective']]
     return core_rows, elective_rows
 
 
@@ -300,9 +302,12 @@ def view_sf10(request, student_lrn):
         all_finals_ready = _gate_finals_pending_term3(subject_rows)
         finals = [row['final'] for row in subject_rows if row['final'] is not None]
         general_average = round(sum(finals) / len(finals), 2) if (all_finals_ready and finals) else None
+        core_rows, elective_rows = _split_core_elective(subject_rows)
         grade_level_sections.append({
             'grade_level': grade_level,
             'subject_rows': subject_rows,
+            'core_rows': core_rows,
+            'elective_rows': elective_rows,
             'general_average': general_average,
             'remarks': _remarks_for(general_average) if all_finals_ready else None,
         })

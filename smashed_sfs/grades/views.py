@@ -532,12 +532,13 @@ def _term_from_post(request):
 
 @login_required
 def arrange_subjects(request):
-    """Lets an adviser set the display order of their own grade level's
-    subjects - saved into SubjectMapping.subject_number, the same field
-    the class gradesheet already orders by (see the .order_by
-    ('subject_number') a few hundred lines up), so this one ordering
-    drives the gradesheet, SF9, and SF10 identically rather than each
-    picking its own sort."""
+    """Lets an adviser drag their grade level's subjects between Core and
+    Elective, and reorder within each group - saved into
+    SubjectMapping.is_elective and .subject_number, the same fields
+    reports/views.py's _split_core_elective and _build_subject_rows (and
+    the class gradesheet's own .order_by('subject_number')) already read,
+    so this one arrangement drives the gradesheet, SF9, and SF10
+    identically rather than each picking its own grouping/sort."""
     try:
         teacher = Teacher.objects.get(username=request.user.username)
     except Teacher.DoesNotExist:
@@ -565,11 +566,13 @@ def arrange_subjects(request):
 
     if request.method == 'POST':
         try:
-            ordered_ids = [int(v) for v in request.POST.getlist('mapping_id')]
+            core_ids = [int(v) for v in request.POST.getlist('core_id')]
+            elective_ids = [int(v) for v in request.POST.getlist('elective_id')]
         except ValueError:
             messages.error(request, 'Something went wrong reading the new order - please try again.')
             return redirect('arrange_subjects')
 
+        ordered_ids = core_ids + elective_ids
         valid_ids = set(subjects.values_list('mapping_id', flat=True))
         if set(ordered_ids) != valid_ids or len(ordered_ids) != len(valid_ids):
             messages.error(request, 'The subject list changed before you saved - please try again.')
@@ -584,12 +587,15 @@ def arrange_subjects(request):
                 SubjectMapping.objects.filter(mapping_id=mapping_id).update(subject_number=100000 + offset)
             for position, mapping_id in enumerate(ordered_ids, start=1):
                 SubjectMapping.objects.filter(mapping_id=mapping_id).update(subject_number=position)
+            SubjectMapping.objects.filter(mapping_id__in=core_ids).update(is_elective=False)
+            SubjectMapping.objects.filter(mapping_id__in=elective_ids).update(is_elective=True)
 
-        messages.success(request, 'Subject order saved - the gradesheet, SF9, and SF10 now show this same order.')
+        messages.success(request, 'Subject arrangement saved - the gradesheet, SF9, and SF10 now show this same grouping and order.')
         return redirect('arrange_subjects')
 
     return render(request, 'grades/arrange_subjects.html', {
-        'subjects': subjects,
+        'core_subjects': [s for s in subjects if not s.is_elective],
+        'elective_subjects': [s for s in subjects if s.is_elective],
         'teacher_section': teacher_section,
     })
 

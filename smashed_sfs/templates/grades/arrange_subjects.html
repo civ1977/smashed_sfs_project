@@ -4,47 +4,172 @@
 
 {% block content %}
 <h1>Arrange Subjects</h1>
-<p>Set the order your subjects appear in on the gradesheet, SF9, and SF10 - all three follow this same order.</p>
+<p>Drag subjects to reorder them, or drag between Core and Elective. This same grouping and order appears on the gradesheet, SF9, and SF10.</p>
 
 <a href="{% url 'tools' %}" class="btn ghost">← Back to Tools</a>
 
-{% if subjects %}
-<form method="POST" style="margin-top: var(--space-4); max-width: 480px;">
+{% if core_subjects or elective_subjects %}
+<form method="POST" style="margin-top: var(--space-4);">
     {% csrf_token %}
-    <ul id="subject-order-list" style="list-style: none; padding: 0; margin: 0;">
-        {% for s in subjects %}
-        <li style="display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--border); padding: 8px 12px; margin-bottom: 6px; border-radius: 6px; background: var(--bg);">
-            <input type="hidden" name="mapping_id" value="{{ s.mapping_id }}">
-            <span>{{ s.subject_name }}</span>
-            <span>
-                <button type="button" class="btn ghost move-up" style="padding: 2px 8px;">↑</button>
-                <button type="button" class="btn ghost move-down" style="padding: 2px 8px;">↓</button>
-            </span>
-        </li>
-        {% endfor %}
-    </ul>
-    <button type="submit" class="btn" style="margin-top: var(--space-3);">Save Order</button>
+    <div style="display: flex; gap: var(--space-5); flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 280px;">
+            <h3>Core Subjects</h3>
+            <ul class="subject-zone" id="core-list" data-zone="core">
+                {% for s in core_subjects %}
+                <li draggable="true" data-zone="core">
+                    <input type="hidden" name="core_id" value="{{ s.mapping_id }}">
+                    <span class="drag-handle">⠿⠿</span>
+                    <span class="subject-label">{{ s.subject_name }}</span>
+                    <span class="subject-controls">
+                        <button type="button" class="btn ghost move-up" title="Move up">↑</button>
+                        <button type="button" class="btn ghost move-down" title="Move down">↓</button>
+                        <button type="button" class="btn ghost move-to-other" data-target="elective">Move to Elective →</button>
+                    </span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div style="flex: 1; min-width: 280px;">
+            <h3>Elective Subjects</h3>
+            <ul class="subject-zone" id="elective-list" data-zone="elective">
+                {% for s in elective_subjects %}
+                <li draggable="true" data-zone="elective">
+                    <input type="hidden" name="elective_id" value="{{ s.mapping_id }}">
+                    <span class="drag-handle">⠿⠿</span>
+                    <span class="subject-label">{{ s.subject_name }}</span>
+                    <span class="subject-controls">
+                        <button type="button" class="btn ghost move-up" title="Move up">↑</button>
+                        <button type="button" class="btn ghost move-down" title="Move down">↓</button>
+                        <button type="button" class="btn ghost move-to-other" data-target="core">← Move to Core</button>
+                    </span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <button type="submit" class="btn" style="margin-top: var(--space-4);">Save Arrangement</button>
 </form>
 {% else %}
 <p style="margin-top: var(--space-4);">No subjects found for {{ teacher_section.grade_level }} yet.</p>
 {% endif %}
 
+<style>
+    .subject-zone {
+        list-style: none;
+        padding: 8px;
+        margin: 0;
+        min-height: 60px;
+        border: 2px dashed var(--border);
+        border-radius: 8px;
+        background: var(--bg-soft, #fafafa);
+    }
+    .subject-zone li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--border);
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        border-radius: 6px;
+        background: var(--bg);
+        cursor: grab;
+    }
+    .subject-zone li.dragging { opacity: 0.4; }
+    .subject-zone li .drag-handle { color: var(--ink-faint); cursor: grab; }
+    .subject-zone li .subject-label { flex: 1; }
+    .subject-controls { display: flex; gap: 4px; flex-wrap: wrap; }
+    .subject-controls .btn { padding: 2px 8px; font-size: 11px; }
+</style>
+
 <script>
     (function () {
-        var list = document.getElementById('subject-order-list');
-        if (!list) return;
+        var draggedLi = null;
 
-        list.addEventListener('click', function (e) {
-            var btn = e.target.closest('.move-up, .move-down');
+        function inputNameForZone(zone) {
+            return zone === 'core' ? 'core_id' : 'elective_id';
+        }
+
+        function updateMoveButton(li, zone) {
+            var btn = li.querySelector('.move-to-other');
             if (!btn) return;
-            var li = btn.closest('li');
-            if (btn.classList.contains('move-up')) {
-                var prev = li.previousElementSibling;
-                if (prev) list.insertBefore(li, prev);
+            if (zone === 'core') {
+                btn.textContent = 'Move to Elective →';
+                btn.dataset.target = 'elective';
             } else {
-                var next = li.nextElementSibling;
-                if (next) list.insertBefore(next, li);
+                btn.textContent = '← Move to Core';
+                btn.dataset.target = 'core';
             }
+        }
+
+        function setZone(li, zone) {
+            var input = li.querySelector('input[type="hidden"]');
+            input.name = inputNameForZone(zone);
+            li.dataset.zone = zone;
+            updateMoveButton(li, zone);
+        }
+
+        function getDragAfterElement(container, y) {
+            var items = Array.prototype.filter.call(container.querySelectorAll('li'), function (el) {
+                return el !== draggedLi;
+            });
+            var closest = { offset: -Infinity, element: null };
+            items.forEach(function (child) {
+                var box = child.getBoundingClientRect();
+                var offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    closest = { offset: offset, element: child };
+                }
+            });
+            return closest.element;
+        }
+
+        document.querySelectorAll('.subject-zone').forEach(function (list) {
+            list.addEventListener('dragstart', function (e) {
+                var li = e.target.closest('li');
+                if (!li) return;
+                draggedLi = li;
+                li.classList.add('dragging');
+            });
+            list.addEventListener('dragend', function (e) {
+                var li = e.target.closest('li');
+                if (li) li.classList.remove('dragging');
+                draggedLi = null;
+            });
+            list.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                if (!draggedLi) return;
+                var afterElement = getDragAfterElement(list, e.clientY);
+                if (afterElement == null) {
+                    list.appendChild(draggedLi);
+                } else {
+                    list.insertBefore(draggedLi, afterElement);
+                }
+            });
+            list.addEventListener('drop', function (e) {
+                e.preventDefault();
+                if (!draggedLi) return;
+                setZone(draggedLi, list.dataset.zone);
+            });
+
+            list.addEventListener('click', function (e) {
+                var li = e.target.closest('li');
+                if (!li) return;
+
+                if (e.target.closest('.move-up')) {
+                    var prev = li.previousElementSibling;
+                    if (prev) li.parentNode.insertBefore(li, prev);
+                } else if (e.target.closest('.move-down')) {
+                    var next = li.nextElementSibling;
+                    if (next) li.parentNode.insertBefore(next, li);
+                } else if (e.target.closest('.move-to-other')) {
+                    var targetZone = e.target.closest('.move-to-other').dataset.target;
+                    var targetList = document.getElementById(targetZone + '-list');
+                    targetList.appendChild(li);
+                    setZone(li, targetZone);
+                }
+            });
         });
     })();
 </script>
