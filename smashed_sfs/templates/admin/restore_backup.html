@@ -1,6 +1,15 @@
 {% extends "admin/base_site.html" %}
 
 {% block content %}
+{% if forced_mode == 'append' %}
+<h1>Append Backup &mdash; {{ group_name }}</h1>
+
+<div class="alert" style="border: 1px solid #2e7d32; background: #f3fff3; padding: 12px 16px; margin-bottom: 20px; max-width: 640px;">
+    <strong>Append Only</strong> &mdash; skips any record whose ID already exists; only inserts records
+    that are genuinely new. Nothing already in the database is ever changed. This is the safe option when
+    merging in data without risking existing records.
+</div>
+{% else %}
 <h1>Restore Backup &mdash; {{ group_name }}</h1>
 
 <div class="alert" style="border: 1px solid #d33; background: #fff3f3; padding: 12px 16px; margin-bottom: 20px; max-width: 640px;">
@@ -14,6 +23,7 @@
     </ul>
     Neither can be undone automatically - download a fresh backup of the current data first if you're not sure.
 </div>
+{% endif %}
 
 {% if summary %}
 <h2>Ready to restore</h2>
@@ -32,14 +42,19 @@
 <form method="POST">
     {% csrf_token %}
     <input type="hidden" name="action" value="confirm">
+    {% if forced_mode == 'append' %}
+    <button type="submit" name="mode" value="append" class="button" style="background: #2e7d32; border-color: #2e7d32;">Confirm Append (Skip Existing)</button>
+    {% else %}
     <button type="submit" name="mode" value="overwrite" class="button" style="background: #d33; border-color: #d33;">Confirm Restore (Overwrite Existing)</button>
     <button type="submit" name="mode" value="append" class="button" style="margin-left: 8px;">Append Only (Skip Existing)</button>
+    {% endif %}
     <a href="{% url 'admin:index' %}" class="button" style="margin-left: 8px;">Cancel</a>
 </form>
 
 {% else %}
 <form method="POST" enctype="multipart/form-data">
     {% csrf_token %}
+    <input type="hidden" name="mode_intent" value="{{ forced_mode }}">
     <p>
         <label>Backup file (.json):</label><br>
         <input type="file" name="backup_file" accept=".json" required>

@@ -62,11 +62,20 @@ def restore_group_view(request, slug):
     allowed = {f'{app_label}.{object_name}'.lower() for app_label, object_name in keys}
     session_key = f'restore_payload_{slug}'
 
+    # Reaching this page via the "Append" button (rather than "Restore
+    # Backup") locks the flow to append-only - carried from the initial
+    # ?mode=append link through the upload form's hidden field, through to
+    # the confirm step, so the overwrite option never appears in that path.
+    forced_mode = request.GET.get('mode') or request.POST.get('mode_intent')
+    if forced_mode not in ('append',):
+        forced_mode = None
+
     context = {
         **admin.site.each_context(request),
-        'title': f'Restore Backup - {group_name}',
+        'title': f'{"Append Backup" if forced_mode == "append" else "Restore Backup"} - {group_name}',
         'group_name': group_name,
         'slug': slug,
+        'forced_mode': forced_mode,
     }
 
     if request.method == 'POST' and request.POST.get('action') == 'confirm':
@@ -82,7 +91,7 @@ def restore_group_view(request, slug):
             messages.error(request, 'That backup data could not be read - it may be corrupted.')
             return redirect('admin:group_restore', slug=slug)
 
-        append_only = request.POST.get('mode') == 'append'
+        append_only = request.POST.get('mode') == 'append' or forced_mode == 'append'
         lookup = _model_lookup()
 
         saved, wrong_group, already_existed = 0, 0, 0

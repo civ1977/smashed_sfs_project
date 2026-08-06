@@ -9,6 +9,7 @@
           <div style="margin-top: 4px;">
             <a href="{% url 'admin:group_backup' app.app_label %}" class="button" style="font-size: 11px; padding: 2px 6px; white-space: nowrap;">Download Backup</a>
             <a href="{% url 'admin:group_restore' app.app_label %}" class="button" style="font-size: 11px; padding: 2px 6px; white-space: nowrap; margin-left: 4px;">Restore Backup</a>
+            <a href="{% url 'admin:group_restore' app.app_label %}?mode=append" class="button" style="font-size: 11px; padding: 2px 6px; white-space: nowrap; margin-left: 4px; background: #2e7d32; border-color: #2e7d32; color: #fff;">Append</a>
             <a href="{% url 'admin:group_delete' app.app_label %}" class="button" style="font-size: 11px; padding: 2px 6px; white-space: nowrap; margin-left: 4px; background: #d33; border-color: #d33; color: #fff;">Delete Records</a>
           </div>
         </caption>
