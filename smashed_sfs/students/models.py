@@ -19,6 +19,13 @@ class SchoolProfile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
+    # Some schools don't distinguish Core vs Elective at all - toggled from
+    # the Arrange Subjects page (grades/views.py's arrange_subjects), these
+    # control whether SF9/SF10 show the "Core Subjects"/"Elective Subjects"
+    # header row above that group, independently of each other. Subjects
+    # themselves still render either way; only the label row is affected.
+    show_core_heading = models.BooleanField(default=True)
+    show_elective_heading = models.BooleanField(default=True)
 
     class Meta:
         db_table = 'school_profile'

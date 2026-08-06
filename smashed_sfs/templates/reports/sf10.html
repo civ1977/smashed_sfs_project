@@ -57,7 +57,9 @@
         </thead>
         <tbody>
             {% if section_data.core_rows %}
+            {% if not school_profile or school_profile.show_core_heading %}
             <tr class="sf9-group-row"><td colspan="6">Core Subjects</td></tr>
+            {% endif %}
             {% for row in section_data.core_rows %}
             <tr>
                 <td>{{ row.subject_name }}</td>
@@ -80,7 +82,9 @@
             {% endfor %}
             {% endif %}
             {% if section_data.elective_rows %}
+            {% if not school_profile or school_profile.show_elective_heading %}
             <tr class="sf9-group-row"><td colspan="6">Elective Subjects</td></tr>
+            {% endif %}
             {% for row in section_data.elective_rows %}
             <tr>
                 <td>{{ row.subject_name }}</td>

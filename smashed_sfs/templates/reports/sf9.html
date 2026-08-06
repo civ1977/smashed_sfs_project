@@ -112,7 +112,9 @@
                 </thead>
                 <tbody>
                     {% if core_rows %}
+                    {% if not school_profile or school_profile.show_core_heading %}
                     <tr class="sf9-group-row"><td colspan="6">Core Subjects</td></tr>
+                    {% endif %}
                     {% for row in core_rows %}
                     <tr>
                         <td class="subject-name">{{ row.subject_name }}</td>
@@ -125,7 +127,9 @@
                     {% endfor %}
                     {% endif %}
                     {% if elective_rows %}
+                    {% if not school_profile or school_profile.show_elective_heading %}
                     <tr class="sf9-group-row"><td colspan="6">Elective Subjects</td></tr>
+                    {% endif %}
                     {% for row in elective_rows %}
                     <tr>
                         <td class="subject-name">{{ row.subject_name }}</td>

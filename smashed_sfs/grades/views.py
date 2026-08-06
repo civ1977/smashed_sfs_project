@@ -9,7 +9,7 @@ from django.utils.dateformat import format as format_date
 import calendar
 import json
 from datetime import datetime, date as date_cls
-from students.models import Student, Section
+from students.models import Student, Section, SchoolProfile
 from accounts.models import Teacher
 from smashed_sfs.upload_utils import read_upload_rows, UploadFileError
 from .models import Grade, SubjectMapping, SubjectTermExclusion, StudentTermRemark, Attendance, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment
@@ -550,6 +550,8 @@ def arrange_subjects(request):
         messages.error(request, 'No section found for this teacher. Please complete your profile first.')
         return redirect('complete_profile')
 
+    school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
+
     # Same scoping as school/views.py's adviser_subject_assignments (the
     # subject-teacher assignment page these subjects are also managed
     # from): active subjects only, and a blank mapping.strand applies to
@@ -597,7 +599,40 @@ def arrange_subjects(request):
         'core_subjects': [s for s in subjects if not s.is_elective],
         'elective_subjects': [s for s in subjects if s.is_elective],
         'teacher_section': teacher_section,
+        'show_core_heading': school_profile.show_core_heading if school_profile else True,
+        'show_elective_heading': school_profile.show_elective_heading if school_profile else True,
     })
+
+
+@login_required
+def toggle_subject_group_heading(request, group):
+    """Hide/unhide the 'Core Subjects'/'Elective Subjects' label row on
+    SF9/SF10 (school-wide, via SchoolProfile.show_core_heading /
+    .show_elective_heading) - the subjects underneath still render either
+    way, only the group's own heading row is affected. Some schools don't
+    distinguish Core vs Elective at all and want a plain, ungrouped list."""
+    if request.method != 'POST' or group not in ('core', 'elective'):
+        return redirect('arrange_subjects')
+
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
+    if not school_profile:
+        messages.error(request, 'No school profile found. Please complete your profile first.')
+        return redirect('complete_profile')
+
+    field_name = 'show_core_heading' if group == 'core' else 'show_elective_heading'
+    new_value = not getattr(school_profile, field_name)
+    setattr(school_profile, field_name, new_value)
+    school_profile.save(update_fields=[field_name, 'updated_at'])
+
+    label = 'Core Subjects' if group == 'core' else 'Elective Subjects'
+    messages.success(request, f'"{label}" heading is now {"shown" if new_value else "hidden"} on SF9/SF10.')
+    return redirect('arrange_subjects')
 
 
 @login_required

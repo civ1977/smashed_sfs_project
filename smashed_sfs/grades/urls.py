@@ -7,6 +7,7 @@ urlpatterns = [
     path('view/<str:lrn>/', views.view_grades, name='view_grades'),
     path('rankings/', views.view_rankings, name='view_rankings'),
     path('subjects/arrange/', views.arrange_subjects, name='arrange_subjects'),
+    path('subjects/arrange/heading/<str:group>/toggle/', views.toggle_subject_group_heading, name='toggle_subject_group_heading'),
     path('subject/<int:mapping_id>/exclude/', views.exclude_subject_term, name='exclude_subject_term'),
     path('subject/<int:mapping_id>/restore/', views.restore_subject_term, name='restore_subject_term'),
     path('term-remark/save/', views.save_term_remark, name='save_term_remark'),

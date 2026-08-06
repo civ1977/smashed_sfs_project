@@ -13,7 +13,13 @@
     {% csrf_token %}
     <div style="display: flex; gap: var(--space-5); flex-wrap: wrap;">
         <div style="flex: 1; min-width: 280px;">
-            <h3>Core Subjects</h3>
+            <h3 style="display: flex; align-items: center; gap: 8px;">
+                Core Subjects
+                <button type="button" class="btn ghost heading-toggle" data-group="core" style="font-size: 11px; padding: 2px 8px; font-weight: normal;">
+                    {% if show_core_heading %}Hide{% else %}Unhide{% endif %}
+                </button>
+                {% if not show_core_heading %}<span style="font-size: 11px; color: var(--ink-faint); font-weight: normal;">(hidden on SF9/SF10)</span>{% endif %}
+            </h3>
             <ul class="subject-zone" id="core-list" data-zone="core">
                 {% for s in core_subjects %}
                 <li draggable="true" data-zone="core">
@@ -31,7 +37,13 @@
         </div>
 
         <div style="flex: 1; min-width: 280px;">
-            <h3>Elective Subjects</h3>
+            <h3 style="display: flex; align-items: center; gap: 8px;">
+                Elective Subjects
+                <button type="button" class="btn ghost heading-toggle" data-group="elective" style="font-size: 11px; padding: 2px 8px; font-weight: normal;">
+                    {% if show_elective_heading %}Hide{% else %}Unhide{% endif %}
+                </button>
+                {% if not show_elective_heading %}<span style="font-size: 11px; color: var(--ink-faint); font-weight: normal;">(hidden on SF9/SF10)</span>{% endif %}
+            </h3>
             <ul class="subject-zone" id="elective-list" data-zone="elective">
                 {% for s in elective_subjects %}
                 <li draggable="true" data-zone="elective">
@@ -169,6 +181,35 @@
                     targetList.appendChild(li);
                     setZone(li, targetZone);
                 }
+            });
+        });
+    })();
+
+    (function () {
+        function getCookie(name) {
+            var value = null;
+            document.cookie.split(';').forEach(function (part) {
+                part = part.trim();
+                if (part.indexOf(name + '=') === 0) {
+                    value = decodeURIComponent(part.substring(name.length + 1));
+                }
+            });
+            return value;
+        }
+        var csrftoken = getCookie('csrftoken');
+
+        document.querySelectorAll('.heading-toggle').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var group = btn.dataset.group;
+                btn.disabled = true;
+                fetch('/grades/subjects/arrange/heading/' + group + '/toggle/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrftoken },
+                }).then(function () {
+                    window.location.reload();
+                }).catch(function () {
+                    btn.disabled = false;
+                });
             });
         });
     })();
