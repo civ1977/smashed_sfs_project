@@ -82,19 +82,30 @@ def restore_group_view(request, slug):
             messages.error(request, 'That backup data could not be read - it may be corrupted.')
             return redirect('admin:group_restore', slug=slug)
 
-        saved, skipped = 0, 0
+        append_only = request.POST.get('mode') == 'append'
+        lookup = _model_lookup()
+
+        saved, wrong_group, already_existed = 0, 0, 0
         with transaction.atomic():
             for obj in deserialized:
                 if _model_key(obj) not in allowed:
-                    skipped += 1
+                    wrong_group += 1
                     continue
+                if append_only:
+                    model = lookup.get((obj.object._meta.app_label, type(obj.object).__name__))
+                    if model is not None and model.objects.filter(pk=obj.object.pk).exists():
+                        already_existed += 1
+                        continue
                 obj.save()
                 saved += 1
 
         request.session.pop(session_key, None)
-        message = f'Restored {saved} record(s) into {group_name}.'
-        if skipped:
-            message += f' Skipped {skipped} record(s) that did not belong to this group.'
+        verb = 'Added' if append_only else 'Restored'
+        message = f'{verb} {saved} record(s) into {group_name}.'
+        if already_existed:
+            message += f' Skipped {already_existed} record(s) that already existed (append-only mode).'
+        if wrong_group:
+            message += f' Skipped {wrong_group} record(s) that did not belong to this group.'
         messages.success(request, message)
         return redirect('admin:index')
 

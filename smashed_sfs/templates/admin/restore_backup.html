@@ -4,10 +4,15 @@
 <h1>Restore Backup &mdash; {{ group_name }}</h1>
 
 <div class="alert" style="border: 1px solid #d33; background: #fff3f3; padding: 12px 16px; margin-bottom: 20px; max-width: 640px;">
-    <strong>This overwrites existing data.</strong> Any record in the backup whose ID matches a record
-    already in the database will be replaced with the backup's values. Records in the database that
-    aren't in the backup are left alone (nothing gets deleted). This can't be undone automatically -
-    download a fresh backup of the current data first if you're not sure.
+    <strong>Two ways to restore:</strong>
+    <ul style="margin: 6px 0 0 20px;">
+        <li><strong>Overwrite</strong> &mdash; any record in the backup whose ID matches a record already
+            in the database gets replaced with the backup's values. Records not in the backup are left
+            alone (nothing gets deleted).</li>
+        <li><strong>Append Only</strong> &mdash; skips any record whose ID already exists; only inserts
+            records that are genuinely new. Nothing already in the database is ever changed.</li>
+    </ul>
+    Neither can be undone automatically - download a fresh backup of the current data first if you're not sure.
 </div>
 
 {% if summary %}
@@ -20,14 +25,15 @@
         {% endfor %}
     </tbody>
 </table>
-<p><strong>{{ total }}</strong> record(s) will be restored.
+<p><strong>{{ total }}</strong> record(s) in the file, for this group.
 {% if skipped %}<span style="color: #d33;">{{ skipped }} record(s) in the file were skipped - they belong to a different group than {{ group_name }}.</span>{% endif %}
 </p>
 
 <form method="POST">
     {% csrf_token %}
     <input type="hidden" name="action" value="confirm">
-    <button type="submit" class="button" style="background: #d33; border-color: #d33;">Confirm Restore</button>
+    <button type="submit" name="mode" value="overwrite" class="button" style="background: #d33; border-color: #d33;">Confirm Restore (Overwrite Existing)</button>
+    <button type="submit" name="mode" value="append" class="button" style="margin-left: 8px;">Append Only (Skip Existing)</button>
     <a href="{% url 'admin:index' %}" class="button" style="margin-left: 8px;">Cancel</a>
 </form>
 
