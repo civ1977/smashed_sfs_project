@@ -296,12 +296,16 @@
        across every row (a padding tweak on just the label cell wouldn't
        survive that). */
     .sf9-info-table td.fill-short { border-bottom: none; }
-    .sf9-info-table td.fill-short .short-line { display: inline-block; width: calc(100% - 2ch); border-bottom: 1px solid #000; }
-    /* Sex/Section/Track's line starts 1ch to the left of the cell's left
-       edge (moved 3ch further left from the original 2ch-in inset) - same
+    /* Name/LRN's own td is a shared, wide auto-layout column (sized to fit
+       "Track (SHS only):" in the row below), so the colon sits far short of
+       the td's left edge - pulled 10ch left (measured: ~1ch past each
+       label's own colon) with width stretched by the same 10ch so the
+       line's right end stays anchored where it was. */
+    .sf9-info-table td.fill-short .short-line { display: inline-block; width: calc(100% + 8ch); margin-left: -10ch; border-bottom: 1px solid #000; }
+    /* Sex/Section/Track's line starts ~1ch past its own colon - same
        inline-block technique as fill-short, mirrored to inset the other end. */
     .sf9-info-table td.fill-inset-left { border-bottom: none; }
-    .sf9-info-table td.fill-inset-left .short-line-left { display: inline-block; width: calc(100% - 2ch); margin-left: -1ch; border-bottom: 1px solid #000; }
+    .sf9-info-table td.fill-inset-left .short-line-left { display: inline-block; width: calc(100% - 2.5ch); margin-left: -0.5ch; border-bottom: 1px solid #000; }
     .sf9-dear-parents { margin: 4px 0; text-align: left; }
     .sf9-section-heading { font-weight: bold; text-decoration: none; font-size: 11px; margin: 6px 0 2px 0; }
     .sf9-section-heading.center { text-align: center; }
