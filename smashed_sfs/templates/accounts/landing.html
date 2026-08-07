@@ -38,7 +38,28 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 12h5M9.5 15.5h5M9.5 8.5h2"/></svg>
         </div>
         <h3>School Forms</h3>
-        <p>Generate print-ready SF9 and SF10 report cards straight from your class records.</p>
+        <p>Generate print-ready school forms.</p>
+    </div>
+</section>
+
+<section class="landing-testimonials">
+    <h2 class="landing-testimonials-heading">What Teachers Are Saying</h2>
+    <div class="landing-testimonials-grid">
+        <div class="testimonial-card">
+            <span class="testimonial-quote-mark">&ldquo;</span>
+            <p class="testimonial-text">Thank you sir, laking tulong po sa ating mga guro.</p>
+            <p class="testimonial-author">&mdash; Ser Dhel</p>
+        </div>
+        <div class="testimonial-card">
+            <span class="testimonial-quote-mark">&ldquo;</span>
+            <p class="testimonial-text">Lodz q talaga to. Salute sir!</p>
+            <p class="testimonial-author">&mdash; Sherwin Alvarez Saavedra</p>
+        </div>
+        <div class="testimonial-card">
+            <span class="testimonial-quote-mark">&ldquo;</span>
+            <p class="testimonial-text">Galing talaga sir!</p>
+            <p class="testimonial-author">&mdash; Nelson Reyes</p>
+        </div>
     </div>
 </section>
 
@@ -125,8 +146,57 @@
     .landing-feature-card h3 { font-size: 15px; margin: 0 0 var(--space-2); color: var(--ink); }
     .landing-feature-card p { font-size: 13.5px; line-height: 1.5; color: var(--ink-soft); margin: 0; }
 
+    .landing-testimonials {
+        max-width: 960px;
+        margin: 0 auto var(--space-7);
+        padding: 0 var(--space-5);
+    }
+    .landing-testimonials-heading {
+        text-align: center;
+        font-size: 24px;
+        color: var(--ink);
+        margin: 0 0 var(--space-5);
+    }
+    .landing-testimonials-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-4);
+    }
+    .testimonial-card {
+        position: relative;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        padding: var(--space-5);
+        padding-top: var(--space-6);
+    }
+    .testimonial-quote-mark {
+        position: absolute;
+        top: -6px;
+        left: var(--space-4);
+        font-family: Georgia, serif;
+        font-size: 64px;
+        line-height: 1;
+        color: var(--accent);
+        opacity: .25;
+    }
+    .testimonial-text {
+        font-size: 15px;
+        font-style: italic;
+        line-height: 1.5;
+        color: var(--ink);
+        margin: 0 0 var(--space-3);
+    }
+    .testimonial-author {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink-soft);
+        margin: 0;
+    }
+
     @media (max-width: 720px) {
         .landing-features { grid-template-columns: 1fr; }
+        .landing-testimonials-grid { grid-template-columns: 1fr; }
         .landing-headline { font-size: 28px; }
     }
 </style>
