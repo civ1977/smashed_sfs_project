@@ -83,7 +83,7 @@ def portal_pending(request):
     account = get_object_or_404(StudentAccount, user=request.user)
 
     if account.status == StudentAccount.STATUS_APPROVED:
-        return redirect('portal_dashboard')
+        return redirect('portal_grades')
 
     return render(request, 'portal/pending.html', {'account': account})
 

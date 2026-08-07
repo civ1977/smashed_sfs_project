@@ -32,7 +32,7 @@ def shell_context(request):
             'shell_role': 'student',
             'shell_breadcrumb_context': 'MY ACCOUNT',
             'shell_nav_items': [
-                _nav_item(request, 'My Grades', 'portal_grades'),
+                _nav_item(request, "Learner's Academic Ratings", 'portal_grades'),
             ],
         }
 

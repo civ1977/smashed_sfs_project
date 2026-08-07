@@ -158,7 +158,7 @@ def dashboard(request):
     student_account = StudentAccount.objects.filter(user=request.user).first()
     if student_account:
         if student_account.status == StudentAccount.STATUS_APPROVED:
-            return redirect('portal_dashboard')
+            return redirect('portal_grades')
         return redirect('portal_pending')
 
     try:
