@@ -42,12 +42,6 @@
     </div>
 </section>
 
-<section class="landing-register-cta">
-    <p>New here? Register as a <a href="{% url 'register' %}">Teacher</a>,
-        <a href="{% url 'register' %}?type=non_teaching">Non-Teaching Staff</a>, or
-        <a href="{% url 'portal_register' %}">Student</a>.</p>
-</section>
-
 <style>
     .landing-hero { max-width: none; text-align: left; margin: 0 auto; padding: 0; }
 
@@ -107,7 +101,7 @@
         grid-template-columns: repeat(3, 1fr);
         gap: var(--space-4);
         max-width: 960px;
-        margin: var(--space-7) auto 0;
+        margin: var(--space-7) auto;
         padding: 0 var(--space-5);
     }
     .landing-feature-card {
@@ -130,14 +124,6 @@
     .landing-feature-icon svg { width: 22px; height: 22px; }
     .landing-feature-card h3 { font-size: 15px; margin: 0 0 var(--space-2); color: var(--ink); }
     .landing-feature-card p { font-size: 13.5px; line-height: 1.5; color: var(--ink-soft); margin: 0; }
-
-    .landing-register-cta {
-        max-width: 960px;
-        margin: var(--space-6) auto 0;
-        padding: var(--space-5) var(--space-5) var(--space-7);
-        font-size: 14px;
-        color: var(--ink-soft);
-    }
 
     @media (max-width: 720px) {
         .landing-features { grid-template-columns: 1fr; }
