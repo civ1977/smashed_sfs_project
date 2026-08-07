@@ -429,3 +429,120 @@ tr:last-child td { border-bottom: none; }
   padding: var(--space-5);
   box-shadow: 0 1px 3px rgba(16,24,40,.06);
 }
+
+/* ---- Public content pages (About, How It Works, Tutorials, Pricing,
+   Privacy Policy, Contact Us) - wide, left-aligned override of the
+   narrow centered .public-hero used by the login/register forms. */
+.pubpage-hero { max-width: 760px; margin: var(--space-7) auto; padding: 0 var(--space-5); text-align: left; }
+.pubpage-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+}
+.pubpage-hero h1 { font-size: 32px; max-width: 22ch; margin: 0 0 var(--space-4); color: var(--ink); }
+.pubpage-lede { font-size: 16px; line-height: 1.6; color: var(--ink-soft); max-width: 62ch; margin: 0 0 var(--space-6); }
+.pubpage-section { margin-bottom: var(--space-7); }
+.pubpage-section h2 { font-size: 20px; margin: 0 0 var(--space-4); color: var(--ink); }
+.pubpage-section p { font-size: 15px; line-height: 1.65; color: var(--ink-soft); margin: 0 0 var(--space-4); }
+.pubpage-section p:last-child { margin-bottom: 0; }
+
+.pubpage-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
+.pubpage-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+.pubpage-card h3 { font-size: 15px; margin: 0 0 var(--space-2); color: var(--ink); }
+.pubpage-card p { font-size: 13.5px; line-height: 1.55; color: var(--ink-soft); margin: 0; }
+
+.pubpage-steps { list-style: none; margin: 0; padding: 0; counter-reset: pubstep; }
+.pubpage-steps li {
+  counter-increment: pubstep;
+  position: relative;
+  padding: 0 0 var(--space-5) var(--space-7);
+  margin-bottom: var(--space-4);
+  border-left: 2px solid var(--line);
+}
+.pubpage-steps li:last-child { border-left-color: transparent; margin-bottom: 0; padding-bottom: 0; }
+.pubpage-steps li::before {
+  content: counter(pubstep);
+  position: absolute;
+  left: calc(-1 * var(--space-4) - 1px);
+  top: 0;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pubpage-steps h3 { font-size: 15px; margin: 0 0 var(--space-1); color: var(--ink); }
+.pubpage-steps p { font-size: 13.5px; line-height: 1.55; color: var(--ink-soft); margin: 0; }
+
+.pubpage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--gold-wash);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 700;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  margin-bottom: var(--space-4);
+}
+
+.pubpage-price-card {
+  background: var(--accent);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  text-align: center;
+  max-width: 340px;
+  margin: 0 0 var(--space-6);
+}
+.pubpage-price-card .price { font-size: 44px; font-weight: 800; color: #fff; font-family: var(--font-mono); }
+.pubpage-price-card .price-label { font-size: 13px; color: rgba(255,255,255,.75); margin-bottom: var(--space-4); }
+.pubpage-price-card ul { list-style: none; margin: 0 0 var(--space-5); padding: 0; text-align: left; }
+.pubpage-price-card li { color: #fff; font-size: 14px; padding: var(--space-1) 0; }
+.pubpage-price-card li::before { content: "\2713"; margin-right: var(--space-2); color: var(--gold); font-weight: 700; }
+
+.pubpage-contact-card {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+.pubpage-contact-card .icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  background: var(--accent-wash);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pubpage-contact-card .icon svg { width: 20px; height: 20px; }
+.pubpage-contact-card h3 { font-size: 14px; margin: 0 0 var(--space-1); color: var(--ink); }
+.pubpage-contact-card p { font-size: 13.5px; color: var(--ink-soft); margin: 0; }
+.pubpage-contact-card a { color: var(--accent); text-decoration: none; font-weight: 600; }
+
+@media (max-width: 720px) {
+  .pubpage-grid { grid-template-columns: 1fr; }
+  .pubpage-hero h1 { font-size: 26px; }
+}

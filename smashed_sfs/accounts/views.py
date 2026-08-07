@@ -124,11 +124,28 @@ def landing_page(request):
     return render(request, 'accounts/landing.html')
 
 
-def public_placeholder(request, page_title):
-    """Shared stub for the public nav's informational pages (About, How It
-    Works, Tutorials, Pricing, Privacy Policy) - real content TBD, this
-    just keeps every nav link landing somewhere real instead of a dead #."""
-    return render(request, 'accounts/public_placeholder.html', {'page_title': page_title})
+def about(request):
+    return render(request, 'accounts/public_about.html')
+
+
+def how_it_works(request):
+    return render(request, 'accounts/public_how_it_works.html')
+
+
+def tutorials(request):
+    return render(request, 'accounts/public_tutorials.html')
+
+
+def pricing(request):
+    return render(request, 'accounts/public_pricing.html')
+
+
+def privacy_policy(request):
+    return render(request, 'accounts/public_privacy_policy.html')
+
+
+def contact_us(request):
+    return render(request, 'accounts/public_contact_us.html')
 
 
 def login_view(request):

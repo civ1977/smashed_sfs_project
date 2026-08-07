@@ -1,0 +1,33 @@
+{% extends 'base_public.html' %}
+
+{% block hero_class %} pubpage-hero{% endblock %}
+
+{% block content %}
+<div class="pubpage-eyebrow">Pricing</div>
+<h1>Free for DepEd teachers and schools.</h1>
+<p class="pubpage-lede">
+    SMASHED &ndash; SFs has been free since it started in 2021, and stays free as the Online Edition &mdash;
+    no subscription, no per-student fee.
+</p>
+
+<div class="pubpage-price-card">
+    <div class="price">&#8369;0</div>
+    <div class="price-label">Free, always</div>
+    <ul>
+        <li>Unlimited students per section</li>
+        <li>SF9, SF10, SF2, and rankings generation</li>
+        <li>Grade 4 through Grade 12</li>
+        <li>Student portal for viewing ratings</li>
+        <li>Multi-adviser collaboration</li>
+    </ul>
+    <a href="{% url 'register' %}" class="btn" style="background: #fff; color: var(--accent);">Register as Teacher</a>
+</div>
+
+<div class="pubpage-section">
+    <h2>Why free?</h2>
+    <p>
+        SMASHED &ndash; SFs was built to solve a real problem in one classroom, not to be sold. It stays free
+        so any DepEd teacher or school can use it without budget approval getting in the way.
+    </p>
+</div>
+{% endblock %}
