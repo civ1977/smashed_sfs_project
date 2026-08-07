@@ -12,7 +12,7 @@ from django.utils.html import format_html
 from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
 from grades.models import Grade, SubjectMapping, StudentTermRemark, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException
-from grades.views import MONTH_NAMES, _school_days_in_month
+from grades.views import MONTH_NAMES, _school_days_in_month, build_student_grade_sheet
 
 
 def _get_teacher(request):
@@ -215,6 +215,26 @@ def select_student_for_report(request):
         return redirect('dashboard')
 
     return render(request, 'reports/select_student.html')
+
+
+@login_required
+def view_student_ratings(request, student_lrn):
+    try:
+        teacher = _get_teacher(request)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    student = get_object_or_404(Student, lrn=student_lrn, adviser_id=teacher.teacher_id)
+    subject_grades, subject_names, general_average, grades = build_student_grade_sheet(student_lrn)
+
+    return render(request, 'reports/student_ratings.html', {
+        'student': student,
+        'subject_grades': subject_grades,
+        'subject_names': subject_names,
+        'general_average': general_average,
+        'grades': grades,
+    })
 
 
 @login_required

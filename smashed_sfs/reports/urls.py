@@ -6,5 +6,6 @@ urlpatterns = [
     path('report-cards/', views.report_cards, name='report_cards'),
     path('sf9/<str:student_lrn>/', views.view_sf9, name='view_sf9'),
     path('sf10/<str:student_lrn>/', views.view_sf10, name='view_sf10'),
+    path('ratings/<str:student_lrn>/', views.view_student_ratings, name='view_student_ratings'),
     path('sf2/<int:year>/<int:month>/', views.export_sf2, name='export_sf2'),
 ]
