@@ -12,11 +12,13 @@
         <div class="mainnav">
             {% include 'partials/brand.html' with brand_class='public-brand' %}
             <div class="links">
+                <a href="{% url 'landing' %}">Home</a>
                 <a href="{% url 'about' %}">About</a>
                 <a href="{% url 'how_it_works' %}">How It Works</a>
                 <a href="{% url 'tutorials' %}">Tutorials</a>
                 <a href="{% url 'pricing' %}">Pricing</a>
                 <a href="{% url 'privacy_policy' %}">Privacy Policy</a>
+                <a href="{% url 'contact_us' %}">Contact Us</a>
             </div>
             <div class="nav-dropdown nav-dropdown-cta">
                 <span class="nav-dropdown-toggle nav-dropdown-toggle-cta" tabindex="0">Register &#9662;</span>

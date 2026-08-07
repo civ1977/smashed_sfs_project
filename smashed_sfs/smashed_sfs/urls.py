@@ -17,6 +17,7 @@ urlpatterns = [
     path('tutorials/', views.public_placeholder, {'page_title': 'Tutorials'}, name='tutorials'),
     path('pricing/', views.public_placeholder, {'page_title': 'Pricing'}, name='pricing'),
     path('privacy-policy/', views.public_placeholder, {'page_title': 'Privacy Policy'}, name='privacy_policy'),
+    path('contact-us/', views.public_placeholder, {'page_title': 'Contact Us'}, name='contact_us'),
     path('advisory/', views.dashboard, name='dashboard'),
     path('complete-profile/', views.complete_profile, name='complete_profile'),
     path('logout/', views.logout_view, name='logout'),
