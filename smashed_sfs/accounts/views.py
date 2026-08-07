@@ -124,6 +124,13 @@ def landing_page(request):
     return render(request, 'accounts/landing.html')
 
 
+def public_placeholder(request, page_title):
+    """Shared stub for the public nav's informational pages (About, How It
+    Works, Tutorials, Pricing, Privacy Policy) - real content TBD, this
+    just keeps every nav link landing somewhere real instead of a dead #."""
+    return render(request, 'accounts/public_placeholder.html', {'page_title': page_title})
+
+
 def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('username')
