@@ -41,7 +41,9 @@
                 {% for mapping_id, data in subject_grades.items %}
                 <tr>
                     <td>
-                        {{ subject_names|get:mapping_id|default:"Subject "|add:mapping_id }}
+                        {% with subject_name=subject_names|get:mapping_id %}
+                            {% if subject_name %}{{ subject_name }}{% else %}Subject {{ mapping_id }}{% endif %}
+                        {% endwith %}
                     </td>
                     <td class="mono">
                         {% if data.1 %}
