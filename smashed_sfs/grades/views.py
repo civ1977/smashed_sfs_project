@@ -284,7 +284,14 @@ def build_student_grade_sheet(lrn):
             subject_grades[grade.mapping_id] = {1: None, 2: None, 3: None}
         subject_grades[grade.mapping_id][grade.term] = grade.grade
 
+    all_complete = True
     for mapping_id in subject_grades:
+        if subject_grades[mapping_id][3] is None:
+            subject_grades[mapping_id]['final'] = None
+            subject_grades[mapping_id]['remarks'] = None
+            all_complete = False
+            continue
+
         grades_list = [
             subject_grades[mapping_id][1],
             subject_grades[mapping_id][2],
@@ -303,7 +310,7 @@ def build_student_grade_sheet(lrn):
             subject_names[mapping_id] = f'Subject {mapping_id}'
 
     finals = [data['final'] for data in subject_grades.values() if data['final'] is not None]
-    general_average = round(sum(finals) / len(finals)) if finals else None
+    general_average = round(sum(finals) / len(finals)) if (all_complete and finals) else None
 
     return subject_grades, subject_names, general_average, grades
 
