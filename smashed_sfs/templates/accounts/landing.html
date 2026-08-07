@@ -1,18 +1,147 @@
 {% extends 'base_public.html' %}
 
-{% block content %}
-<div class="eyebrow-mini">DepEd School Forms and Reporting System</div>
-<h1>Grades, attendance, and school forms - all in one place.</h1>
-<p>SMASHED - SFs helps advisers, registrars, and school heads manage student records,
-   generate SF9/SF10 report cards, and track attendance without the paperwork.</p>
+{% block hero_class %} landing-hero{% endblock %}
 
-<div class="card" style="margin-top: var(--space-5);">
-    <a href="{% url 'login' %}" class="btn" style="width: 100%; text-align: center; display: block;">Log In</a>
-    <p style="margin-top: var(--space-4); text-align: center;">
-        New here? Register as a
-        <a href="{% url 'register' %}">Teacher</a>,
-        <a href="{% url 'register' %}?type=non_teaching">Non-Teaching Staff</a>, or
-        <a href="{% url 'portal_register' %}">Student</a>.
-    </p>
+{% block content %}
+<div class="landing-banner">
+    <div class="landing-banner-inner">
+        <div class="landing-eyebrow">DepEd School Forms and Reporting System</div>
+        <h1 class="landing-headline">Grades, attendance, and school forms &mdash; all in one place.</h1>
+        <p class="landing-sub">
+            SMASHED &ndash; SFs helps advisers, registrars, and school heads manage student records,
+            generate SF9/SF10 report cards, and track attendance without the paperwork.
+        </p>
+        <div class="landing-cta-row">
+            <a href="{% url 'login' %}" class="landing-btn-solid">Log In</a>
+            <a href="{% url 'register' %}" class="landing-btn-outline">Register as Teacher</a>
+        </div>
+    </div>
 </div>
+
+<section class="landing-features">
+    <div class="landing-feature-card">
+        <div class="landing-feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V10M9 20V4M15 20v-7M21 20V8"/></svg>
+        </div>
+        <h3>Grades &amp; Ratings</h3>
+        <p>Enter and rank term grades per class or subject, with automatic honors computation built in.</p>
+    </div>
+    <div class="landing-feature-card">
+        <div class="landing-feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="m8.5 15 2 2 4.5-4.5"/></svg>
+        </div>
+        <h3>Attendance Tracking</h3>
+        <p>Mark daily attendance per section, manage holidays and makeup days, and export SF2 in a click.</p>
+    </div>
+    <div class="landing-feature-card">
+        <div class="landing-feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 12h5M9.5 15.5h5M9.5 8.5h2"/></svg>
+        </div>
+        <h3>School Forms</h3>
+        <p>Generate print-ready SF9 and SF10 report cards straight from your class records.</p>
+    </div>
+</section>
+
+<section class="landing-register-cta">
+    <p>New here? Register as a <a href="{% url 'register' %}">Teacher</a>,
+        <a href="{% url 'register' %}?type=non_teaching">Non-Teaching Staff</a>, or
+        <a href="{% url 'portal_register' %}">Student</a>.</p>
+</section>
+
+<style>
+    .landing-hero { max-width: none; text-align: left; margin: 0 auto; padding: 0; }
+
+    /* Full-bleed color block, breaking out of .public-hero's own max-width -
+       the classic "100vw + negative margin" trick - so the banner spans the
+       whole viewport while its own inner content stays aligned with the nav
+       above. Sits flush against .marketnav (same --accent) so nav + banner
+       read as one continuous bold block, matching the reference's hero. */
+    .landing-banner {
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+        background: var(--accent);
+        padding: var(--space-7) var(--space-5);
+    }
+    .landing-banner-inner { max-width: 640px; margin: 0 auto; }
+    .landing-eyebrow {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--gold);
+        font-weight: 700;
+        margin-bottom: var(--space-3);
+    }
+    .landing-headline {
+        font-size: 38px;
+        line-height: 1.15;
+        max-width: 16ch;
+        margin: 0 0 var(--space-4);
+        color: #fff;
+    }
+    .landing-sub {
+        font-size: 16px;
+        line-height: 1.5;
+        color: rgba(255,255,255,.82);
+        max-width: 52ch;
+        margin: 0 0 var(--space-5);
+    }
+    .landing-cta-row { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+    .landing-btn-solid,
+    .landing-btn-outline {
+        display: inline-block;
+        font-family: var(--font-body);
+        font-weight: 700;
+        font-size: 15px;
+        padding: var(--space-3) var(--space-6);
+        border-radius: var(--radius-pill);
+        text-decoration: none;
+    }
+    .landing-btn-solid { background: #fff; color: var(--accent); border: 1px solid #fff; }
+    .landing-btn-solid:hover { background: rgba(255,255,255,.9); }
+    .landing-btn-outline { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.6); }
+    .landing-btn-outline:hover { background: rgba(255,255,255,.1); }
+
+    .landing-features {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-4);
+        max-width: 960px;
+        margin: var(--space-7) auto 0;
+        padding: 0 var(--space-5);
+    }
+    .landing-feature-card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        padding: var(--space-5);
+    }
+    .landing-feature-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: var(--radius);
+        background: var(--accent-wash);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: var(--space-3);
+    }
+    .landing-feature-icon svg { width: 22px; height: 22px; }
+    .landing-feature-card h3 { font-size: 15px; margin: 0 0 var(--space-2); color: var(--ink); }
+    .landing-feature-card p { font-size: 13.5px; line-height: 1.5; color: var(--ink-soft); margin: 0; }
+
+    .landing-register-cta {
+        max-width: 960px;
+        margin: var(--space-6) auto 0;
+        padding: var(--space-5) var(--space-5) var(--space-7);
+        font-size: 14px;
+        color: var(--ink-soft);
+    }
+
+    @media (max-width: 720px) {
+        .landing-features { grid-template-columns: 1fr; }
+        .landing-headline { font-size: 28px; }
+    }
+</style>
 {% endblock %}
