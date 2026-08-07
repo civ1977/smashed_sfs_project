@@ -365,6 +365,30 @@ tr:last-child td { border-bottom: none; }
   text-align: left;
 }
 .marketnav .mainnav .nav-dropdown-menu a:hover { background: var(--bg-exhibit); color: var(--ink); }
+
+/* Register dropdown sitting in the nav's own right-hand CTA slot (where
+   Login used to be) - same white-pill treatment .cta had, and the menu
+   right-aligns under it instead of centering, so it doesn't run past the
+   viewport's right edge. */
+.marketnav .mainnav .nav-dropdown-cta {
+  justify-self: end;
+}
+.marketnav .mainnav .nav-dropdown-toggle-cta {
+  display: inline-block;
+  background: #fff;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+}
+.marketnav .mainnav .nav-dropdown-cta:hover .nav-dropdown-toggle-cta,
+.marketnav .mainnav .nav-dropdown-toggle-cta:focus { color: var(--accent); background: #fff; }
+.marketnav .mainnav .nav-dropdown-cta .nav-dropdown-menu {
+  left: auto;
+  right: 0;
+  transform: none;
+}
 .marketnav .mainnav .cta {
   justify-self: end;
   background: #fff;

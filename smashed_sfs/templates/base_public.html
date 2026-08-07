@@ -17,16 +17,15 @@
                 <a href="{% url 'tutorials' %}">Tutorials</a>
                 <a href="{% url 'pricing' %}">Pricing</a>
                 <a href="{% url 'privacy_policy' %}">Privacy Policy</a>
-                <div class="nav-dropdown">
-                    <span class="nav-dropdown-toggle" tabindex="0">Register &#9662;</span>
-                    <div class="nav-dropdown-menu">
-                        <a href="{% url 'register' %}">Teacher</a>
-                        <a href="{% url 'register' %}?type=non_teaching">Non-Teaching</a>
-                        <a href="{% url 'portal_register' %}">Student</a>
-                    </div>
+            </div>
+            <div class="nav-dropdown nav-dropdown-cta">
+                <span class="nav-dropdown-toggle nav-dropdown-toggle-cta" tabindex="0">Register &#9662;</span>
+                <div class="nav-dropdown-menu">
+                    <a href="{% url 'register' %}">Teacher</a>
+                    <a href="{% url 'register' %}?type=non_teaching">Non-Teaching</a>
+                    <a href="{% url 'portal_register' %}">Student</a>
                 </div>
             </div>
-            <a href="{% url 'login' %}" class="cta">Login</a>
         </div>
     </div>
 
