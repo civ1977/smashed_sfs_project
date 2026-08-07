@@ -1,0 +1,18 @@
+{% extends 'base_public.html' %}
+
+{% block content %}
+<div class="eyebrow-mini">DepEd School Forms and Reporting System</div>
+<h1>Grades, attendance, and school forms - all in one place.</h1>
+<p>SMASHED - SFs helps advisers, registrars, and school heads manage student records,
+   generate SF9/SF10 report cards, and track attendance without the paperwork.</p>
+
+<div class="card" style="margin-top: var(--space-5);">
+    <a href="{% url 'login' %}" class="btn" style="width: 100%; text-align: center; display: block;">Log In</a>
+    <p style="margin-top: var(--space-4); text-align: center;">
+        New here? Register as a
+        <a href="{% url 'register' %}">Teacher</a>,
+        <a href="{% url 'register' %}?type=non_teaching">Non-Teaching Staff</a>, or
+        <a href="{% url 'portal_register' %}">Student</a>.
+    </p>
+</div>
+{% endblock %}

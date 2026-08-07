@@ -120,6 +120,10 @@ def register(request):
     return render(request, 'accounts/register.html', {'account_type': account_type})
 
 
+def landing_page(request):
+    return render(request, 'accounts/landing.html')
+
+
 def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('username')
