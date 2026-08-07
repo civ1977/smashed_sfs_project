@@ -333,7 +333,9 @@ def ancillary(request):
 def tools(request):
     teacher = Teacher.objects.filter(username=request.user.username).first()
     is_adviser = bool(teacher and teacher.role == Teacher.ROLE_ADVISER)
+    is_school_admin = bool(teacher and teacher.role in (Teacher.ROLE_REGISTRAR, Teacher.ROLE_PRINCIPAL))
     return render(request, 'accounts/tools.html', {
         'page_title': 'Tools',
         'is_adviser': is_adviser,
+        'is_school_admin': is_school_admin,
     })

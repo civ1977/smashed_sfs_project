@@ -17,7 +17,17 @@
     <p><small>Set the order your subjects appear in on the gradesheet, SF9, and SF10.</small></p>
     <a href="{% url 'arrange_subjects' %}" class="btn">Arrange Subjects</a>
 </div>
-{% else %}
+{% endif %}
+
+{% if is_school_admin %}
+<div class="card" style="max-width: 480px; margin-top: var(--space-4);">
+    <h3>School Data</h3>
+    <p><small>Update your school's name, location, and the registrar/principal/SDS names shown on report cards.</small></p>
+    <a href="{% url 'edit_school_profile' %}" class="btn">Edit School Data</a>
+</div>
+{% endif %}
+
+{% if not is_adviser and not is_school_admin %}
 <div class="card">
     <p>No tools available for your role yet.</p>
 </div>

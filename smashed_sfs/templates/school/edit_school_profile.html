@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}EDIT SCHOOL DATA{% endblock %}
+
+{% block content %}
+<h1>Edit School Data</h1>
+<p>Update your school's profile - name, location, and the registrar/principal/SDS names shown on report cards.</p>
+
+<form method="POST">
+    {% csrf_token %}
+
+    <div class="card" style="max-width: 560px;">
+        {% for field in school_profile_form %}
+        <div class="form-group">
+            <label>{{ field.label }}</label>
+            {{ field }}
+            {% for error in field.errors %}
+                <small style="color: var(--risk);">{{ error }}</small>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <button type="submit" class="btn good" style="margin-top: var(--space-4);">Save Changes</button>
+    <a href="{% url 'tools' %}" class="btn ghost" style="margin-top: var(--space-4);">Cancel</a>
+</form>
+{% endblock %}

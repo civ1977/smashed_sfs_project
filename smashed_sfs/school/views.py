@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q
 
-from accounts.forms import SectionForm
+from accounts.forms import SectionForm, SchoolProfileForm
 from accounts.models import Teacher
 from students.models import SchoolProfile, Section, Student
 from portal.models import StudentAccount
@@ -505,6 +505,36 @@ def edit_my_section(request):
     return render(request, 'school/edit_my_section.html', {
         'section': section,
         'section_form': form,
+    })
+
+
+@login_required
+def edit_school_profile(request):
+    """Registrar/principal-only edit of the school-wide profile (name,
+    region/division/district/municipality, registrar/principal/SDS names) -
+    the same SchoolProfileForm used to create one during profile setup,
+    reused here for editing an existing one."""
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
+    if not school_profile:
+        messages.error(request, 'No school profile found. Please complete your profile first.')
+        return redirect('complete_profile')
+
+    if request.method == 'POST':
+        form = SchoolProfileForm(request.POST, instance=school_profile)
+        if form.is_valid():
+            form.save()
+            messages.success(request, '✅ School data updated.')
+            return redirect('tools')
+    else:
+        form = SchoolProfileForm(instance=school_profile)
+
+    return render(request, 'school/edit_school_profile.html', {
+        'school_profile': school_profile,
+        'school_profile_form': form,
     })
 
 

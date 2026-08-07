@@ -15,4 +15,5 @@ urlpatterns = [
     path('my-assignments/', views.adviser_subject_assignments, name='adviser_subject_assignments'),
     path('my-assignments/<int:assignment_id>/remove/', views.remove_adviser_subject_assignment, name='remove_adviser_subject_assignment'),
     path('my-section/edit/', views.edit_my_section, name='edit_my_section'),
+    path('profile/edit/', views.edit_school_profile, name='edit_school_profile'),
 ]
