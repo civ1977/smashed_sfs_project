@@ -502,15 +502,20 @@ tr:last-child td { border-bottom: none; }
   margin-bottom: var(--space-4);
 }
 
+.pubpage-price-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  margin: 0 0 var(--space-6);
+}
 .pubpage-price-card {
   background: var(--accent);
   border-radius: var(--radius-lg);
   padding: var(--space-6);
   text-align: center;
-  max-width: 340px;
-  margin: 0 0 var(--space-6);
 }
-.pubpage-price-card .price { font-size: 44px; font-weight: 800; color: #fff; font-family: var(--font-mono); }
+.pubpage-price-card .price-role { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--gold); margin-bottom: var(--space-3); }
+.pubpage-price-card .price { font-size: 36px; font-weight: 800; color: #fff; font-family: var(--font-mono); }
 .pubpage-price-card .price-label { font-size: 13px; color: rgba(255,255,255,.75); margin-bottom: var(--space-4); }
 .pubpage-price-card ul { list-style: none; margin: 0 0 var(--space-5); padding: 0; text-align: left; }
 .pubpage-price-card li { color: #fff; font-size: 14px; padding: var(--space-1) 0; }
@@ -527,8 +532,8 @@ tr:last-child td { border-bottom: none; }
   margin-bottom: var(--space-4);
 }
 .pubpage-contact-card .icon {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius);
   background: var(--accent-wash);
   color: var(--accent);
@@ -537,12 +542,13 @@ tr:last-child td { border-bottom: none; }
   justify-content: center;
   flex-shrink: 0;
 }
-.pubpage-contact-card .icon svg { width: 20px; height: 20px; }
+.pubpage-contact-card .icon svg { width: 15px; height: 15px; }
 .pubpage-contact-card h3 { font-size: 14px; margin: 0 0 var(--space-1); color: var(--ink); }
 .pubpage-contact-card p { font-size: 13.5px; color: var(--ink-soft); margin: 0; }
 .pubpage-contact-card a { color: var(--accent); text-decoration: none; font-weight: 600; }
 
 @media (max-width: 720px) {
   .pubpage-grid { grid-template-columns: 1fr; }
+  .pubpage-price-grid { grid-template-columns: 1fr; }
   .pubpage-hero h1 { font-size: 26px; }
 }

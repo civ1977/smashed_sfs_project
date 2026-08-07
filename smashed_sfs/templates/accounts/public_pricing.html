@@ -4,30 +4,55 @@
 
 {% block content %}
 <div class="pubpage-eyebrow">Pricing</div>
-<h1>Free for DepEd teachers and schools.</h1>
+<h1>Simple, per-term pricing.</h1>
 <p class="pubpage-lede">
-    SMASHED &ndash; SFs has been free since it started in 2021, and stays free as the Online Edition &mdash;
-    no subscription, no per-student fee.
+    Running SMASHED &ndash; SFs as a cloud-based system means real server hosting and maintenance costs
+    &mdash; so unlike the old Excel version, the Online Edition has a small per-term fee based on your role.
 </p>
 
-<div class="pubpage-price-card">
-    <div class="price">&#8369;0</div>
-    <div class="price-label">Free, always</div>
-    <ul>
-        <li>Unlimited students per section</li>
-        <li>SF9, SF10, SF2, and rankings generation</li>
-        <li>Grade 4 through Grade 12</li>
-        <li>Student portal for viewing ratings</li>
-        <li>Multi-adviser collaboration</li>
-    </ul>
-    <a href="{% url 'register' %}" class="btn" style="background: #fff; color: var(--accent);">Register as Teacher</a>
+<div class="pubpage-price-grid">
+    <div class="pubpage-price-card">
+        <div class="price-role">Class Adviser</div>
+        <div class="price">&#8369;258</div>
+        <div class="price-label">per term</div>
+        <ul>
+            <li>Full class roster &amp; grades</li>
+            <li>SF9, SF10, SF2 generation</li>
+            <li>Rankings &amp; report cards</li>
+        </ul>
+    </div>
+    <div class="pubpage-price-card">
+        <div class="price-role">Subject Teacher</div>
+        <div class="price">&#8369;129</div>
+        <div class="price-label">per term</div>
+        <ul>
+            <li>Grade entry for your subject</li>
+            <li>Class gradesheet access</li>
+            <li>Rankings view</li>
+        </ul>
+    </div>
+    <div class="pubpage-price-card">
+        <div class="price-role">Non-Teaching</div>
+        <div class="price">&#8369;500</div>
+        <div class="price-label">per term</div>
+        <ul>
+            <li>School-wide records access</li>
+            <li>Account &amp; section management</li>
+            <li>Backup, restore &amp; reports</li>
+        </ul>
+    </div>
 </div>
 
-<div class="pubpage-section">
-    <h2>Why free?</h2>
+<a href="{% url 'register' %}" class="btn">Register as Teacher</a>
+
+<div class="pubpage-section" style="margin-top: var(--space-6);">
+    <h2>Why a fee now?</h2>
     <p>
-        SMASHED &ndash; SFs was built to solve a real problem in one classroom, not to be sold. It stays free
-        so any DepEd teacher or school can use it without budget approval getting in the way.
+        The original SMASHED &ndash; SFs was a free Excel file that ran on your own computer. The Online
+        Edition runs on a live cloud server, with the hosting and maintenance costs that come with keeping
+        it fast and available to every school using it. The per-term fee covers that, at rates kept as low as
+        possible: a Subject Teacher pays half of what a Class Adviser pays, reflecting the smaller scope of
+        access.
     </p>
 </div>
 {% endblock %}
