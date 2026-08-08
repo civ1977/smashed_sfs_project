@@ -6,12 +6,13 @@
 <div class="no-print">
     <h2>&#128197; Daily Time Record</h2>
     <a href="{% url 'tools' %}" class="btn ghost">&larr; Back to Tools</a>
-    <a href="{% url 'daily_time_record' %}?year={{ prev_year }}&month={{ prev_month }}" class="btn ghost">&larr; {{ prev_month_name }}</a>
-    <a href="{% url 'daily_time_record' %}?year={{ next_year }}&month={{ next_month }}" class="btn ghost">{{ next_month_name }} &rarr;</a>
+    <a href="{% url 'daily_time_record' %}?year={{ prev_year }}&month={{ prev_month }}&name={{ employee_name|urlencode }}" class="btn ghost">&larr; {{ prev_month_name }}</a>
+    <a href="{% url 'daily_time_record' %}?year={{ next_year }}&month={{ next_month }}&name={{ employee_name|urlencode }}" class="btn ghost">{{ next_month_name }} &rarr;</a>
     <button type="button" class="btn" onclick="window.print()">Print</button>
     <button type="button" class="btn btn-success" onclick="document.getElementById('dtr-file-input').click()">Upload CSV/Excel</button>
     <form id="dtr-upload-form" method="post" enctype="multipart/form-data" action="{% url 'upload_dtr' %}" style="display:none;">
         {% csrf_token %}
+        <input type="hidden" name="employee_name" value="{{ employee_name }}">
         <input type="file" id="dtr-file-input" name="dtr_file" accept=".csv,.xlsx,.xlsm" onchange="document.getElementById('dtr-upload-form').submit()">
     </form>
     <p style="color: #999; font-size: 12px; margin-top: 6px;">
@@ -27,8 +28,19 @@
     <div class="dtr-form-tag">Civil Service Form No. 48</div>
     <h1 class="dtr-title">Daily Time Record</h1>
 
-    <div class="dtr-name-line">{{ teacher.full_name|default:request.user.get_full_name|default:request.user.username }}</div>
-    <div class="dtr-name-label">(Name)</div>
+    <input
+        type="text"
+        id="dtr-name-input"
+        class="dtr-name-line dtr-name-input"
+        list="dtr-name-options"
+        value="{{ employee_name }}"
+        autocomplete="off"
+    >
+    <datalist id="dtr-name-options">
+        {% for name in name_options %}
+        <option value="{{ name }}">{% endfor %}
+    </datalist>
+    <div class="dtr-name-label">(Name &mdash; search or type to switch whose DTR this is)</div>
 
     <div class="dtr-meta">
         <div class="dtr-meta-left">
@@ -113,13 +125,24 @@
     .dtr-form-tag { font-size: 12px; color: var(--ink-faint); }
     .dtr-title { text-align: center; font-size: 24px; margin: var(--space-2) 0 var(--space-5); }
     .dtr-name-line {
+        border: none;
         border-bottom: 1px dashed #000;
         text-align: center;
         font-weight: 700;
         padding-bottom: var(--space-1);
         min-height: 1.4em;
     }
-    .dtr-name-label { text-align: center; font-style: italic; font-size: 13px; color: var(--ink-soft); margin-bottom: var(--space-4); }
+    .dtr-name-input {
+        display: block;
+        width: 100%;
+        background: transparent;
+        font-family: var(--font-body);
+        font-size: 15px;
+        border-radius: 0;
+    }
+    .dtr-name-input:hover { background: var(--bg-exhibit); }
+    .dtr-name-input:focus { outline: none; border-bottom: 1px solid var(--accent); background: var(--accent-wash); }
+    .dtr-name-label { text-align: center; font-style: italic; font-size: 12px; color: var(--ink-soft); margin-bottom: var(--space-4); }
     .dtr-meta { display: flex; justify-content: space-between; gap: var(--space-5); font-size: 14px; margin-bottom: var(--space-4); }
     .dtr-meta-left, .dtr-meta-right { flex: 1; }
     .dtr-meta div { margin-bottom: var(--space-2); font-style: italic; }
@@ -173,6 +196,25 @@
 <script>
     (function () {
         var csrfToken = document.querySelector('#dtr-upload-form [name=csrfmiddlewaretoken]').value;
+        var nameInput = document.getElementById('dtr-name-input');
+
+        function goToName(name) {
+            var url = new URL(window.location.href);
+            url.searchParams.set('name', name);
+            window.location.href = url.toString();
+        }
+
+        var lastName = nameInput.value.trim();
+        nameInput.addEventListener('blur', function () {
+            var value = nameInput.value.trim();
+            if (value && value !== lastName) goToName(value);
+        });
+        nameInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                nameInput.blur();
+            }
+        });
 
         document.querySelectorAll('.dtr-editable').forEach(function (cell) {
             var lastSaved = cell.textContent.trim();
@@ -191,6 +233,7 @@
                         date: cell.dataset.date,
                         field: cell.dataset.field,
                         value: value,
+                        employee_name: nameInput.value.trim(),
                     }),
                 }).then(function (resp) {
                     if (!resp.ok) throw new Error('save failed');

@@ -4,6 +4,7 @@ import io
 import math
 from collections import Counter
 from datetime import date, datetime
+from urllib.parse import quote
 
 import openpyxl
 from django.shortcuts import render, redirect
@@ -372,6 +373,26 @@ DTR_EDITABLE_FIELDS = (
 )
 
 
+def _dtr_name_options(teacher):
+    """Names to offer in the DTR's searchable Name field: every teacher at
+    the same school (so a registrar can pick a colleague they haven't
+    prepared a DTR for yet) plus anyone this account has already typed a
+    DTR name for (covers employees with no Teacher account at all, e.g.
+    imported straight from a biometric export)."""
+    names = set()
+    if teacher and teacher.school_profile_id:
+        names.update(
+            Teacher.objects.filter(school_profile_id=teacher.school_profile_id)
+            .exclude(full_name='').values_list('full_name', flat=True)
+        )
+    if teacher:
+        names.update(
+            TeacherTimeRecord.objects.filter(teacher_id=teacher.teacher_id)
+            .exclude(employee_name='').values_list('employee_name', flat=True).distinct()
+        )
+    return sorted(names, key=str.lower)
+
+
 @login_required
 def daily_time_record(request):
     teacher = Teacher.objects.filter(username=request.user.username).first()
@@ -386,6 +407,9 @@ def daily_time_record(request):
         month = today.month
     if month < 1 or month > 12:
         month = today.month
+
+    default_name = teacher.full_name if teacher else ''
+    employee_name = request.GET.get('name', '').strip() or default_name
 
     # SF2's own school-day convention (grades/views.py's _school_days_in_month):
     # Mon-Fri are school days and Sat/Sun are not, unless a
@@ -406,7 +430,7 @@ def daily_time_record(request):
     if teacher:
         records_by_date = {
             r.date: r for r in TeacherTimeRecord.objects.filter(
-                teacher_id=teacher.teacher_id, date__year=year, date__month=month
+                teacher_id=teacher.teacher_id, employee_name=employee_name, date__year=year, date__month=month
             )
         }
 
@@ -430,6 +454,8 @@ def daily_time_record(request):
 
     return render(request, 'accounts/dtr.html', {
         'teacher': teacher,
+        'employee_name': employee_name,
+        'name_options': _dtr_name_options(teacher),
         'month_name': date(year, month, 1).strftime('%B'),
         'year': year,
         'prev_year': prev_year,
@@ -638,14 +664,16 @@ def upload_dtr(request):
         messages.error(request, 'Please choose a CSV or Excel file to upload.')
         return redirect('daily_time_record')
 
+    employee_name = request.POST.get('employee_name', '').strip() or teacher.full_name
+
     try:
-        parsed, error = _dtr_parse_upload(uploaded_file, teacher.full_name)
+        parsed, error = _dtr_parse_upload(uploaded_file, employee_name)
     except Exception:
         parsed, error = None, 'Could not read that file. Please upload a valid CSV or Excel export.'
 
     if error:
         messages.error(request, error)
-        return redirect('daily_time_record')
+        return redirect(f"{reverse('daily_time_record')}?name={quote(employee_name)}")
 
     # DTR prep is typically for the upcoming month, not "now" - so the file's
     # own dates decide which month gets saved and shown, never today's date.
@@ -653,7 +681,9 @@ def upload_dtr(request):
     # the next month's first few days); everything gets saved, and the view
     # jumps to whichever month has the most records in this upload.
     for d, entry in parsed.items():
-        record, _ = TeacherTimeRecord.objects.get_or_create(teacher_id=teacher.teacher_id, date=d)
+        record, _ = TeacherTimeRecord.objects.get_or_create(
+            teacher_id=teacher.teacher_id, employee_name=employee_name, date=d
+        )
         for field in ('am_arrival', 'am_departure', 'pm_arrival', 'pm_departure'):
             if entry.get(field):
                 setattr(record, field, entry[field])
@@ -666,10 +696,12 @@ def upload_dtr(request):
     note = f' ({other_months} fell in a different month and were saved there instead)' if other_months else ''
     messages.success(
         request,
-        f'Imported time records for {month_counts[(primary_year, primary_month)]} day(s) in '
+        f'Imported time records for {employee_name} - {month_counts[(primary_year, primary_month)]} day(s) in '
         f'{date(primary_year, primary_month, 1).strftime("%B %Y")}{note}.',
     )
-    return redirect(f"{reverse('daily_time_record')}?year={primary_year}&month={primary_month}")
+    return redirect(
+        f"{reverse('daily_time_record')}?year={primary_year}&month={primary_month}&name={quote(employee_name)}"
+    )
 
 
 @login_required
@@ -690,8 +722,11 @@ def save_dtr_cell(request):
     except ValueError:
         return JsonResponse({'error': 'Invalid date.'}, status=400)
 
+    employee_name = request.POST.get('employee_name', '').strip() or teacher.full_name
     value = request.POST.get('value', '').strip()
-    record, _ = TeacherTimeRecord.objects.get_or_create(teacher_id=teacher.teacher_id, date=d)
+    record, _ = TeacherTimeRecord.objects.get_or_create(
+        teacher_id=teacher.teacher_id, employee_name=employee_name, date=d
+    )
     setattr(record, field, value or None)
     record.save()
     return JsonResponse({'status': 'ok'})
