@@ -5,8 +5,14 @@
 {% block content %}
 <h1>Tools</h1>
 
-{% if is_adviser %}
 <div class="card" style="max-width: 480px;">
+    <h3>Daily Time Record</h3>
+    <p><small>View a printable Civil Service Form No. 48 Daily Time Record, pre-filled with your name.</small></p>
+    <a href="{% url 'daily_time_record' %}" class="btn">Daily Time Record</a>
+</div>
+
+{% if is_adviser %}
+<div class="card" style="max-width: 480px; margin-top: var(--space-4);">
     <h3>Classroom Details</h3>
     <p><small>Update your section's grade level, track, strand, section name, and modality.</small></p>
     <a href="{% url 'edit_my_section' %}" class="btn">Edit Classroom Details</a>
@@ -24,12 +30,6 @@
     <h3>School Data</h3>
     <p><small>Update your school's name, location, and the registrar/principal/SDS names shown on report cards.</small></p>
     <a href="{% url 'edit_school_profile' %}" class="btn">Edit School Data</a>
-</div>
-{% endif %}
-
-{% if not is_adviser and not is_school_admin %}
-<div class="card">
-    <p>No tools available for your role yet.</p>
 </div>
 {% endif %}
 {% endblock %}

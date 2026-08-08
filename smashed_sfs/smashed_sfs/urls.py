@@ -23,6 +23,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('ancillary/', views.ancillary, name='ancillary'),
     path('tools/', views.tools, name='tools'),
+    path('tools/dtr/', views.daily_time_record, name='daily_time_record'),
     
     path('students/', include('students.urls')),
     path('grades/', include('grades.urls')),

@@ -1,4 +1,5 @@
 import math
+from datetime import date
 
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, authenticate, logout
@@ -355,4 +356,16 @@ def tools(request):
         'page_title': 'Tools',
         'is_adviser': is_adviser,
         'is_school_admin': is_school_admin,
+    })
+
+
+@login_required
+def daily_time_record(request):
+    teacher = Teacher.objects.filter(username=request.user.username).first()
+    today = date.today()
+    return render(request, 'accounts/dtr.html', {
+        'teacher': teacher,
+        'month_name': today.strftime('%B'),
+        'year': today.strftime('%Y'),
+        'days': range(1, 32),
     })

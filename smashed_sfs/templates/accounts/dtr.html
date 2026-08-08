@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}DAILY TIME RECORD{% endblock %}
+
+{% block content %}
+<div class="no-print">
+    <h2>&#128197; Daily Time Record</h2>
+    <a href="{% url 'tools' %}" class="btn ghost">&larr; Back to Tools</a>
+    <button type="button" class="btn" onclick="window.print()">Print</button>
+    <button type="button" class="btn btn-success" onclick="window.print()">Save As PDF</button>
+    <hr>
+</div>
+
+<div class="dtr-form">
+    <div class="dtr-form-tag">Civil Service Form No. 48</div>
+    <h1 class="dtr-title">Daily Time Record</h1>
+
+    <div class="dtr-name-line">{{ teacher.full_name|default:request.user.get_full_name|default:request.user.username }}</div>
+    <div class="dtr-name-label">(Name)</div>
+
+    <div class="dtr-meta">
+        <div class="dtr-meta-left">
+            <div>For the month of <span class="dtr-fill">{{ month_name }}</span>, <span class="dtr-fill dtr-fill-year">{{ year }}</span></div>
+            <div>Official hours of arrival<br>and departure</div>
+        </div>
+        <div class="dtr-meta-right">
+            <div>Regular Days <span class="dtr-fill"></span></div>
+            <div>Saturdays <span class="dtr-fill"></span></div>
+        </div>
+    </div>
+
+    <table class="dtr-table">
+        <thead>
+            <tr>
+                <th rowspan="3">Days</th>
+                <th colspan="2">A. M.</th>
+                <th colspan="2">P. M.</th>
+                <th colspan="2">Under Time</th>
+            </tr>
+            <tr>
+                <th>Arrival</th>
+                <th>Departure</th>
+                <th>Arrival</th>
+                <th>Departure</th>
+                <th>Hours</th>
+                <th>Minutes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for day in days %}
+            <tr>
+                <td class="dtr-day">{{ day }}</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            {% endfor %}
+            <tr class="dtr-total-row">
+                <td colspan="2" class="dtr-total-label">TOTAL</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p class="dtr-certify">
+        <em>I CERTIFY on my honor that the above is a true and correct report of the hours of work
+        performed, record of which was made daily at the time of arrival and departure from office.</em>
+    </p>
+
+    <div class="dtr-signature">
+        <div class="dtr-signature-line"></div>
+        <div class="dtr-signature-label"><em>In-Charge</em></div>
+    </div>
+</div>
+
+<style>
+    .dtr-form {
+        max-width: 620px;
+        margin: var(--space-5) auto;
+        padding: var(--space-6);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        background: var(--card);
+        font-family: var(--font-body);
+    }
+    .dtr-form-tag { font-size: 12px; color: var(--ink-faint); }
+    .dtr-title { text-align: center; font-size: 24px; margin: var(--space-2) 0 var(--space-5); }
+    .dtr-name-line {
+        border-bottom: 1px dashed #000;
+        text-align: center;
+        font-weight: 700;
+        padding-bottom: var(--space-1);
+        min-height: 1.4em;
+    }
+    .dtr-name-label { text-align: center; font-style: italic; font-size: 13px; color: var(--ink-soft); margin-bottom: var(--space-4); }
+    .dtr-meta { display: flex; justify-content: space-between; gap: var(--space-5); font-size: 14px; margin-bottom: var(--space-4); }
+    .dtr-meta-left, .dtr-meta-right { flex: 1; }
+    .dtr-meta div { margin-bottom: var(--space-2); font-style: italic; }
+    .dtr-fill { display: inline-block; min-width: 90px; border-bottom: 1px dashed #000; text-align: center; font-style: normal; }
+    .dtr-fill-year { min-width: 40px; }
+
+    .dtr-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: var(--space-4); }
+    .dtr-table th, .dtr-table td {
+        border: 1px solid #000;
+        text-align: center;
+        padding: 4px 6px;
+    }
+    .dtr-table thead th { font-weight: 700; }
+    .dtr-day { font-weight: 600; width: 32px; }
+    .dtr-table td:not(.dtr-day):not(.dtr-total-label) { height: 22px; }
+    .dtr-total-row td { font-weight: 700; }
+    .dtr-total-label { text-align: right; padding-right: var(--space-3); }
+
+    .dtr-certify { font-size: 13px; line-height: 1.5; margin-bottom: var(--space-6); }
+
+    .dtr-signature { text-align: center; margin-top: var(--space-6); }
+    .dtr-signature-line { border-bottom: 1px solid #000; width: 220px; margin: 0 auto var(--space-1); }
+    .dtr-signature-label { font-size: 13px; }
+
+    @media print {
+        @page { size: letter; margin: 0.5in; }
+        .no-print, .header, .alert { display: none !important; }
+        body { background: #fff; }
+        .container { box-shadow: none; margin: 0; padding: 0; max-width: none; }
+        .dtr-form { border: none; max-width: none; }
+    }
+</style>
+{% endblock %}
