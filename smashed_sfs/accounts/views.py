@@ -1,3 +1,4 @@
+import calendar
 import math
 from datetime import date
 
@@ -10,7 +11,7 @@ from django.db import transaction
 
 from students.models import Section, Student
 from portal.models import StudentAccount
-from grades.models import Grade, SubjectMapping
+from grades.models import Grade, SubjectMapping, SchoolCalendarException
 from .models import Teacher
 from .forms import SchoolProfileSelectForm, SchoolProfileForm, SectionForm
 
@@ -363,9 +364,37 @@ def tools(request):
 def daily_time_record(request):
     teacher = Teacher.objects.filter(username=request.user.username).first()
     today = date.today()
+    year, month = today.year, today.month
+
+    # SF2's own school-day convention (grades/views.py's _school_days_in_month):
+    # Mon-Fri are school days and Sat/Sun are not, unless a
+    # SchoolCalendarException for this school flips a specific date the
+    # other way (a declared holiday on a weekday, or a Saturday make-up
+    # class). Same source of truth here, so the DTR and SF2 never disagree
+    # about which dates are Saturday/Sunday/Holiday for a given school.
+    exceptions = {}
+    if teacher and teacher.school_profile_id:
+        exceptions = {
+            e.date: e.is_school_day
+            for e in SchoolCalendarException.objects.filter(
+                school_profile_id=teacher.school_profile_id, date__year=year, date__month=month
+            )
+        }
+
+    num_days = calendar.monthrange(year, month)[1]
+    days = []
+    for day in range(1, num_days + 1):
+        d = date(year, month, day)
+        is_school_day = exceptions.get(d, d.weekday() < 5)
+        if not is_school_day:
+            label = 'Saturday' if d.weekday() == 5 else 'Sunday' if d.weekday() == 6 else 'Holiday'
+        else:
+            label = None
+        days.append({'day': day, 'label': label})
+
     return render(request, 'accounts/dtr.html', {
         'teacher': teacher,
         'month_name': today.strftime('%B'),
         'year': today.strftime('%Y'),
-        'days': range(1, 32),
+        'days': days,
     })
