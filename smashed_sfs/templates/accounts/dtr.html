@@ -51,15 +51,15 @@
             <tr>
                 <td class="dtr-day">{{ entry.day }}</td>
                 {% if entry.label %}
-                <td colspan="6" class="dtr-day-label">{{ entry.label }}</td>
+                <td class="dtr-day-label-cell"><span class="dtr-day-label-text">{{ entry.label }}</span></td>
                 {% else %}
                 <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
                 {% endif %}
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
             </tr>
             {% endfor %}
             <tr class="dtr-total-row">
@@ -120,12 +120,17 @@
     .dtr-table td:not(.dtr-day):not(.dtr-total-label) { height: 22px; }
     .dtr-total-row td { font-weight: 700; }
     .dtr-total-label { text-align: right; padding-right: var(--space-3); }
-    .dtr-day-label {
+    .dtr-day-label-cell { position: relative; overflow: visible; }
+    .dtr-day-label-text {
+        position: absolute;
+        left: 6px;
+        top: 50%;
+        transform: translateY(-50%);
+        white-space: nowrap;
         font-style: italic;
         font-weight: 700;
         letter-spacing: .03em;
         color: var(--ink-soft);
-        background: var(--bg-exhibit);
     }
 
     .dtr-certify { font-size: 13px; line-height: 1.5; margin-bottom: var(--space-6); }
