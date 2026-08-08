@@ -24,6 +24,8 @@ urlpatterns = [
     path('ancillary/', views.ancillary, name='ancillary'),
     path('tools/', views.tools, name='tools'),
     path('tools/dtr/', views.daily_time_record, name='daily_time_record'),
+    path('tools/dtr/upload/', views.upload_dtr, name='upload_dtr'),
+    path('tools/dtr/save-cell/', views.save_dtr_cell, name='save_dtr_cell'),
     
     path('students/', include('students.urls')),
     path('grades/', include('grades.urls')),

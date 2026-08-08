@@ -34,3 +34,23 @@ class Teacher(models.Model):
 
     def __str__(self):
         return self.full_name
+
+
+class TeacherTimeRecord(models.Model):
+    """One day's worth of Daily Time Record (Civil Service Form No. 48)
+    entries for a teacher - either typed in by hand or imported from a
+    biometric/DTR app's CSV or Excel export via accounts.views.upload_dtr."""
+
+    record_id = models.AutoField(primary_key=True)
+    teacher_id = models.IntegerField()
+    date = models.DateField()
+    am_arrival = models.CharField(max_length=16, blank=True, null=True)
+    am_departure = models.CharField(max_length=16, blank=True, null=True)
+    pm_arrival = models.CharField(max_length=16, blank=True, null=True)
+    pm_departure = models.CharField(max_length=16, blank=True, null=True)
+    undertime_hours = models.CharField(max_length=16, blank=True, null=True)
+    undertime_minutes = models.CharField(max_length=16, blank=True, null=True)
+
+    class Meta:
+        db_table = 'teacher_time_record'
+        unique_together = ('teacher_id', 'date')

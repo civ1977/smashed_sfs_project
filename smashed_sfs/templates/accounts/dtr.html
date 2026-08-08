@@ -7,7 +7,16 @@
     <h2>&#128197; Daily Time Record</h2>
     <a href="{% url 'tools' %}" class="btn ghost">&larr; Back to Tools</a>
     <button type="button" class="btn" onclick="window.print()">Print</button>
-    <button type="button" class="btn btn-success" onclick="window.print()">Save As PDF</button>
+    <button type="button" class="btn btn-success" onclick="document.getElementById('dtr-file-input').click()">Upload CSV/Excel</button>
+    <form id="dtr-upload-form" method="post" enctype="multipart/form-data" action="{% url 'upload_dtr' %}" style="display:none;">
+        {% csrf_token %}
+        <input type="file" id="dtr-file-input" name="dtr_file" accept=".csv,.xlsx,.xlsm" onchange="document.getElementById('dtr-upload-form').submit()">
+    </form>
+    <p style="color: #999; font-size: 12px; margin-top: 6px;">
+        Upload a CSV or Excel export from your DTR/biometric app - Date plus either a Time column (a punch log)
+        or Time In/Time Out columns are auto-matched to the AM/PM Arrival/Departure cells below. Any cell can
+        also be edited directly by clicking into it.
+    </p>
     <hr>
 </div>
 
@@ -52,14 +61,19 @@
                 <td class="dtr-day">{{ entry.day }}</td>
                 {% if entry.label %}
                 <td class="dtr-day-label-cell"><span class="dtr-day-label-text">{{ entry.label }}</span></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
                 {% else %}
-                <td></td>
+                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="am_arrival">{{ entry.am_arrival }}</td>
+                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="am_departure">{{ entry.am_departure }}</td>
+                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="pm_arrival">{{ entry.pm_arrival }}</td>
+                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="pm_departure">{{ entry.pm_departure }}</td>
+                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="undertime_hours">{{ entry.undertime_hours }}</td>
+                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="undertime_minutes">{{ entry.undertime_minutes }}</td>
                 {% endif %}
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
             </tr>
             {% endfor %}
             <tr class="dtr-total-row">
@@ -133,6 +147,11 @@
         color: var(--ink-soft);
     }
 
+    .dtr-editable { cursor: text; }
+    .dtr-editable:hover { background: var(--bg-exhibit); }
+    .dtr-editable:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--accent-wash); }
+    .dtr-editable.dtr-just-saved { background: var(--good-wash); }
+
     .dtr-certify { font-size: 13px; line-height: 1.5; margin-bottom: var(--space-6); }
 
     .dtr-signature { text-align: center; margin-top: var(--space-6); }
@@ -147,4 +166,44 @@
         .dtr-form { border: none; max-width: none; }
     }
 </style>
+
+<script>
+    (function () {
+        var csrfToken = document.querySelector('#dtr-upload-form [name=csrfmiddlewaretoken]').value;
+
+        document.querySelectorAll('.dtr-editable').forEach(function (cell) {
+            var lastSaved = cell.textContent.trim();
+            cell.addEventListener('blur', function () {
+                var value = cell.textContent.trim();
+                if (value === lastSaved) return;
+                lastSaved = value;
+
+                fetch("{% url 'save_dtr_cell' %}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        date: cell.dataset.date,
+                        field: cell.dataset.field,
+                        value: value,
+                    }),
+                }).then(function (resp) {
+                    if (!resp.ok) throw new Error('save failed');
+                    cell.classList.add('dtr-just-saved');
+                    setTimeout(function () { cell.classList.remove('dtr-just-saved'); }, 800);
+                }).catch(function () {
+                    cell.style.background = 'var(--risk-wash)';
+                });
+            });
+            cell.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    cell.blur();
+                }
+            });
+        });
+    })();
+</script>
 {% endblock %}
