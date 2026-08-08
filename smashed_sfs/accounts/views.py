@@ -2,6 +2,7 @@ import calendar
 import csv
 import io
 import math
+from collections import Counter
 from datetime import date, datetime
 
 import openpyxl
@@ -12,6 +13,7 @@ from django.contrib.auth.models import User
 from django.contrib import messages
 from django.db import transaction
 from django.http import JsonResponse
+from django.urls import reverse
 
 from students.models import Section, Student
 from portal.models import StudentAccount
@@ -374,7 +376,16 @@ DTR_EDITABLE_FIELDS = (
 def daily_time_record(request):
     teacher = Teacher.objects.filter(username=request.user.username).first()
     today = date.today()
-    year, month = today.year, today.month
+    try:
+        year = int(request.GET.get('year', today.year))
+    except ValueError:
+        year = today.year
+    try:
+        month = int(request.GET.get('month', today.month))
+    except ValueError:
+        month = today.month
+    if month < 1 or month > 12:
+        month = today.month
 
     # SF2's own school-day convention (grades/views.py's _school_days_in_month):
     # Mon-Fri are school days and Sat/Sun are not, unless a
@@ -414,10 +425,19 @@ def daily_time_record(request):
             entry[field] = getattr(record, field, '') or '' if record else ''
         days.append(entry)
 
+    prev_month, prev_year = (12, year - 1) if month == 1 else (month - 1, year)
+    next_month, next_year = (1, year + 1) if month == 12 else (month + 1, year)
+
     return render(request, 'accounts/dtr.html', {
         'teacher': teacher,
-        'month_name': today.strftime('%B'),
-        'year': today.strftime('%Y'),
+        'month_name': date(year, month, 1).strftime('%B'),
+        'year': year,
+        'prev_year': prev_year,
+        'prev_month': prev_month,
+        'prev_month_name': date(prev_year, prev_month, 1).strftime('%B'),
+        'next_year': next_year,
+        'next_month': next_month,
+        'next_month_name': date(next_year, next_month, 1).strftime('%B'),
         'days': days,
     })
 
@@ -627,23 +647,29 @@ def upload_dtr(request):
         messages.error(request, error)
         return redirect('daily_time_record')
 
-    today = date.today()
-    in_month = {d: entry for d, entry in parsed.items() if d.year == today.year and d.month == today.month}
-    skipped = len(parsed) - len(in_month)
-
-    for d, entry in in_month.items():
+    # DTR prep is typically for the upcoming month, not "now" - so the file's
+    # own dates decide which month gets saved and shown, never today's date.
+    # A file can span more than one month (e.g. a late upload spilling into
+    # the next month's first few days); everything gets saved, and the view
+    # jumps to whichever month has the most records in this upload.
+    for d, entry in parsed.items():
         record, _ = TeacherTimeRecord.objects.get_or_create(teacher_id=teacher.teacher_id, date=d)
         for field in ('am_arrival', 'am_departure', 'pm_arrival', 'pm_departure'):
             if entry.get(field):
                 setattr(record, field, entry[field])
         record.save()
 
-    if in_month:
-        note = f' ({skipped} outside {today.strftime("%B %Y")} were skipped)' if skipped else ''
-        messages.success(request, f'Imported time records for {len(in_month)} day(s){note}.')
-    else:
-        messages.error(request, f'That file had no records for {today.strftime("%B %Y")}.')
-    return redirect('daily_time_record')
+    month_counts = Counter((d.year, d.month) for d in parsed)
+    primary_year, primary_month = month_counts.most_common(1)[0][0]
+    other_months = len(parsed) - month_counts[(primary_year, primary_month)]
+
+    note = f' ({other_months} fell in a different month and were saved there instead)' if other_months else ''
+    messages.success(
+        request,
+        f'Imported time records for {month_counts[(primary_year, primary_month)]} day(s) in '
+        f'{date(primary_year, primary_month, 1).strftime("%B %Y")}{note}.',
+    )
+    return redirect(f"{reverse('daily_time_record')}?year={primary_year}&month={primary_month}")
 
 
 @login_required

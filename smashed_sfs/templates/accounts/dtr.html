@@ -6,6 +6,8 @@
 <div class="no-print">
     <h2>&#128197; Daily Time Record</h2>
     <a href="{% url 'tools' %}" class="btn ghost">&larr; Back to Tools</a>
+    <a href="{% url 'daily_time_record' %}?year={{ prev_year }}&month={{ prev_month }}" class="btn ghost">&larr; {{ prev_month_name }}</a>
+    <a href="{% url 'daily_time_record' %}?year={{ next_year }}&month={{ next_month }}" class="btn ghost">{{ next_month_name }} &rarr;</a>
     <button type="button" class="btn" onclick="window.print()">Print</button>
     <button type="button" class="btn btn-success" onclick="document.getElementById('dtr-file-input').click()">Upload CSV/Excel</button>
     <form id="dtr-upload-form" method="post" enctype="multipart/form-data" action="{% url 'upload_dtr' %}" style="display:none;">
