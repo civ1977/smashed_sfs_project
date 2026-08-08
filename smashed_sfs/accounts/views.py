@@ -2,7 +2,6 @@ import calendar
 import csv
 import io
 import math
-from collections import Counter
 from datetime import date, datetime
 from urllib.parse import quote
 
@@ -12,7 +11,7 @@ from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib import messages
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.http import JsonResponse
 from django.urls import reverse
 
@@ -456,6 +455,7 @@ def daily_time_record(request):
         'teacher': teacher,
         'employee_name': employee_name,
         'name_options': _dtr_name_options(teacher),
+        'month': month,
         'month_name': date(year, month, 1).strftime('%B'),
         'year': year,
         'prev_year': prev_year,
@@ -665,6 +665,13 @@ def upload_dtr(request):
         return redirect('daily_time_record')
 
     employee_name = request.POST.get('employee_name', '').strip() or teacher.full_name
+    today = date.today()
+    try:
+        target_year = int(request.POST.get('year', today.year))
+        target_month = int(request.POST.get('month', today.month))
+    except ValueError:
+        target_year, target_month = today.year, today.month
+    back_url = f"{reverse('daily_time_record')}?year={target_year}&month={target_month}&name={quote(employee_name)}"
 
     try:
         parsed, error = _dtr_parse_upload(uploaded_file, employee_name)
@@ -673,14 +680,17 @@ def upload_dtr(request):
 
     if error:
         messages.error(request, error)
-        return redirect(f"{reverse('daily_time_record')}?name={quote(employee_name)}")
+        return redirect(back_url)
 
-    # DTR prep is typically for the upcoming month, not "now" - so the file's
-    # own dates decide which month gets saved and shown, never today's date.
-    # A file can span more than one month (e.g. a late upload spilling into
-    # the next month's first few days); everything gets saved, and the view
-    # jumps to whichever month has the most records in this upload.
-    for d, entry in parsed.items():
+    # This upload button is bound to whichever month is currently on
+    # screen (a separate button per month, in effect, since navigating to
+    # a different month changes what it's scoped to) - only rows for that
+    # exact month get saved; anything else in the file is reported as
+    # skipped rather than silently redirecting the user somewhere else.
+    in_month = {d: entry for d, entry in parsed.items() if d.year == target_year and d.month == target_month}
+    skipped = len(parsed) - len(in_month)
+
+    for d, entry in in_month.items():
         record, _ = TeacherTimeRecord.objects.get_or_create(
             teacher_id=teacher.teacher_id, employee_name=employee_name, date=d
         )
@@ -689,19 +699,49 @@ def upload_dtr(request):
                 setattr(record, field, entry[field])
         record.save()
 
-    month_counts = Counter((d.year, d.month) for d in parsed)
-    primary_year, primary_month = month_counts.most_common(1)[0][0]
-    other_months = len(parsed) - month_counts[(primary_year, primary_month)]
+    target_label = date(target_year, target_month, 1).strftime('%B %Y')
+    if in_month:
+        note = f' ({skipped} fell outside {target_label} and were skipped)' if skipped else ''
+        messages.success(request, f'Imported time records for {employee_name} - {len(in_month)} day(s) in {target_label}{note}.')
+    else:
+        messages.error(request, f'That file had no records for {employee_name} in {target_label}.')
+    return redirect(back_url)
 
-    note = f' ({other_months} fell in a different month and were saved there instead)' if other_months else ''
-    messages.success(
-        request,
-        f'Imported time records for {employee_name} - {month_counts[(primary_year, primary_month)]} day(s) in '
-        f'{date(primary_year, primary_month, 1).strftime("%B %Y")}{note}.',
-    )
-    return redirect(
-        f"{reverse('daily_time_record')}?year={primary_year}&month={primary_month}&name={quote(employee_name)}"
-    )
+
+@login_required
+def rename_dtr_employee(request):
+    """Editing the Name line on the DTR form itself is a correction (a typo,
+    a formatting fix) to whoever's records are already loaded - it renames
+    every one of that person's TeacherTimeRecord rows under this account
+    and keeps all their time data. This is deliberately separate from the
+    Name field's search box, which just looks up a (possibly different,
+    possibly empty) existing person's DTR without touching any data."""
+    if request.method != 'POST':
+        return redirect('daily_time_record')
+
+    teacher = Teacher.objects.filter(username=request.user.username).first()
+    if not teacher:
+        return redirect('daily_time_record')
+
+    old_name = request.POST.get('old_name', '').strip()
+    new_name = request.POST.get('new_name', '').strip()
+    year = request.POST.get('year', '')
+    month = request.POST.get('month', '')
+
+    if new_name and old_name and new_name != old_name:
+        try:
+            TeacherTimeRecord.objects.filter(teacher_id=teacher.teacher_id, employee_name=old_name).update(
+                employee_name=new_name
+            )
+            messages.success(request, f'Renamed "{old_name}" to "{new_name}" - all their time records were kept.')
+        except IntegrityError:
+            messages.error(
+                request,
+                f'Could not rename to "{new_name}" - that name already has records on some of the same dates.',
+            )
+            new_name = old_name
+
+    return redirect(f"{reverse('daily_time_record')}?year={year}&month={month}&name={quote(new_name or old_name)}")
 
 
 @login_required
