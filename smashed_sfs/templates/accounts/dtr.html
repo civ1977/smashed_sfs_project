@@ -13,8 +13,9 @@
         <input type="file" id="dtr-file-input" name="dtr_file" accept=".csv,.xlsx,.xlsm" onchange="document.getElementById('dtr-upload-form').submit()">
     </form>
     <p style="color: #999; font-size: 12px; margin-top: 6px;">
-        Upload a CSV or Excel export from your DTR/biometric app - Date plus either a Time column (a punch log)
-        or Time In/Time Out columns are auto-matched to the AM/PM Arrival/Departure cells below. Any cell can
+        Upload a CSV or Excel export from your DTR/biometric app - a Name, Arrival Date, Arrival Time,
+        Departure Date, and Departure Time column (a Total column is fine too, it's just ignored) are
+        auto-matched to your own rows and filled into the AM Arrival / PM Departure cells below. Any cell can
         also be edited directly by clicking into it.
     </p>
     <hr>

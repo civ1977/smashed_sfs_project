@@ -468,14 +468,21 @@ def _dtr_parse_upload(uploaded_file, teacher_name):
     'pm_departure': ...}}. Returns (parsed_dict, error_message) - exactly
     one of the two is set.
 
-    Two export shapes are supported:
-    - A punch log: Date + Time columns, one row per scan. Up to 4 punches
-      for a day are sorted chronologically and distributed across AM/PM
+    Three export shapes are supported, tried in this order:
+    - Separate "Arrival Date"/"Arrival Time" and "Departure Date"/
+      "Departure Time" columns (the actual shape of the school's DTR app
+      export - a "Total" column, if present, is ignored). Arrival and
+      departure are logged as independent events under their own date
+      column, since a real export can have a lone arrival or departure
+      with the other side blank, or a departure dated the day after its
+      arrival.
+    - A pre-aggregated single Date + "Time In" + "Time Out" (one in/out
+      pair per day) - mapped to AM Arrival / PM Departure.
+    - A raw punch log: Date + Time, one row per scan. Up to 4 punches for
+      a day are sorted chronologically and distributed across AM/PM
       Arrival/Departure (2 punches -> AM Arrival + PM Departure, no lunch
       break recorded; 3 -> AM Arrival, AM Departure, PM Departure; 4 -> all
       four slots).
-    - A pre-aggregated Date + "Time In" + "Time Out" (single in/out per
-      day) - mapped to AM Arrival / PM Departure.
 
     An optional Name/Employee column, if present, filters to rows matching
     this teacher (case-insensitive substring match), so a whole-school
@@ -503,56 +510,80 @@ def _dtr_parse_upload(uploaded_file, teacher_name):
                 return header.index(name)
         return None
 
-    date_col = col_index('date')
+    def cell(row, idx):
+        return row[idx] if idx is not None and idx < len(row) else None
+
     name_col = col_index('name', 'employee', 'employee name', 'teacher')
+    arrival_date_col = col_index('arrival date')
+    arrival_time_col = col_index('arrival time')
+    departure_date_col = col_index('departure date')
+    departure_time_col = col_index('departure time')
+    date_col = col_index('date')
     time_col = col_index('time', 'punch time', 'check time', 'time recorded')
     time_in_col = col_index('time in', 'timein', 'am in')
     time_out_col = col_index('time out', 'timeout', 'pm out')
 
-    if date_col is None:
-        return None, 'Could not find a "Date" column in the file.'
+    if arrival_date_col is None and departure_date_col is None and date_col is None:
+        return None, 'Could not find a "Date" (or "Arrival Date"/"Departure Date") column in the file.'
 
     name_needle = (teacher_name or '').strip().lower()
     aggregated = {}
     punches_by_date = {}
 
-    for row in rows[1:]:
-        if name_col is not None and name_needle:
-            row_name = str(row[name_col] or '').strip().lower() if name_col < len(row) else ''
-            if name_needle not in row_name:
+    def name_matches(row):
+        if name_col is None or not name_needle:
+            return True
+        row_name = str(cell(row, name_col) or '').strip().lower()
+        return name_needle in row_name
+
+    if arrival_date_col is not None or departure_date_col is not None:
+        for row in rows[1:]:
+            if not name_matches(row):
+                continue
+            raw_arrival_date = cell(row, arrival_date_col)
+            if raw_arrival_date not in (None, ''):
+                d = _dtr_parse_date(raw_arrival_date)
+                t = _dtr_parse_time(cell(row, arrival_time_col))
+                if d and t:
+                    aggregated.setdefault(d, {})['am_arrival'] = t
+            raw_departure_date = cell(row, departure_date_col)
+            if raw_departure_date not in (None, ''):
+                d = _dtr_parse_date(raw_departure_date)
+                t = _dtr_parse_time(cell(row, departure_time_col))
+                if d and t:
+                    aggregated.setdefault(d, {})['pm_departure'] = t
+    else:
+        for row in rows[1:]:
+            if not name_matches(row):
+                continue
+            d = _dtr_parse_date(cell(row, date_col))
+            if not d:
                 continue
 
-        raw_date = row[date_col] if date_col < len(row) else None
-        d = _dtr_parse_date(raw_date)
-        if not d:
-            continue
-
-        if time_in_col is not None or time_out_col is not None:
-            entry = aggregated.setdefault(d, {})
-            if time_in_col is not None and time_in_col < len(row):
-                t = _dtr_parse_time(row[time_in_col])
-                if t:
-                    entry['am_arrival'] = t
-            if time_out_col is not None and time_out_col < len(row):
-                t = _dtr_parse_time(row[time_out_col])
-                if t:
-                    entry['pm_departure'] = t
-        elif time_col is not None and time_col < len(row):
-            raw_time = row[time_col]
-            if hasattr(raw_time, 'time') and hasattr(raw_time, 'year'):
-                time_obj = raw_time.time()
-            elif hasattr(raw_time, 'hour') and not hasattr(raw_time, 'year'):
-                time_obj = raw_time
-            else:
-                time_obj = None
-                for fmt in ('%H:%M:%S', '%H:%M', '%I:%M %p', '%I:%M:%S %p'):
-                    try:
-                        time_obj = datetime.strptime(str(raw_time).strip(), fmt).time()
-                        break
-                    except ValueError:
-                        continue
-            if time_obj is not None:
-                punches_by_date.setdefault(d, []).append(time_obj)
+            if time_in_col is not None or time_out_col is not None:
+                entry = aggregated.setdefault(d, {})
+                t_in = _dtr_parse_time(cell(row, time_in_col))
+                if t_in:
+                    entry['am_arrival'] = t_in
+                t_out = _dtr_parse_time(cell(row, time_out_col))
+                if t_out:
+                    entry['pm_departure'] = t_out
+            elif time_col is not None:
+                raw_time = cell(row, time_col)
+                if hasattr(raw_time, 'time') and hasattr(raw_time, 'year'):
+                    time_obj = raw_time.time()
+                elif hasattr(raw_time, 'hour') and not hasattr(raw_time, 'year'):
+                    time_obj = raw_time
+                else:
+                    time_obj = None
+                    for fmt in ('%H:%M:%S', '%H:%M', '%I:%M %p', '%I:%M:%S %p'):
+                        try:
+                            time_obj = datetime.strptime(str(raw_time).strip(), fmt).time()
+                            break
+                        except ValueError:
+                            continue
+                if time_obj is not None:
+                    punches_by_date.setdefault(d, []).append(time_obj)
 
     for d, punches in punches_by_date.items():
         punches.sort()
