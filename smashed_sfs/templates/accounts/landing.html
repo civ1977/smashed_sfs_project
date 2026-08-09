@@ -23,9 +23,9 @@
             <picture>
                 <source srcset="{% static 'images/landing_teacher.webp' %}" type="image/webp">
                 <img
-                    src="{% static 'images/landing_teacher.jpg' %}"
+                    src="{% static 'images/landing_teacher.png' %}"
                     alt="Teacher starting a class in SMASHED - SFs on a tablet"
-                    width="760" height="516"
+                    width="700" height="953"
                     loading="eager"
                     decoding="async"
                 >
@@ -128,8 +128,35 @@
         gap: var(--space-7);
     }
     .landing-banner-text { flex: 1 1 480px; min-width: 0; }
-    .landing-banner-image { flex: 1 1 340px; max-width: 380px; display: flex; justify-content: center; }
-    .landing-banner-image img { display: block; width: 100%; height: auto; }
+    .landing-banner-image {
+        position: relative;
+        flex: 0 0 auto;
+        width: 260px;
+        display: flex;
+        justify-content: center;
+        align-self: flex-end;
+    }
+    /* Soft radial glow grounds the cutout against the flat navy banner,
+       instead of it reading as a sticker pasted on top. */
+    .landing-banner-image::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        bottom: 6%;
+        transform: translateX(-50%);
+        width: 85%;
+        height: 40%;
+        background: radial-gradient(closest-side, rgba(255,255,255,.22), rgba(255,255,255,0) 70%);
+        z-index: 0;
+    }
+    .landing-banner-image img {
+        position: relative;
+        z-index: 1;
+        display: block;
+        width: 100%;
+        height: auto;
+        filter: drop-shadow(0 18px 20px rgba(0,0,0,.28));
+    }
     .landing-eyebrow {
         font-family: var(--font-body);
         font-size: 16px;
@@ -267,7 +294,7 @@
         .landing-testimonials-grid { grid-template-columns: 1fr; }
         .landing-headline { font-size: 28px; }
         .landing-banner-inner-split { flex-direction: column; }
-        .landing-banner-image { max-width: 260px; order: -1; }
+        .landing-banner-image { width: 200px; order: -1; align-self: center; }
     }
 </style>
 {% endblock %}
