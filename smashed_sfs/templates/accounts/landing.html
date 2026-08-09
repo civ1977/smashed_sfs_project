@@ -1,20 +1,35 @@
 {% extends 'base_public.html' %}
+{% load static %}
 
 {% block hero_class %} landing-hero{% endblock %}
 
 {% block content %}
 <div class="landing-banner">
-    <div class="landing-banner-inner">
-        <div class="landing-eyebrow">Cloud-Based and Automated School Forms and Reporting System</div>
-        <div class="landing-grade-badge">For Grades 4&ndash;12 &mdash; Elementary, Junior High, and Senior High</div>
-        <h1 class="landing-headline">Grades, attendance, and school forms &mdash; all in one place.</h1>
-        <p class="landing-sub">
-            SMASHED &ndash; SFs helps teachers, registrars, and school heads manage student records,
-            generate report cards, track attendance, consolidate reports without the paperwork.
-        </p>
-        <div class="landing-cta-row">
-            <a href="{% url 'login' %}" class="landing-btn-solid">Log In</a>
-            <a href="{% url 'register' %}" class="landing-btn-outline">Register as Teacher</a>
+    <div class="landing-banner-inner landing-banner-inner-split">
+        <div class="landing-banner-text">
+            <div class="landing-eyebrow">Cloud-Based and Automated School Forms and Reporting System</div>
+            <div class="landing-grade-badge">For Grades 4&ndash;12 &mdash; Elementary, Junior High, and Senior High</div>
+            <h1 class="landing-headline">Grades, attendance, and school forms &mdash; all in one place.</h1>
+            <p class="landing-sub">
+                SMASHED &ndash; SFs helps teachers, registrars, and school heads manage student records,
+                generate report cards, track attendance, consolidate reports without the paperwork.
+            </p>
+            <div class="landing-cta-row">
+                <a href="{% url 'login' %}" class="landing-btn-solid">Log In</a>
+                <a href="{% url 'register' %}" class="landing-btn-outline">Register as Teacher</a>
+            </div>
+        </div>
+        <div class="landing-banner-image">
+            <picture>
+                <source srcset="{% static 'images/landing_teacher.webp' %}" type="image/webp">
+                <img
+                    src="{% static 'images/landing_teacher.jpg' %}"
+                    alt="Teacher starting a class in SMASHED - SFs on a tablet"
+                    width="760" height="516"
+                    loading="eager"
+                    decoding="async"
+                >
+            </picture>
         </div>
     </div>
 </div>
@@ -106,6 +121,15 @@
         padding: var(--space-7) var(--space-5);
     }
     .landing-banner-inner { max-width: 640px; margin: 0 auto; }
+    .landing-banner-inner-split {
+        max-width: 1040px;
+        display: flex;
+        align-items: center;
+        gap: var(--space-7);
+    }
+    .landing-banner-text { flex: 1 1 480px; min-width: 0; }
+    .landing-banner-image { flex: 1 1 340px; max-width: 380px; display: flex; justify-content: center; }
+    .landing-banner-image img { display: block; width: 100%; height: auto; }
     .landing-eyebrow {
         font-family: var(--font-body);
         font-size: 16px;
@@ -242,6 +266,8 @@
         .landing-features { grid-template-columns: 1fr; }
         .landing-testimonials-grid { grid-template-columns: 1fr; }
         .landing-headline { font-size: 28px; }
+        .landing-banner-inner-split { flex-direction: column; }
+        .landing-banner-image { max-width: 260px; order: -1; }
     }
 </style>
 {% endblock %}
