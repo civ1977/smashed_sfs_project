@@ -1,0 +1,30 @@
+# systemd unit for the app's WSGI process.
+#
+# Install once on the VPS:
+#   sudo cp deploy/gunicorn.service /etc/systemd/system/smashed_sfs.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now smashed_sfs
+#
+# After every deploy (deploy.sh already does this):
+#   sudo systemctl restart smashed_sfs
+#
+# Logs:
+#   sudo journalctl -u smashed_sfs -f
+
+[Unit]
+Description=smashed_sfs (Gunicorn)
+After=network.target mysql.service
+
+[Service]
+User=deploy
+Group=www-data
+WorkingDirectory=/home/deploy/smashed_sfs
+EnvironmentFile=/home/deploy/smashed_sfs/.env
+ExecStart=/home/deploy/smashed_sfs/venv/bin/gunicorn \
+    --workers 3 \
+    --bind unix:/home/deploy/smashed_sfs/gunicorn.sock \
+    smashed_sfs.wsgi:application
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
