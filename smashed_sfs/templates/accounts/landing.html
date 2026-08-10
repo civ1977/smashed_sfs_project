@@ -24,8 +24,8 @@
                 <source srcset="{% static 'images/landing_teacher.webp' %}" type="image/webp">
                 <img
                     src="{% static 'images/landing_teacher.png' %}"
-                    alt="Teachers and students using SMASHED - SFs across devices"
-                    width="640" height="676"
+                    alt="Teachers and students using SMASHED - SFs across devices, with feature callouts"
+                    width="2000" height="1357"
                     loading="eager"
                     decoding="async"
                 >
@@ -122,40 +122,24 @@
     }
     .landing-banner-inner { max-width: 640px; margin: 0 auto; }
     .landing-banner-inner-split {
-        max-width: 1040px;
+        max-width: 1180px;
         display: flex;
         align-items: center;
-        gap: var(--space-7);
+        gap: var(--space-6);
     }
-    .landing-banner-text { flex: 1 1 480px; min-width: 0; }
+    .landing-banner-text { flex: 1 1 420px; min-width: 0; }
     .landing-banner-image {
         position: relative;
-        flex: 0 0 auto;
-        width: 320px;
+        flex: 1 1 460px;
+        max-width: 480px;
         display: flex;
         justify-content: center;
-        align-self: flex-end;
-    }
-    /* Soft radial glow grounds the cutout against the flat navy banner,
-       instead of it reading as a sticker pasted on top. */
-    .landing-banner-image::before {
-        content: "";
-        position: absolute;
-        left: 50%;
-        bottom: 6%;
-        transform: translateX(-50%);
-        width: 85%;
-        height: 40%;
-        background: radial-gradient(closest-side, rgba(255,255,255,.22), rgba(255,255,255,0) 70%);
-        z-index: 0;
     }
     .landing-banner-image img {
-        position: relative;
-        z-index: 1;
         display: block;
         width: 100%;
         height: auto;
-        filter: drop-shadow(0 18px 20px rgba(0,0,0,.28));
+        filter: drop-shadow(0 14px 18px rgba(0,0,0,.25));
     }
     .landing-eyebrow {
         font-family: var(--font-body);
@@ -294,7 +278,7 @@
         .landing-testimonials-grid { grid-template-columns: 1fr; }
         .landing-headline { font-size: 28px; }
         .landing-banner-inner-split { flex-direction: column; }
-        .landing-banner-image { width: 240px; order: -1; align-self: center; }
+        .landing-banner-image { max-width: 340px; order: -1; align-self: center; }
     }
 </style>
 {% endblock %}
