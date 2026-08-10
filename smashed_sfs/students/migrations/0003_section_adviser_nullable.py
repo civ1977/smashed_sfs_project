@@ -8,8 +8,18 @@
 # school_sections). The real FK constraint (section.adviser_id ->
 # teacher_adviser.teacher_id) already permits NULL values in MySQL - it
 # only enforces referential integrity when the column is non-null.
+#
+# No-op as of the "Migration history vs. real schema" reconciliation (see
+# CLAUDE.md): this originally AlterField'd `section.adviser_id`, but that
+# field doesn't actually exist yet at this point in a from-scratch build -
+# it's still the ForeignKey `adviser` from 0002 (Section.adviser is only
+# replaced with a plain, nullable `adviser_id` in 0004, which was missing
+# that AddField and has now been fixed to include it, already nullable).
+# This step is kept only so nothing else has to depend on a different
+# migration name; deleting it outright would be equally correct but riskier
+# to reconcile against the already-applied real database.
 
-from django.db import migrations, models
+from django.db import migrations
 
 
 class Migration(migrations.Migration):
@@ -18,10 +28,4 @@ class Migration(migrations.Migration):
         ('students', '0002_alter_schoolprofile_created_by_section_student'),
     ]
 
-    operations = [
-        migrations.AlterField(
-            model_name='section',
-            name='adviser_id',
-            field=models.IntegerField(blank=True, null=True),
-        ),
-    ]
+    operations = []

@@ -19,14 +19,6 @@
         </datalist>
     </div>
 
-    <button type="button" class="btn btn-success" onclick="document.getElementById('dtr-file-input').click()">Upload CSV/Excel for {{ month_name }} {{ year }}</button>
-    <form id="dtr-upload-form" method="post" enctype="multipart/form-data" action="{% url 'upload_dtr' %}" style="display:none;">
-        {% csrf_token %}
-        <input type="hidden" name="employee_name" value="{{ employee_name }}">
-        <input type="hidden" name="year" value="{{ year }}">
-        <input type="hidden" name="month" value="{{ month }}">
-        <input type="file" id="dtr-file-input" name="dtr_file" accept=".csv,.xlsx,.xlsm" onchange="document.getElementById('dtr-upload-form').submit()">
-    </form>
     <form id="dtr-rename-form" method="post" action="{% url 'rename_dtr_employee' %}" style="display:none;">
         {% csrf_token %}
         <input type="hidden" name="old_name" value="{{ employee_name }}">
@@ -35,11 +27,9 @@
         <input type="hidden" name="month" value="{{ month }}">
     </form>
     <p style="color: #999; font-size: 12px; margin-top: 6px;">
-        This upload button only imports rows from {{ month_name }} {{ year }} - switch months above to import a
-        different month. A CSV/Excel export needs a Name, Arrival Date, Arrival Time, Departure Date, and
-        Departure Time column (a Total column is fine too, it's just ignored). Any cell below can also be
-        edited directly by clicking into it, and the Name on the form itself can be corrected in place without
-        losing its data - use the search box above instead to switch to a different person's DTR.
+        To import a CSV/Excel export, use the centralized upload on the school dashboard. Any cell below can
+        also be edited directly by clicking into it, and the Name on the form itself can be corrected in place
+        without losing its data - use the search box above instead to switch to a different person's DTR.
     </p>
     <hr>
 </div>
@@ -258,7 +248,7 @@
             }
         });
 
-        var csrfToken = document.querySelector('#dtr-upload-form [name=csrfmiddlewaretoken]').value;
+        var csrfToken = document.querySelector('#dtr-rename-form [name=csrfmiddlewaretoken]').value;
         document.querySelectorAll('.dtr-editable').forEach(function (cell) {
             var lastSaved = cell.textContent.trim();
             cell.addEventListener('blur', function () {

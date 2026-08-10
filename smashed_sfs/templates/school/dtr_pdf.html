@@ -1,0 +1,187 @@
+<html>
+<head>
+<style>
+    @page {
+        size: letter;
+        margin: 0.5in;
+    }
+    body {
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 10pt;
+    }
+    .dtr-form {
+        page-break-after: always;
+    }
+    .dtr-form:last-child {
+        page-break-after: avoid;
+    }
+    .dtr-form-tag {
+        font-size: 8pt;
+        color: #666;
+    }
+    .dtr-title {
+        text-align: center;
+        font-size: 16pt;
+        margin: 4px 0 14px;
+    }
+    .dtr-name-line {
+        text-align: center;
+        font-weight: bold;
+        font-size: 11pt;
+        border-bottom: 1px dashed #000;
+        padding-bottom: 2px;
+    }
+    .dtr-name-label {
+        text-align: center;
+        font-style: italic;
+        font-size: 8pt;
+        color: #555;
+        margin-bottom: 12px;
+    }
+    .dtr-meta {
+        width: 100%;
+        margin-bottom: 12px;
+    }
+    .dtr-meta td {
+        font-style: italic;
+        font-size: 9pt;
+        padding: 2px 0;
+        vertical-align: top;
+    }
+    .dtr-fill {
+        display: inline-block;
+        min-width: 70px;
+        border-bottom: 1px dashed #000;
+        text-align: center;
+        font-style: normal;
+    }
+    table.dtr-table {
+        width: 540pt;
+        border-collapse: collapse;
+        font-size: 9pt;
+        margin-bottom: 12px;
+    }
+    .dtr-table th, .dtr-table td {
+        border: 1px solid #000;
+        text-align: center;
+        padding: 3px 4px;
+    }
+    .dtr-table thead th {
+        font-weight: bold;
+    }
+    .dtr-day {
+        font-weight: bold;
+    }
+    .dtr-day-label {
+        font-style: italic;
+        font-weight: bold;
+        color: #555;
+        text-align: left;
+        padding-left: 6px;
+    }
+    .dtr-total-row td {
+        font-weight: bold;
+    }
+    .dtr-total-label {
+        text-align: right;
+        padding-right: 8px;
+    }
+    .dtr-certify {
+        font-size: 9pt;
+        line-height: 1.4;
+        margin-bottom: 24px;
+    }
+    .dtr-signature {
+        text-align: center;
+    }
+    .dtr-signature-line {
+        border-bottom: 1px solid #000;
+        width: 200px;
+        margin: 0 auto 2px;
+    }
+    .dtr-signature-label {
+        font-size: 9pt;
+        font-style: italic;
+    }
+</style>
+</head>
+<body>
+{% for form in forms %}
+<div class="dtr-form">
+    <div class="dtr-form-tag">Civil Service Form No. 48</div>
+    <h1 class="dtr-title">Daily Time Record</h1>
+
+    <div class="dtr-name-line">{{ form.employee_name }}</div>
+    <div class="dtr-name-label">(Name)</div>
+
+    <table class="dtr-meta">
+        <tr>
+            <td width="50%">
+                For the month of <span class="dtr-fill">{{ month_name }}</span>, <span class="dtr-fill" style="min-width:40px;">{{ year }}</span><br>
+                Official hours of arrival and departure
+            </td>
+            <td width="50%">
+                Regular Days <span class="dtr-fill"></span><br>
+                Saturdays <span class="dtr-fill"></span>
+            </td>
+        </tr>
+    </table>
+
+    <table class="dtr-table">
+        <thead>
+            <tr>
+                <th style="width: 40pt;">Days</th>
+                <th style="width: 84pt;">A. M.<br/>Arrival</th>
+                <th style="width: 84pt;">A. M.<br/>Departure</th>
+                <th style="width: 84pt;">P. M.<br/>Arrival</th>
+                <th style="width: 84pt;">P. M.<br/>Departure</th>
+                <th style="width: 82pt;">Under Time<br/>Hours</th>
+                <th style="width: 82pt;">Under Time<br/>Minutes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in form.days %}
+            <tr>
+                <td class="dtr-day" style="width: 40pt;">{{ entry.day }}</td>
+                {% if entry.label %}
+                <td class="dtr-day-label" style="width: 84pt;">{{ entry.label }}</td>
+                <td style="width: 84pt;"></td>
+                <td style="width: 84pt;"></td>
+                <td style="width: 84pt;"></td>
+                <td style="width: 82pt;"></td>
+                <td style="width: 82pt;"></td>
+                {% else %}
+                <td style="width: 84pt;">{{ entry.am_arrival }}</td>
+                <td style="width: 84pt;">{{ entry.am_departure }}</td>
+                <td style="width: 84pt;">{{ entry.pm_arrival }}</td>
+                <td style="width: 84pt;">{{ entry.pm_departure }}</td>
+                <td style="width: 82pt;">{{ entry.undertime_hours }}</td>
+                <td style="width: 82pt;">{{ entry.undertime_minutes }}</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+            <tr class="dtr-total-row">
+                <td class="dtr-total-label" style="width: 40pt;">TOTAL</td>
+                <td style="width: 84pt;"></td>
+                <td style="width: 84pt;"></td>
+                <td style="width: 84pt;"></td>
+                <td style="width: 84pt;"></td>
+                <td style="width: 82pt;"></td>
+                <td style="width: 82pt;"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p class="dtr-certify">
+        <i>I CERTIFY on my honor that the above is a true and correct report of the hours of work performed,
+        record of which was made daily at the time of arrival and departure from office.</i>
+    </p>
+
+    <div class="dtr-signature">
+        <div class="dtr-signature-line"></div>
+        <div class="dtr-signature-label"><i>In-Charge</i></div>
+    </div>
+</div>
+{% endfor %}
+</body>
+</html>

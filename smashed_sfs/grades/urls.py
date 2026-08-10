@@ -13,7 +13,7 @@ urlpatterns = [
     path('term-remark/save/', views.save_term_remark, name='save_term_remark'),
 
     path('my-subject-teaching/', views.my_subject_teaching, name='my_subject_teaching'),
-    path('my-subject-teaching/<int:assignment_id>/', views.subject_teaching_grades, name='subject_teaching_grades'),
+    path('my-subject-teaching/<int:assignment_id>/<int:term>/', views.subject_teaching_grades, name='subject_teaching_grades'),
 
     path('attendance/grid/', views.attendance_grid, name='attendance_grid'),
     path('attendance/grid/save/', views.attendance_grid_save, name='attendance_grid_save'),

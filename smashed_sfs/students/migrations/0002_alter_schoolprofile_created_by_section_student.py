@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('accounts', '0003_remove_teacher_id_teacher_teacher_id_and_more'),
-        ('students', '0001_initial'),
+        ('students', '0001b_drop_created_by_fk_before_teacher_pk_rename'),
     ]
 
     operations = [

@@ -9,18 +9,28 @@
 <div class="dashboard-grid">
     <div class="card">
         <h3>Students</h3>
-        <p>View all students across the school</p>
-        <a href="{% url 'school_student_list' %}" class="btn">View Students</a>
+        <p>Search for a learner's year level and class</p>
+        <a href="{% url 'school_student_list' %}" class="btn">Find a Student</a>
     </div>
     <div class="card">
         <h3>Sections</h3>
-        <p>Create sections and assign advisers</p>
+        <p>View sections and assign advisers</p>
         <a href="{% url 'school_sections' %}" class="btn">Manage Sections</a>
     </div>
     <div class="card">
         <h3>Accounts</h3>
         <p>Teacher accounts, status, and section assignments</p>
         <a href="{% url 'school_accounts' %}" class="btn">Manage Accounts</a>
+    </div>
+    <div class="card">
+        <h3>Daily Time Record</h3>
+        <p>Import monthly time records from a CSV/Excel export</p>
+        <a href="{% url 'school_dtr_upload' %}" class="btn btn-success">Upload Monthly DTR</a>
+    </div>
+    <div class="card">
+        <h3>Subject Statistics</h3>
+        <p>Consolidated report per grade level and per subject</p>
+        <a href="{% url 'school_subject_statistics' %}" class="btn">Subject Statistics</a>
     </div>
 </div>
 {% endblock %}

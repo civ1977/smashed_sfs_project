@@ -1,49 +1,129 @@
 {% extends 'base.html' %}
 {% load grade_filters %}
 
-{% block breadcrumb %}ENTER GRADES{% endblock %}
+{% block breadcrumb %}ENTER GRADES - TERM {{ term }}{% endblock %}
 
 {% block content %}
-<h1>{{ mapping.subject_name }} - {{ section.grade_level }}-{{ section.strand }}-{{ section.section_name }}</h1>
+<h1>{{ mapping.subject_name }} - {{ section.grade_level }}-{{ section.strand }}-{{ section.section_name }} · Term {{ term }}</h1>
 
 <a href="{% url 'my_subject_teaching' %}" class="btn ghost">← Back to My Subject Teaching</a>
 
 {% if students %}
-<form method="POST" action="{% url 'subject_teaching_grades' assignment.assignment_id %}" style="margin-top: var(--space-4);">
+<form method="POST" action="{% url 'subject_teaching_grades' assignment.assignment_id term %}" style="margin-top: var(--space-4);">
     {% csrf_token %}
     <input type="hidden" name="row_count" value="{{ students|length }}">
+    <div style="margin-bottom: var(--space-4);">
+        <strong>Schedule:</strong>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: var(--space-2) var(--space-4); margin-top: 4px;">
+            {% for day, day_label in day_choices %}
+            <label style="display: flex; align-items: center; gap: 4px; white-space: nowrap;" title="{{ day_label }}">
+                <input type="checkbox" name="days" value="{{ day }}" {% if day in schedule_dict %}checked{% endif %}>
+                {{ day }}
+                <input type="time" name="time_start_{{ day }}" value="{{ schedule_dict|get:day|get:'start'|default_if_none:'' }}">
+                <span>–</span>
+                <input type="time" name="time_end_{{ day }}" value="{{ schedule_dict|get:day|get:'end'|default_if_none:'' }}">
+            </label>
+            {% endfor %}
+        </div>
+    </div>
     <div class="subject-grades-scroll">
     <table class="subject-grades-table">
         <thead>
             <tr>
                 <th>LRN</th>
                 <th>Name</th>
-                <th>Term 1</th>
-                <th>Term 2</th>
-                <th>Term 3</th>
+                <th>Final Ratings</th>
+                <th>
+                    Pre-Test Score
+                    <span style="font-weight: normal; white-space: nowrap;">
+                        (highest possible:
+                        <input type="number" min="1" name="pretest_max" value="{{ max_score.pretest_max|default_if_none:'' }}" style="width: 60px;">)
+                    </span>
+                </th>
+                <th>
+                    Final Exam Score
+                    <span style="font-weight: normal; white-space: nowrap;">
+                        (highest possible:
+                        <input type="number" min="1" name="final_exam_max" value="{{ max_score.final_exam_max|default_if_none:'' }}" style="width: 60px;">)
+                    </span>
+                </th>
             </tr>
         </thead>
         <tbody>
             {% for student in students %}
+            {% with g=grades_by_lrn|get:student.lrn %}
             <tr>
                 <td class="mono">{{ student.lrn|stringformat:"s" }}</td>
                 <td>{{ student.surname }}, {{ student.name }}</td>
                 <td>
                     <input type="hidden" name="lrn_{{ forloop.counter0 }}" value="{{ student.lrn }}">
-                    <input type="number" min="60" max="100" name="grade_{{ forloop.counter0 }}_1"
-                           value="{{ grades_by_lrn|get:student.lrn|get:1|default_if_none:'' }}" style="width: 70px;">
+                    <input type="number" min="60" max="100" name="grade_{{ forloop.counter0 }}"
+                           value="{{ g.grade|default_if_none:'' }}" style="width: 70px;">
                 </td>
                 <td>
-                    <input type="number" min="60" max="100" name="grade_{{ forloop.counter0 }}_2"
-                           value="{{ grades_by_lrn|get:student.lrn|get:2|default_if_none:'' }}" style="width: 70px;">
+                    <input type="number" min="0"{% if max_score.pretest_max %} max="{{ max_score.pretest_max }}"{% endif %} name="pretest_{{ forloop.counter0 }}"
+                           value="{{ g.pretest_score|default_if_none:'' }}" style="width: 70px;">
                 </td>
                 <td>
-                    <input type="number" min="60" max="100" name="grade_{{ forloop.counter0 }}_3"
-                           value="{{ grades_by_lrn|get:student.lrn|get:3|default_if_none:'' }}" style="width: 70px;">
+                    <input type="number" min="0"{% if max_score.final_exam_max %} max="{{ max_score.final_exam_max }}"{% endif %} name="final_exam_{{ forloop.counter0 }}"
+                           value="{{ g.final_exam_score|default_if_none:'' }}" style="width: 70px;">
+                </td>
+            </tr>
+            {% endwith %}
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="2" style="font-weight: bold;">Least Learned Competencies</td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            {% for row in llc_rows %}
+            <tr>
+                <td colspan="2">{{ row.n }}</td>
+                <td></td>
+                <td>
+                    <input type="text" name="pretest_llc_{{ row.n }}"
+                           value="{{ row.pretest|default_if_none:'' }}" style="width: 100%;">
+                </td>
+                <td>
+                    <input type="text" name="final_exam_llc_{{ row.n }}"
+                           value="{{ row.final_exam|default_if_none:'' }}" style="width: 100%;">
                 </td>
             </tr>
             {% endfor %}
-        </tbody>
+            <tr>
+                <td colspan="2">Mean</td>
+                <td></td>
+                <td>{{ pretest_stats.mean|default_if_none:'—' }}</td>
+                <td>{{ final_exam_stats.mean|default_if_none:'—' }}</td>
+            </tr>
+            <tr>
+                <td colspan="2">Mode</td>
+                <td></td>
+                <td>{{ pretest_stats.mode|default_if_none:'—' }}</td>
+                <td>{{ final_exam_stats.mode|default_if_none:'—' }}</td>
+            </tr>
+            <tr>
+                <td colspan="2">Median</td>
+                <td></td>
+                <td>{{ pretest_stats.median|default_if_none:'—' }}</td>
+                <td>{{ final_exam_stats.median|default_if_none:'—' }}</td>
+            </tr>
+            <tr>
+                <td colspan="2">SD</td>
+                <td></td>
+                <td>{{ pretest_stats.sd|default_if_none:'—' }}</td>
+                <td>{{ final_exam_stats.sd|default_if_none:'—' }}</td>
+            </tr>
+            <tr>
+                <td colspan="2">MPS</td>
+                <td></td>
+                <td>{{ pretest_stats.mps|default_if_none:'—' }}</td>
+                <td>{{ final_exam_stats.mps|default_if_none:'—' }}</td>
+            </tr>
+        </tfoot>
     </table>
     </div>
     <button type="submit" class="btn" style="margin-top: var(--space-4);">Save Grades</button>

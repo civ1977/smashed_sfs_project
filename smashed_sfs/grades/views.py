@@ -8,11 +8,12 @@ from django.urls import reverse
 from django.utils.dateformat import format as format_date
 import calendar
 import json
+import statistics
 from datetime import datetime, date as date_cls
 from students.models import Student, Section, SchoolProfile
 from accounts.models import Teacher
 from smashed_sfs.upload_utils import read_upload_rows, UploadFileError
-from .models import Grade, SubjectMapping, SubjectTermExclusion, StudentTermRemark, Attendance, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment
+from .models import Grade, SubjectMapping, SubjectTermExclusion, StudentTermRemark, Attendance, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment, SubjectTestMaxScore
 
 MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -148,7 +149,14 @@ def save_grades(request):
         if not teacher.school_profile_id:
             messages.error(request, 'Your profile is missing a school. Please complete your profile first.')
             return redirect('complete_profile')
-        
+
+        # Subjects are scoped by the adviser's own section strand (matching
+        # arrange_subjects/school.adviser_subject_assignments), not a
+        # hardcoded strand - a blank section.strand means the section makes
+        # no strand distinction, so mappings are created/looked up as blank too.
+        teacher_section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
+        strand = teacher_section.strand if teacher_section else ''
+
         # Get subject mapping
         subject_mappings = {}
         for i in range(1, 31):
@@ -157,7 +165,7 @@ def save_grades(request):
                 mapping, created = SubjectMapping.objects.get_or_create(
                     school_profile_id=teacher.school_profile_id,
                     grade_level=grade_level,
-                    strand='STEM',
+                    strand=strand,
                     subject_number=i,
                     defaults={
                         'subject_name': subject_name,
@@ -173,7 +181,7 @@ def save_grades(request):
                     mapping = SubjectMapping.objects.get(
                         school_profile_id=teacher.school_profile_id,
                         grade_level=grade_level,
-                        strand='STEM',
+                        strand=strand,
                         subject_number=i
                     )
                     subject_mappings[i] = mapping.mapping_id
@@ -1076,8 +1084,30 @@ def my_subject_teaching(request):
     })
 
 
+WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+WEEKDAY_LABELS = {'Mon': 'Monday', 'Tue': 'Tuesday', 'Wed': 'Wednesday', 'Thu': 'Thursday', 'Fri': 'Friday'}
+
+
+def _score_stats(values, max_possible):
+    if not values:
+        return {'mean': None, 'mode': None, 'median': None, 'sd': None, 'mps': None}
+
+    mean = statistics.mean(values)
+    return {
+        'mean': round(mean, 2),
+        'mode': statistics.mode(values),
+        'median': statistics.median(values),
+        'sd': round(statistics.stdev(values), 2) if len(values) > 1 else None,
+        'mps': round(mean / max_possible * 100, 2) if max_possible else None,
+    }
+
+
 @login_required
-def subject_teaching_grades(request, assignment_id):
+def subject_teaching_grades(request, assignment_id, term):
+    if term not in (1, 2, 3):
+        messages.error(request, 'Invalid term.')
+        return redirect('my_subject_teaching')
+
     try:
         teacher = Teacher.objects.get(username=request.user.username)
     except Teacher.DoesNotExist:
@@ -1100,6 +1130,36 @@ def subject_teaching_grades(request, assignment_id):
         return redirect('my_subject_teaching')
 
     if request.method == 'POST':
+        max_score, _ = SubjectTestMaxScore.objects.get_or_create(
+            assignment_id=assignment.assignment_id, term=term
+        )
+
+        selected_days = set(request.POST.getlist('days'))
+        max_score.schedule = {
+            day: {
+                'start': request.POST.get(f'time_start_{day}', '').strip(),
+                'end': request.POST.get(f'time_end_{day}', '').strip(),
+            }
+            for day in WEEKDAYS if day in selected_days
+        } or None
+
+        pretest_max_value = request.POST.get('pretest_max', '').strip()
+        final_exam_max_value = request.POST.get('final_exam_max', '').strip()
+        try:
+            max_score.pretest_max = int(pretest_max_value) if pretest_max_value else None
+        except ValueError:
+            messages.warning(request, f'Invalid highest possible Pre-Test Score: {pretest_max_value}')
+        try:
+            max_score.final_exam_max = int(final_exam_max_value) if final_exam_max_value else None
+        except ValueError:
+            messages.warning(request, f'Invalid highest possible Final Exam Score: {final_exam_max_value}')
+
+        for n in (1, 2, 3):
+            setattr(max_score, f'pretest_llc_{n}', request.POST.get(f'pretest_llc_{n}', '').strip() or None)
+            setattr(max_score, f'final_exam_llc_{n}', request.POST.get(f'final_exam_llc_{n}', '').strip() or None)
+
+        max_score.save()
+
         row_count = int(request.POST.get('row_count', 0))
         saved_count = 0
 
@@ -1113,49 +1173,99 @@ def subject_teaching_grades(request, assignment_id):
             if not Student.objects.filter(lrn=lrn, section_id=section.section_id).exists():
                 continue
 
-            for term in (1, 2, 3):
-                grade_value = request.POST.get(f'grade_{i}_{term}', '').strip()
-                if not grade_value:
-                    continue
+            fields = {}
+
+            grade_value = request.POST.get(f'grade_{i}', '').strip()
+            if grade_value:
                 try:
                     grade = int(grade_value)
+                    if grade < 60 or grade > 100:
+                        messages.warning(request, f'Final Rating {grade} for {lrn} is outside 60-100 range.')
+                    else:
+                        fields['grade'] = grade
                 except ValueError:
-                    messages.warning(request, f'Invalid grade value for {lrn} Term {term}: {grade_value}')
-                    continue
-                if grade < 60 or grade > 100:
-                    messages.warning(request, f'Grade {grade} for {lrn} Term {term} is outside 60-100 range.')
-                    continue
+                    messages.warning(request, f'Invalid Final Rating value for {lrn}: {grade_value}')
 
-                existing = Grade.objects.filter(
-                    lrn=lrn, mapping_id=mapping.mapping_id, term=term
-                ).first()
-                if existing:
-                    existing.grade = grade
-                    existing.save()
-                else:
-                    Grade.objects.create(
-                        lrn=lrn, mapping_id=mapping.mapping_id, term=term, grade=grade,
-                        uploaded_by=teacher.teacher_id,
-                    )
-                saved_count += 1
+            pretest_value = request.POST.get(f'pretest_{i}', '').strip()
+            if pretest_value:
+                try:
+                    fields['pretest_score'] = int(pretest_value)
+                except ValueError:
+                    messages.warning(request, f'Invalid Pre-Test Score value for {lrn}: {pretest_value}')
+
+            final_exam_value = request.POST.get(f'final_exam_{i}', '').strip()
+            if final_exam_value:
+                try:
+                    fields['final_exam_score'] = int(final_exam_value)
+                except ValueError:
+                    messages.warning(request, f'Invalid Final Exam Score value for {lrn}: {final_exam_value}')
+
+            if not fields:
+                continue
+
+            existing = Grade.objects.filter(
+                lrn=lrn, mapping_id=mapping.mapping_id, term=term
+            ).first()
+            if existing:
+                for field_name, value in fields.items():
+                    setattr(existing, field_name, value)
+                existing.save()
+            else:
+                Grade.objects.create(
+                    lrn=lrn, mapping_id=mapping.mapping_id, term=term,
+                    grade=fields.get('grade'),
+                    pretest_score=fields.get('pretest_score'),
+                    final_exam_score=fields.get('final_exam_score'),
+                    uploaded_by=teacher.teacher_id,
+                )
+            saved_count += 1
 
         if saved_count:
-            messages.success(request, f'✅ {saved_count} grades saved for {mapping.subject_name}.')
-        return redirect('subject_teaching_grades', assignment_id=assignment.assignment_id)
+            messages.success(request, f'✅ {saved_count} grades saved for {mapping.subject_name} (Term {term}).')
+        return redirect('subject_teaching_grades', assignment_id=assignment.assignment_id, term=term)
 
     students = Student.objects.filter(section_id=section.section_id).order_by('surname', 'name')
     males = [s for s in students if s.sex in ('MALE', 'M')]
     females = [s for s in students if s.sex in ('FEMALE', 'F')]
     students = males + females
 
-    grades_by_lrn = {}
-    for g in Grade.objects.filter(lrn__in=[s.lrn for s in students], mapping_id=mapping.mapping_id):
-        grades_by_lrn.setdefault(g.lrn, {1: None, 2: None, 3: None})[g.term] = g.grade
+    grades_by_lrn = {
+        g.lrn: g
+        for g in Grade.objects.filter(
+            lrn__in=[s.lrn for s in students], mapping_id=mapping.mapping_id, term=term
+        )
+    }
+
+    max_score = SubjectTestMaxScore.objects.filter(
+        assignment_id=assignment.assignment_id, term=term
+    ).first()
+
+    llc_rows = [
+        {
+            'n': n,
+            'pretest': getattr(max_score, f'pretest_llc_{n}', None),
+            'final_exam': getattr(max_score, f'final_exam_llc_{n}', None),
+        }
+        for n in (1, 2, 3)
+    ]
+
+    pretest_values = [g.pretest_score for g in grades_by_lrn.values() if g.pretest_score is not None]
+    final_exam_values = [g.final_exam_score for g in grades_by_lrn.values() if g.final_exam_score is not None]
+    pretest_stats = _score_stats(pretest_values, max_score.pretest_max if max_score else None)
+    final_exam_stats = _score_stats(final_exam_values, max_score.final_exam_max if max_score else None)
+    schedule_dict = max_score.schedule_dict if max_score else {}
 
     return render(request, 'grades/subject_teaching_grades.html', {
         'assignment': assignment,
         'section': section,
         'mapping': mapping,
+        'term': term,
         'students': students,
         'grades_by_lrn': grades_by_lrn,
+        'max_score': max_score,
+        'schedule_dict': schedule_dict,
+        'llc_rows': llc_rows,
+        'pretest_stats': pretest_stats,
+        'final_exam_stats': final_exam_stats,
+        'day_choices': [(day, WEEKDAY_LABELS[day]) for day in WEEKDAYS],
     })

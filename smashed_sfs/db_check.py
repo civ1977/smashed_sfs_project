@@ -1,10 +1,11 @@
+import os
 import pymysql
 
 try:
     connection = pymysql.connect(
         host='localhost',
         user='root',
-        password='Password123#!',  # Your MySQL password
+        password=os.environ.get('DB_PASSWORD', 'Password123#!'),
         database='smashed_sfs'
     )
     print("✅ Database connection successful!")

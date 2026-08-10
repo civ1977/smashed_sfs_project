@@ -32,6 +32,20 @@ class Migration(migrations.Migration):
             field=models.IntegerField(default=1),
             preserve_default=False,
         ),
+        # This AddField was missing from the original migration - Section.adviser
+        # (a ForeignKey, physical column `adviser_id`) is removed just above, but
+        # nothing ever re-created `adviser_id` as the plain IntegerField the
+        # current model actually has. On the real database this went unnoticed
+        # because the column already existed there from manual SQL (see
+        # CLAUDE.md's "Migration history vs. real schema" note); a from-scratch
+        # build would otherwise end up with no adviser_id column on section at
+        # all. Must come after the RemoveField('section', 'adviser') above -
+        # both map to the same physical column name.
+        migrations.AddField(
+            model_name='section',
+            name='adviser_id',
+            field=models.IntegerField(blank=True, null=True),
+        ),
         migrations.AddField(
             model_name='student',
             name='adviser_id',

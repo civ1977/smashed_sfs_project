@@ -12,6 +12,17 @@
 
 <div class="pubpage-price-grid">
     <div class="pubpage-price-card">
+        <div class="price-role">Student</div>
+        <div class="price">Free</div>
+        <div class="price-label">always</div>
+        <ul>
+            <li>Learner Portal access</li>
+            <li>View your academic ratings</li>
+            <li>Track your grades every term</li>
+        </ul>
+        <a href="{% url 'portal_register' %}" class="pubpage-price-btn">Register</a>
+    </div>
+    <div class="pubpage-price-card">
         <div class="price-role">Class Adviser</div>
         <div class="price">&#8369;258</div>
         <div class="price-label">per term</div>
@@ -20,6 +31,7 @@
             <li>SF9, SF10, SF2 generation</li>
             <li>Rankings &amp; report cards</li>
         </ul>
+        <a href="{% url 'register' %}?type=teaching&role=adviser" class="pubpage-price-btn">Register</a>
     </div>
     <div class="pubpage-price-card">
         <div class="price-role">Subject Teacher</div>
@@ -30,6 +42,7 @@
             <li>Class gradesheet access</li>
             <li>Rankings view</li>
         </ul>
+        <a href="{% url 'register' %}?type=teaching&role=subject_teacher" class="pubpage-price-btn">Register</a>
     </div>
     <div class="pubpage-price-card">
         <div class="price-role">Non-Teaching</div>
@@ -40,10 +53,44 @@
             <li>Account &amp; section management</li>
             <li>Backup, restore &amp; reports</li>
         </ul>
+        <a href="{% url 'register' %}?type=non_teaching" class="pubpage-price-btn">Register</a>
     </div>
 </div>
 
-<a href="{% url 'register' %}" class="btn">Register as Teacher</a>
+<style>
+    /* This page's grid sits in the narrow .pubpage-hero column (760px), so
+       fitting 4 cards in one row - as requested - means shrinking them well
+       below the shared .pubpage-price-card defaults, not widening the page. */
+    .pubpage-price-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: var(--space-2);
+    }
+    .pubpage-price-card {
+        display: flex;
+        flex-direction: column;
+        min-height: 300px;
+        padding: var(--space-5) var(--space-2);
+    }
+    .pubpage-price-card .price-role { font-size: 11px; margin-bottom: var(--space-3); }
+    .pubpage-price-card .price { font-size: 24px; }
+    .pubpage-price-card .price-label { font-size: 11px; margin-bottom: var(--space-4); }
+    .pubpage-price-card ul { flex: 1; margin-bottom: var(--space-4); }
+    .pubpage-price-card li { font-size: 12px; line-height: 1.6; padding: 4px 0; }
+    .pubpage-price-btn {
+        display: inline-block;
+        font-family: var(--font-body);
+        font-weight: 700;
+        font-size: 12px;
+        padding: var(--space-3) var(--space-2);
+        border-radius: var(--radius-pill);
+        text-decoration: none;
+        text-align: center;
+        background: #fff;
+        color: var(--accent);
+        border: 1px solid #fff;
+    }
+    .pubpage-price-btn:hover { background: rgba(255,255,255,.9); }
+</style>
 
 <div class="pubpage-section" style="margin-top: var(--space-6);">
     <h2>Why a fee now?</h2>
@@ -52,7 +99,7 @@
         Edition runs on a live cloud server, with the hosting and maintenance costs that come with keeping
         it fast and available to every school using it. The per-term fee covers that, at rates kept as low as
         possible: a Subject Teacher pays half of what a Class Adviser pays, reflecting the smaller scope of
-        access.
+        access. The Learner Portal stays free for students &mdash; only staff accounts carry a fee.
     </p>
 </div>
 {% endblock %}

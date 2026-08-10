@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}SUBJECT STATISTICS{% endblock %}
+
+{% block content %}
+<h1>Subject Statistics{% if section %} - {{ section.grade_level }}-{{ section.strand }}-{{ section.section_name }}{% endif %}</h1>
+
+<a href="{% url 'select_student_report' %}" class="btn ghost">← Reports</a>
+
+{% for term_data in terms %}
+<h2 style="margin-top: var(--space-6);">Term {{ term_data.term }}</h2>
+
+{% if term_data.rows %}
+<div class="subject-stats-scroll">
+<table class="subject-stats-table">
+    <thead>
+        <tr>
+            <th rowspan="2">Subject</th>
+            <th colspan="5">Final Rating</th>
+            <th colspan="5">Pre-Test Score</th>
+            <th colspan="5">Final Exam Score</th>
+        </tr>
+        <tr>
+            <th>Mean</th><th>Mode</th><th>Median</th><th>SD</th><th>MPS</th>
+            <th>Mean</th><th>Mode</th><th>Median</th><th>SD</th><th>MPS</th>
+            <th>Mean</th><th>Mode</th><th>Median</th><th>SD</th><th>MPS</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in term_data.rows %}
+        <tr>
+            <td>{{ row.subject.subject_name }}</td>
+            <td>{{ row.final_rating.mean|default_if_none:'—' }}</td>
+            <td>{{ row.final_rating.mode|default_if_none:'—' }}</td>
+            <td>{{ row.final_rating.median|default_if_none:'—' }}</td>
+            <td>{{ row.final_rating.sd|default_if_none:'—' }}</td>
+            <td>{{ row.final_rating.mps|default_if_none:'—' }}</td>
+            <td>{{ row.pretest.mean|default_if_none:'—' }}</td>
+            <td>{{ row.pretest.mode|default_if_none:'—' }}</td>
+            <td>{{ row.pretest.median|default_if_none:'—' }}</td>
+            <td>{{ row.pretest.sd|default_if_none:'—' }}</td>
+            <td>{{ row.pretest.mps|default_if_none:'—' }}</td>
+            <td>{{ row.final_exam.mean|default_if_none:'—' }}</td>
+            <td>{{ row.final_exam.mode|default_if_none:'—' }}</td>
+            <td>{{ row.final_exam.median|default_if_none:'—' }}</td>
+            <td>{{ row.final_exam.sd|default_if_none:'—' }}</td>
+            <td>{{ row.final_exam.mps|default_if_none:'—' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p>No subjects found for this grade level.</p>
+{% endif %}
+{% endfor %}
+
+<style>
+    .subject-stats-scroll {
+        overflow: auto;
+    }
+    .subject-stats-table th,
+    .subject-stats-table td {
+        text-align: center;
+        white-space: nowrap;
+    }
+    .subject-stats-table td:first-child,
+    .subject-stats-table th:first-child {
+        text-align: left;
+    }
+</style>
+{% endblock %}

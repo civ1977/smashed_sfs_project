@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}UPLOAD DTR{% endblock %}
+
+{% block content %}
+<a href="{% url 'school_dashboard' %}" class="btn ghost">← Dashboard</a>
+
+<h1>Upload Monthly DTR</h1>
+<p>Import a whole-school CSV/Excel time-clock export - every employee's Time In and Time Out for the selected
+    month. Individual DTRs can then be reviewed on each employee's own <a href="{% url 'daily_time_record' %}">Daily
+    Time Record</a> page.</p>
+
+<div class="card" style="max-width: 480px;">
+    <form method="post" enctype="multipart/form-data" action="{% url 'upload_dtr' %}">
+        {% csrf_token %}
+        <div class="form-group" style="display: flex; gap: var(--space-2);">
+            <select name="month">
+                {% for m_num, m_name in dtr_months %}
+                <option value="{{ m_num }}" {% if m_num == dtr_current_month %}selected{% endif %}>{{ m_name }}</option>
+                {% endfor %}
+            </select>
+            <input type="number" name="year" value="{{ dtr_current_year }}" style="width: 90px;">
+        </div>
+        <div class="form-group">
+            <label>CSV/Excel File:</label>
+            <input type="file" name="dtr_file" accept=".csv,.xlsx,.xlsm" required>
+        </div>
+        <button type="submit" class="btn btn-success">Upload</button>
+    </form>
+</div>
+
+<p style="color: var(--ink-faint); font-size: 12px; margin-top: var(--space-4);">
+    The file needs a Name (or Employee) column plus Arrival Date, Arrival Time, Departure Date, and Departure
+    Time columns (a Total column is fine too, it's just ignored). Every employee found in the file is imported
+    at once; only rows for the selected month are saved.
+</p>
+
+<h3 style="margin-top: var(--space-6);">Months Already Uploaded</h3>
+{% if uploaded_month_rows %}
+<table style="max-width: 760px;">
+    <thead>
+        <tr>
+            <th>Month</th>
+            <th>Time Records</th>
+            <th>Download</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in uploaded_month_rows %}
+        <tr>
+            <td>{{ row.label }}</td>
+            <td class="num">{{ row.record_count }}</td>
+            <td>
+                <a href="{% url 'download_dtr_pdf' row.year row.month %}" class="btn ghost">Download PDF</a>
+            </td>
+            <td>
+                <form method="POST" action="{% url 'delete_dtr_month' row.year row.month %}"
+                      onsubmit="return confirm('Delete all {{ row.record_count }} DTR record(s) for {{ row.label|escapejs }}? This cannot be undone.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn risk">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No DTR data has been uploaded for this school yet.</p>
+{% endif %}
+{% endblock %}

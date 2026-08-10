@@ -67,6 +67,20 @@ def shell_context(request):
             ],
         }
 
+    if teacher.role == Teacher.ROLE_SUBJECT_TEACHER:
+        return {
+            'shell_role': 'subject_teacher',
+            'shell_breadcrumb_context': 'MY SUBJECT TEACHING',
+            'shell_nav_items': [
+                _nav_item(request, 'My Assignment', 'my_subject_teaching',
+                          match_names={'my_subject_teaching', 'subject_teaching_grades'}),
+                _nav_item(request, 'Reports', 'select_student_report',
+                          match_names={'select_student_report', 'view_sf7', 'view_sf9', 'view_sf10',
+                                       'view_rankings', 'subject_statistics_report'}),
+                _nav_item(request, 'Tools', 'tools'),
+            ],
+        }
+
     school_profile = None
     if teacher.school_profile_id:
         school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
@@ -76,7 +90,7 @@ def shell_context(request):
         'shell_role': 'school_admin',
         'shell_breadcrumb_context': breadcrumb_context,
         'shell_nav_items': [
-            _nav_item(request, 'Overview', 'school_dashboard'),
+            _nav_item(request, 'Dashboard', 'school_dashboard'),
             _nav_item(request, 'Students', 'school_student_list'),
             _nav_item(request, 'Sections', 'school_sections',
                       match_names={'school_sections', 'reassign_section_adviser'}),

@@ -125,7 +125,14 @@ def register(request):
         messages.success(request, f'Registration successful! Welcome {username}!')
         return redirect('complete_profile')
 
-    return render(request, 'accounts/register.html', {'account_type': account_type})
+    selected_role = request.GET.get('role')
+    if selected_role not in TEACHING_ROLE_CHOICES:
+        selected_role = None
+
+    return render(request, 'accounts/register.html', {
+        'account_type': account_type,
+        'selected_role': selected_role,
+    })
 
 
 def landing_page(request):
@@ -372,6 +379,30 @@ DTR_EDITABLE_FIELDS = (
 )
 
 
+def build_dtr_days(year, month, exceptions, records_by_date):
+    """Builds the day-by-day grid for one Form 48: one entry per calendar
+    day in the month, labeling non-school days (Saturday/Sunday/Holiday per
+    `exceptions`) and filling in whatever DTR fields exist in
+    `records_by_date` (a {date: TeacherTimeRecord} mapping) for the rest.
+    Shared by the single-employee DTR view and the school-wide PDF export so
+    both agree on what a day looks like."""
+    num_days = calendar.monthrange(year, month)[1]
+    days = []
+    for day in range(1, num_days + 1):
+        d = date(year, month, day)
+        is_school_day = exceptions.get(d, d.weekday() < 5)
+        if not is_school_day:
+            label = 'Saturday' if d.weekday() == 5 else 'Sunday' if d.weekday() == 6 else 'Holiday'
+        else:
+            label = None
+        record = records_by_date.get(d)
+        entry = {'day': day, 'date': d.isoformat(), 'label': label}
+        for field in DTR_EDITABLE_FIELDS:
+            entry[field] = getattr(record, field, '') or '' if record else ''
+        days.append(entry)
+    return days
+
+
 def _dtr_name_options(teacher):
     """Names to offer in the DTR's searchable Name field: every teacher at
     the same school (so a registrar can pick a colleague they haven't
@@ -433,20 +464,7 @@ def daily_time_record(request):
             )
         }
 
-    num_days = calendar.monthrange(year, month)[1]
-    days = []
-    for day in range(1, num_days + 1):
-        d = date(year, month, day)
-        is_school_day = exceptions.get(d, d.weekday() < 5)
-        if not is_school_day:
-            label = 'Saturday' if d.weekday() == 5 else 'Sunday' if d.weekday() == 6 else 'Holiday'
-        else:
-            label = None
-        record = records_by_date.get(d)
-        entry = {'day': day, 'date': d.isoformat(), 'label': label}
-        for field in DTR_EDITABLE_FIELDS:
-            entry[field] = getattr(record, field, '') or '' if record else ''
-        days.append(entry)
+    days = build_dtr_days(year, month, exceptions, records_by_date)
 
     prev_month, prev_year = (12, year - 1) if month == 1 else (month - 1, year)
     next_month, next_year = (1, year + 1) if month == 12 else (month + 1, year)
@@ -508,11 +526,13 @@ def _dtr_parse_time(value):
     return t.strftime('%I:%M %p').lstrip('0')
 
 
-def _dtr_parse_upload(uploaded_file, teacher_name):
-    """Parses a CSV/Excel export from a DTR (biometric time clock) app into
-    {date: {'am_arrival': ..., 'am_departure': ..., 'pm_arrival': ...,
-    'pm_departure': ...}}. Returns (parsed_dict, error_message) - exactly
-    one of the two is set.
+def _dtr_parse_upload_bulk(uploaded_file):
+    """Parses a whole-school CSV/Excel export from a DTR (biometric time
+    clock) app into {employee_name: {date: {'am_arrival': ...,
+    'am_departure': ..., 'pm_arrival': ..., 'pm_departure': ...}}}. Returns
+    (parsed_dict, error_message) - exactly one of the two is set. Every
+    employee found in the file's Name/Employee column is included - this is
+    a bulk, all-employees import, not scoped to any one person.
 
     Three export shapes are supported, tried in this order:
     - Separate "Arrival Date"/"Arrival Time" and "Departure Date"/
@@ -529,10 +549,6 @@ def _dtr_parse_upload(uploaded_file, teacher_name):
       Arrival/Departure (2 punches -> AM Arrival + PM Departure, no lunch
       break recorded; 3 -> AM Arrival, AM Departure, PM Departure; 4 -> all
       four slots).
-
-    An optional Name/Employee column, if present, filters to rows matching
-    this teacher (case-insensitive substring match), so a whole-school
-    export can be uploaded as-is.
     """
     filename = uploaded_file.name.lower()
     if filename.endswith('.csv'):
@@ -569,45 +585,50 @@ def _dtr_parse_upload(uploaded_file, teacher_name):
     time_in_col = col_index('time in', 'timein', 'am in')
     time_out_col = col_index('time out', 'timeout', 'pm out')
 
+    if name_col is None:
+        return None, 'Could not find a "Name" (or "Employee") column in the file - a bulk upload needs one to know whose record each row is.'
     if arrival_date_col is None and departure_date_col is None and date_col is None:
         return None, 'Could not find a "Date" (or "Arrival Date"/"Departure Date") column in the file.'
 
-    name_needle = (teacher_name or '').strip().lower()
-    aggregated = {}
-    punches_by_date = {}
+    def row_name(row):
+        return str(cell(row, name_col) or '').strip()
 
-    def name_matches(row):
-        if name_col is None or not name_needle:
-            return True
-        row_name = str(cell(row, name_col) or '').strip().lower()
-        return name_needle in row_name
+    aggregated = {}
+    punches_by_key = {}
 
     if arrival_date_col is not None or departure_date_col is not None:
         for row in rows[1:]:
-            if not name_matches(row):
+            name = row_name(row)
+            if not name:
                 continue
+            # Every named row claims this employee, even if this particular
+            # row's date/time can't be parsed - so they still get a (blank)
+            # Form 48 for the month instead of being silently dropped.
+            aggregated.setdefault(name, {})
             raw_arrival_date = cell(row, arrival_date_col)
             if raw_arrival_date not in (None, ''):
                 d = _dtr_parse_date(raw_arrival_date)
                 t = _dtr_parse_time(cell(row, arrival_time_col))
                 if d and t:
-                    aggregated.setdefault(d, {})['am_arrival'] = t
+                    aggregated.setdefault(name, {}).setdefault(d, {})['am_arrival'] = t
             raw_departure_date = cell(row, departure_date_col)
             if raw_departure_date not in (None, ''):
                 d = _dtr_parse_date(raw_departure_date)
                 t = _dtr_parse_time(cell(row, departure_time_col))
                 if d and t:
-                    aggregated.setdefault(d, {})['pm_departure'] = t
+                    aggregated.setdefault(name, {}).setdefault(d, {})['pm_departure'] = t
     else:
         for row in rows[1:]:
-            if not name_matches(row):
+            name = row_name(row)
+            if not name:
                 continue
+            aggregated.setdefault(name, {})
             d = _dtr_parse_date(cell(row, date_col))
             if not d:
                 continue
 
             if time_in_col is not None or time_out_col is not None:
-                entry = aggregated.setdefault(d, {})
+                entry = aggregated.setdefault(name, {}).setdefault(d, {})
                 t_in = _dtr_parse_time(cell(row, time_in_col))
                 if t_in:
                     entry['am_arrival'] = t_in
@@ -629,12 +650,12 @@ def _dtr_parse_upload(uploaded_file, teacher_name):
                         except ValueError:
                             continue
                 if time_obj is not None:
-                    punches_by_date.setdefault(d, []).append(time_obj)
+                    punches_by_key.setdefault((name, d), []).append(time_obj)
 
-    for d, punches in punches_by_date.items():
+    for (name, d), punches in punches_by_key.items():
         punches.sort()
         labels = [t.strftime('%I:%M %p').lstrip('0') for t in punches]
-        entry = aggregated.setdefault(d, {})
+        entry = aggregated.setdefault(name, {}).setdefault(d, {})
         if len(labels) >= 4:
             entry['am_arrival'], entry['am_departure'], entry['pm_arrival'], entry['pm_departure'] = labels[:4]
         elif len(labels) == 3:
@@ -645,7 +666,7 @@ def _dtr_parse_upload(uploaded_file, teacher_name):
             entry['am_arrival'] = labels[0]
 
     if not aggregated:
-        return None, 'No matching time records were found in that file.'
+        return None, 'No named rows were found in that file.'
     return aggregated, None
 
 
@@ -657,55 +678,69 @@ def upload_dtr(request):
     teacher = Teacher.objects.filter(username=request.user.username).first()
     if not teacher:
         messages.error(request, 'Your account is not linked to a Teacher profile.')
-        return redirect('daily_time_record')
+        return redirect('school_dtr_upload')
 
     uploaded_file = request.FILES.get('dtr_file')
     if not uploaded_file:
         messages.error(request, 'Please choose a CSV or Excel file to upload.')
-        return redirect('daily_time_record')
+        return redirect('school_dtr_upload')
 
-    employee_name = request.POST.get('employee_name', '').strip() or teacher.full_name
     today = date.today()
     try:
         target_year = int(request.POST.get('year', today.year))
         target_month = int(request.POST.get('month', today.month))
     except ValueError:
         target_year, target_month = today.year, today.month
-    back_url = f"{reverse('daily_time_record')}?year={target_year}&month={target_month}&name={quote(employee_name)}"
 
     try:
-        parsed, error = _dtr_parse_upload(uploaded_file, employee_name)
+        parsed_by_employee, error = _dtr_parse_upload_bulk(uploaded_file)
     except Exception:
-        parsed, error = None, 'Could not read that file. Please upload a valid CSV or Excel export.'
+        parsed_by_employee, error = None, 'Could not read that file. Please upload a valid CSV or Excel export.'
 
     if error:
         messages.error(request, error)
-        return redirect(back_url)
+        return redirect('school_dtr_upload')
 
-    # This upload button is bound to whichever month is currently on
-    # screen (a separate button per month, in effect, since navigating to
-    # a different month changes what it's scoped to) - only rows for that
-    # exact month get saved; anything else in the file is reported as
-    # skipped rather than silently redirecting the user somewhere else.
-    in_month = {d: entry for d, entry in parsed.items() if d.year == target_year and d.month == target_month}
-    skipped = len(parsed) - len(in_month)
+    # This upload is bound to whichever month/year was selected on the
+    # form - only rows for that exact month get saved per employee;
+    # anything else in the file is reported as skipped. Every named
+    # employee is registered for the month even with zero parseable rows
+    # (a placeholder record with blank fields), so their Form 48 still
+    # shows up - just blank - rather than being silently dropped.
+    employees_imported = 0
+    days_imported = 0
+    days_skipped = 0
 
-    for d, entry in in_month.items():
-        record, _ = TeacherTimeRecord.objects.get_or_create(
-            teacher_id=teacher.teacher_id, employee_name=employee_name, date=d
-        )
-        for field in ('am_arrival', 'am_departure', 'pm_arrival', 'pm_departure'):
-            if entry.get(field):
-                setattr(record, field, entry[field])
-        record.save()
+    for employee_name, parsed in parsed_by_employee.items():
+        in_month = {d: entry for d, entry in parsed.items() if d.year == target_year and d.month == target_month}
+        days_skipped += len(parsed) - len(in_month)
+
+        employees_imported += 1
+        for d, entry in in_month.items():
+            record, _ = TeacherTimeRecord.objects.get_or_create(
+                teacher_id=teacher.teacher_id, employee_name=employee_name, date=d
+            )
+            for field in ('am_arrival', 'am_departure', 'pm_arrival', 'pm_departure'):
+                if entry.get(field):
+                    setattr(record, field, entry[field])
+            record.save()
+        days_imported += len(in_month)
+
+        if not in_month:
+            TeacherTimeRecord.objects.get_or_create(
+                teacher_id=teacher.teacher_id, employee_name=employee_name, date=date(target_year, target_month, 1)
+            )
 
     target_label = date(target_year, target_month, 1).strftime('%B %Y')
-    if in_month:
-        note = f' ({skipped} fell outside {target_label} and were skipped)' if skipped else ''
-        messages.success(request, f'Imported time records for {employee_name} - {len(in_month)} day(s) in {target_label}{note}.')
+    if employees_imported:
+        note = f' ({days_skipped} day(s) fell outside {target_label} and were skipped)' if days_skipped else ''
+        messages.success(
+            request,
+            f'Imported time records for {employees_imported} employee(s) - {days_imported} day(s) total in {target_label}{note}.'
+        )
     else:
-        messages.error(request, f'That file had no records for {employee_name} in {target_label}.')
-    return redirect(back_url)
+        messages.error(request, f'That file had no records for {target_label}.')
+    return redirect('school_dtr_upload')
 
 
 @login_required

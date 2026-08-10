@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}CLASS LIST{% endblock %}
+
+{% block content %}
+<a href="{% url 'school_sections' %}" class="btn ghost">← Sections</a>
+
+<h1>Grade {{ section.grade_level }} · {{ section.strand }}-{{ section.section_name }}</h1>
+<p>
+    Adviser:
+    {% if adviser %}{{ adviser.full_name }}{% else %}<span class="pill warn">Unassigned</span>{% endif %}
+    · <strong>{{ students|length }}</strong> student{{ students|length|pluralize }}
+</p>
+
+{% if students %}
+<table>
+    <thead>
+        <tr>
+            <th>LRN</th>
+            <th>Surname</th>
+            <th>Name</th>
+            <th>Middle Name</th>
+            <th>Sex</th>
+            <th>Birthday</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for student in students %}
+        <tr>
+            <td class="mono">{{ student.lrn }}</td>
+            <td>{{ student.surname }}</td>
+            <td>{{ student.name }}</td>
+            <td>{{ student.middle_name|default:"—" }}</td>
+            <td>{{ student.sex }}</td>
+            <td>{{ student.birthday|date:"Y-m-d" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="margin-top: var(--space-5);">No students in this class yet.</p>
+{% endif %}
+{% endblock %}

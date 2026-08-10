@@ -81,7 +81,9 @@ class Grade(models.Model):
     lrn = models.CharField(max_length=12)
     mapping_id = models.IntegerField()
     term = models.IntegerField()
-    grade = models.IntegerField()
+    grade = models.IntegerField(blank=True, null=True)
+    pretest_score = models.IntegerField(blank=True, null=True)
+    final_exam_score = models.IntegerField(blank=True, null=True)
     comment = models.TextField(blank=True, null=True)
     uploaded_by = models.IntegerField()
     uploaded_at = models.DateTimeField(auto_now_add=True)
@@ -92,6 +94,36 @@ class Grade(models.Model):
 
     def __str__(self):
         return f"{self.lrn} - Term {self.term}: {self.grade}"
+
+
+class SubjectTestMaxScore(models.Model):
+    id = models.AutoField(primary_key=True)
+    assignment_id = models.IntegerField()
+    term = models.IntegerField()
+    pretest_max = models.IntegerField(blank=True, null=True)
+    final_exam_max = models.IntegerField(blank=True, null=True)
+    pretest_llc_1 = models.CharField(max_length=255, blank=True, null=True)
+    pretest_llc_2 = models.CharField(max_length=255, blank=True, null=True)
+    pretest_llc_3 = models.CharField(max_length=255, blank=True, null=True)
+    final_exam_llc_1 = models.CharField(max_length=255, blank=True, null=True)
+    final_exam_llc_2 = models.CharField(max_length=255, blank=True, null=True)
+    final_exam_llc_3 = models.CharField(max_length=255, blank=True, null=True)
+    # {"Mon": {"start": "08:00", "end": "09:00"}, ...} - only selected days
+    # appear as keys, since each day can run at a different time and the
+    # schedule itself can differ per term. Times are HTML5
+    # <input type="time"> values (24-hour "HH:MM").
+    schedule = models.JSONField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'subject_test_max_scores'
+        unique_together = ('assignment_id', 'term')
+
+    def __str__(self):
+        return f"assignment {self.assignment_id} term {self.term}"
+
+    @property
+    def schedule_dict(self):
+        return self.schedule or {}
 
 
 ATTENDANCE_MONTHS = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr']

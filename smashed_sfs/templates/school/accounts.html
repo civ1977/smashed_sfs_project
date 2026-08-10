@@ -3,7 +3,7 @@
 {% block breadcrumb %}ACCOUNTS{% endblock %}
 
 {% block content %}
-<h1>Teacher Accounts</h1>
+<h1>User Accounts</h1>
 <p>Provisioning a brand-new teacher account is still a manual step for now (no email invite flow yet) - add them via Django admin, then manage their status and section here.</p>
 
 {% if account_rows %}
@@ -67,56 +67,37 @@
 <p>No teacher accounts found for this school yet.</p>
 {% endif %}
 
-<h1>Student Portal Accounts</h1>
-<p>Approval/rejection of new access requests is handled by the student's adviser - this only controls whether an already-approved account can still log in.</p>
+<h1 style="margin-top: var(--space-6);">Account Activity Log</h1>
+<p>Who activated or deactivated a teacher account, and when.</p>
 
-{% if student_account_rows %}
+{% if audit_log_rows %}
 <table>
     <thead>
         <tr>
-            <th>Student</th>
-            <th>LRN</th>
-            <th>Request Status</th>
-            <th>Login Status</th>
-            <th>Actions</th>
+            <th>Teacher</th>
+            <th>Action</th>
+            <th>By</th>
+            <th>When</th>
         </tr>
     </thead>
     <tbody>
-        {% for row in student_account_rows %}
+        {% for row in audit_log_rows %}
         <tr>
-            <td>{% if row.student %}{{ row.student.surname }}, {{ row.student.name }}{% else %}—{% endif %}</td>
-            <td>{{ row.account.lrn }}</td>
+            <td>{% if row.target %}{{ row.target.full_name }}{% else %}Teacher #{{ row.log.target_teacher_id }}{% endif %}</td>
             <td>
-                {% if row.account.status == 'approved' %}
-                    <span class="pill good">Approved</span>
-                {% elif row.account.status == 'pending' %}
-                    <span class="pill warn">Pending</span>
+                {% if row.log.action == 'activated' %}
+                    <span class="pill good">Activated</span>
                 {% else %}
-                    <span class="pill risk">Rejected</span>
+                    <span class="pill risk">Deactivated</span>
                 {% endif %}
             </td>
-            <td>
-                {% if row.account.is_active %}
-                    <span class="pill good">Active</span>
-                {% else %}
-                    <span class="pill risk">Inactive</span>
-                {% endif %}
-            </td>
-            <td>
-                <form method="POST" action="{% url 'toggle_student_account_active' row.account.account_id %}">
-                    {% csrf_token %}
-                    {% if row.account.is_active %}
-                        <button type="submit" class="btn risk">Deactivate</button>
-                    {% else %}
-                        <button type="submit" class="btn good">Activate</button>
-                    {% endif %}
-                </form>
-            </td>
+            <td>{% if row.performed_by %}{{ row.performed_by.full_name }}{% else %}Teacher #{{ row.log.performed_by }}{% endif %}</td>
+            <td>{{ row.log.performed_at|date:"Y-m-d H:i" }}</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 {% else %}
-<p>No student portal accounts found for this school yet.</p>
+<p>No activation/deactivation activity yet.</p>
 {% endif %}
 {% endblock %}

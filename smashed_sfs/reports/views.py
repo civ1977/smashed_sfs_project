@@ -11,8 +11,8 @@ from django.utils.html import format_html
 
 from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
-from grades.models import Grade, SubjectMapping, StudentTermRemark, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException
-from grades.views import MONTH_NAMES, _school_days_in_month, build_student_grade_sheet
+from grades.models import Grade, SubjectMapping, StudentTermRemark, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment, SubjectTestMaxScore
+from grades.views import MONTH_NAMES, _school_days_in_month, build_student_grade_sheet, _score_stats, WEEKDAYS
 
 
 def _get_teacher(request):
@@ -209,12 +209,93 @@ def _split_core_elective(subject_rows):
 @login_required
 def select_student_for_report(request):
     try:
-        _get_teacher(request)
+        teacher = _get_teacher(request)
     except Teacher.DoesNotExist:
         messages.error(request, 'Your account is not linked to a Teacher profile.')
         return redirect('dashboard')
 
-    return render(request, 'reports/select_student.html')
+    return render(request, 'reports/select_student.html', {
+        'is_subject_teacher': teacher.role == Teacher.ROLE_SUBJECT_TEACHER,
+    })
+
+
+@login_required
+def subject_statistics_report(request):
+    try:
+        teacher = _get_teacher(request)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
+    if not section:
+        messages.error(request, 'No advisory section found for your account.')
+        return redirect('select_student_report')
+
+    student_lrns = list(Student.objects.filter(adviser_id=teacher.teacher_id).values_list('lrn', flat=True))
+
+    subjects = SubjectMapping.objects.filter(
+        school_profile_id=section.school_profile_id,
+        grade_level=section.grade_level,
+    ).order_by('subject_name')
+
+    # Highest-possible-score settings live per teaching assignment, not per
+    # subject - find whichever assignment covers this section for each
+    # subject so Pre-Test/Final Exam MPS can use the right denominator.
+    assignment_by_mapping = {
+        a.mapping_id: a
+        for a in TeacherSubjectAssignment.objects.filter(section_id=section.section_id)
+    }
+    max_scores = {
+        (m.assignment_id, m.term): m
+        for m in SubjectTestMaxScore.objects.filter(
+            assignment_id__in=[a.assignment_id for a in assignment_by_mapping.values()]
+        )
+    }
+
+    subject_scores = []
+    for subject in subjects:
+        grades = Grade.objects.filter(lrn__in=student_lrns, mapping_id=subject.mapping_id)
+        final_by_term = {1: [], 2: [], 3: []}
+        pretest_by_term = {1: [], 2: [], 3: []}
+        final_exam_by_term = {1: [], 2: [], 3: []}
+        for g in grades:
+            if g.grade is not None:
+                final_by_term[g.term].append(g.grade)
+            if g.pretest_score is not None:
+                pretest_by_term[g.term].append(g.pretest_score)
+            if g.final_exam_score is not None:
+                final_exam_by_term[g.term].append(g.final_exam_score)
+
+        subject_scores.append({
+            'subject': subject,
+            'assignment': assignment_by_mapping.get(subject.mapping_id),
+            'final_by_term': final_by_term,
+            'pretest_by_term': pretest_by_term,
+            'final_exam_by_term': final_exam_by_term,
+        })
+
+    # Built as three independent term tables (rather than one dict keyed by
+    # term) so the template can loop with plain dotted access instead of
+    # int-keyed dict lookups.
+    terms = []
+    for term in (1, 2, 3):
+        rows = []
+        for entry in subject_scores:
+            assignment = entry['assignment']
+            max_score = max_scores.get((assignment.assignment_id, term)) if assignment else None
+            rows.append({
+                'subject': entry['subject'],
+                'final_rating': _score_stats(entry['final_by_term'][term], 100),
+                'pretest': _score_stats(entry['pretest_by_term'][term], max_score.pretest_max if max_score else None),
+                'final_exam': _score_stats(entry['final_exam_by_term'][term], max_score.final_exam_max if max_score else None),
+            })
+        terms.append({'term': term, 'rows': rows})
+
+    return render(request, 'reports/subject_statistics.html', {
+        'section': section,
+        'terms': terms,
+    })
 
 
 @login_required
@@ -341,6 +422,93 @@ def view_sf10(request, student_lrn):
             student_lrn,
             section.school_profile_id if section else teacher.school_profile_id,
         ),
+    })
+
+
+def _format_schedule(schedule):
+    """Render a SubjectTestMaxScore.schedule JSON dict
+    ({"Mon": {"start": "08:00", "end": "09:00"}, ...}) as "Mon 08:00-09:00,
+    Wed 08:00-09:00" for display. Returns '—' when nothing is set."""
+    if not schedule:
+        return '—'
+    parts = []
+    for day in WEEKDAYS:
+        entry = schedule.get(day)
+        if not entry:
+            continue
+        start = entry.get('start') or '?'
+        end = entry.get('end') or '?'
+        parts.append(f'{day} {start}-{end}')
+    return ', '.join(parts) if parts else '—'
+
+
+def _format_schedule_all_terms(assignment_id):
+    """A per-assignment schedule summary across all 3 terms (schedule is
+    now stored per SubjectTestMaxScore row, i.e. per assignment+term, since
+    it can differ term to term) - e.g. "T1: Mon 08:00-09:00 | T2: — | T3:
+    Mon 09:00-10:00"."""
+    max_scores_by_term = {
+        m.term: m for m in SubjectTestMaxScore.objects.filter(assignment_id=assignment_id)
+    }
+    return ' | '.join(
+        f'T{term}: {_format_schedule(max_scores_by_term.get(term).schedule if max_scores_by_term.get(term) else None)}'
+        for term in (1, 2, 3)
+    )
+
+
+@login_required
+def view_sf7(request):
+    """SF7 - School Personnel Assignment List and Basic Profile: only the
+    requesting user's own record - their position, advisory section (if
+    any), and subject-teaching assignments. Not tied to a single student,
+    unlike SF9/SF10."""
+    try:
+        teacher = _get_teacher(request)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    school_profile = None
+    if teacher.school_profile_id:
+        school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
+
+    personnel = [teacher]
+    personnel_ids = [p.teacher_id for p in personnel]
+
+    advisory_sections = {
+        s.adviser_id: s for s in Section.objects.filter(adviser_id__in=personnel_ids)
+    }
+
+    assignments_by_teacher = {}
+    for a in TeacherSubjectAssignment.objects.filter(teacher_id__in=personnel_ids):
+        assignments_by_teacher.setdefault(a.teacher_id, []).append(a)
+
+    section_ids = {a.section_id for assignments in assignments_by_teacher.values() for a in assignments}
+    mapping_ids = {a.mapping_id for assignments in assignments_by_teacher.values() for a in assignments}
+    sections_by_id = {s.section_id: s for s in Section.objects.filter(section_id__in=section_ids)}
+    mappings_by_id = {m.mapping_id: m for m in SubjectMapping.objects.filter(mapping_id__in=mapping_ids)}
+
+    rows = []
+    for person in personnel:
+        assignment_rows = []
+        for a in assignments_by_teacher.get(person.teacher_id, []):
+            section = sections_by_id.get(a.section_id)
+            mapping = mappings_by_id.get(a.mapping_id)
+            assignment_rows.append({
+                'subject_name': mapping.subject_name if mapping else 'Unknown subject',
+                'section_label': f'{section.grade_level}-{section.strand}-{section.section_name}' if section else 'Unknown section',
+                'schedule': _format_schedule_all_terms(a.assignment_id),
+            })
+
+        rows.append({
+            'teacher': person,
+            'advisory_section': advisory_sections.get(person.teacher_id),
+            'assignments': assignment_rows,
+        })
+
+    return render(request, 'reports/sf7.html', {
+        'school_profile': school_profile,
+        'rows': rows,
     })
 
 

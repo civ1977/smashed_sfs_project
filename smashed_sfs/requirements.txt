@@ -1,0 +1,11 @@
+Django==6.0.7
+PyMySQL==2.2.8
+openpyxl==3.1.5
+whitenoise==6.12.0
+xhtml2pdf==0.2.17
+
+# Production WSGI server - not needed for local `manage.py runserver`,
+# but required on the VPS to actually serve the app. gunicorn is
+# Linux-only, so this is safe to keep even on a Windows dev machine
+# (pip just won't be able to install it there, which is fine).
+gunicorn==23.0.0

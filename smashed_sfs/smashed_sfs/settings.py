@@ -2,6 +2,8 @@
 Django settings for smashed_sfs project.
 """
 
+import os
+import sys
 from pathlib import Path
 import pymysql
 pymysql.install_as_MySQLdb()
@@ -10,20 +12,34 @@ pymysql.install_as_MySQLdb()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-your-secret-key-here'
+# Override with a DJANGO_SECRET_KEY environment variable for any real
+# deployment; this fallback is fine for local dev only.
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY',
+    '4@l5)1et3s9$4sy!xrcz2y5gxmtx(1(7qv)z+7_3(iuv)2i9la',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Set DJANGO_DEBUG=False in the environment before exposing this past localhost
+# (e.g. through a cloudflared tunnel) - with DEBUG on, any unhandled error
+# renders a full stack trace + settings dump to whoever triggers it.
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-# ✅ FIXED: Added localhost to allowed hosts
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
-# TEMPORARY for cloudflared tunnel testing - revert to the line above when done.
-ALLOWED_HOSTS = ['*']
-# TEMPORARY for cloudflared tunnel testing - remove when done. Django checks
-# the request's Origin header against this list for any POST (login, etc.);
-# without it, cross-origin POSTs through the tunnel's domain get rejected as
-# a possible CSRF attack even though ALLOWED_HOSTS permits the host itself.
-CSRF_TRUSTED_ORIGINS = ['https://delhi-cutting-purpose-requires.trycloudflare.com']
+# For tunnel testing, set DJANGO_ALLOWED_HOSTS (comma-separated) in the
+# environment for that session instead of committing a wildcard here.
+_extra_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS')
+if _extra_hosts:
+    ALLOWED_HOSTS += [h.strip() for h in _extra_hosts.split(',') if h.strip()]
+
+# Django checks the request's Origin header against this list for any POST
+# (login, etc.); a tunnel's domain needs to be added here for that session
+# via DJANGO_CSRF_TRUSTED_ORIGINS (comma-separated, include the scheme, e.g.
+# "https://your-subdomain.trycloudflare.com") or POSTs through it get
+# rejected as a possible CSRF attack even though ALLOWED_HOSTS permits it.
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()
+]
 
 # Application definition
 INSTALLED_APPS = [
@@ -43,6 +59,11 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Serves collected static files directly from the app process - runserver
+    # only does this itself while DEBUG=True, so without whitenoise a
+    # DEBUG=False deployment would serve pages with no CSS/JS at all unless
+    # a separate web server (nginx, etc.) is set up to handle /static/.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -79,7 +100,9 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'smashed_sfs',
         'USER': 'root',
-        'PASSWORD': 'Password123#!',  # Your MySQL password
+        # Override with a DB_PASSWORD environment variable where possible;
+        # this fallback matches the default local MySQL setup.
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'Password123#!'),
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
@@ -88,6 +111,47 @@ DATABASES = {
         },
     }
 }
+
+# `manage.py test` builds a brand-new database from scratch. The full
+# migration history used to fail replaying from an empty database (several
+# historical migrations only worked against the one real, already-manually-
+# patched MySQL database - see CLAUDE.md's "Migration history vs. real
+# schema" note for the full story and how it was fixed) - that's fixed now
+# and a real from-scratch `migrate` against MySQL does work. Tests still
+# route around it anyway: an isolated in-memory SQLite database with
+# migration replay skipped entirely (tables built straight from the current
+# models.py, a standard Django testing pattern) is simply faster and fully
+# isolated from the real MySQL database, which is worth keeping regardless.
+if 'test' in sys.argv:
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': ':memory:',
+    }
+
+    class _DisableMigrations:
+        def __contains__(self, item):
+            return True
+
+        def __getitem__(self, item):
+            return None
+
+    MIGRATION_MODULES = _DisableMigrations()
+
+# Email (used for the password-reset flow). Defaults to printing emails to
+# the console so reset links work out of the box with zero setup - set
+# EMAIL_HOST/EMAIL_HOST_USER/EMAIL_HOST_PASSWORD (e.g. a Gmail address with
+# an App Password, smtp.gmail.com port 587 with EMAIL_USE_TLS=True) to
+# actually send real emails.
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.console.EmailBackend' if DEBUG else 'django.core.mail.backends.smtp.EmailBackend',
+)
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@smashed-sfs.local')
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -114,6 +178,26 @@ USE_TZ = True
 # Static files
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+# Target dir for `manage.py collectstatic`, which whitenoise then serves from
+# - only needed for a DEBUG=False deployment; local runserver never uses it.
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+# CompressedManifestStaticFilesStorage requires `collectstatic` to have
+# already run - {% static %} tags resolve through its manifest file even
+# in dev/tests - so it's only used once DEBUG=False (a real deployment,
+# where collectstatic is expected to run first). Local runserver and tests
+# keep using the plain storage that serves straight from STATICFILES_DIRS
+# with no build step.
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': (
+            'django.contrib.staticfiles.storage.StaticFilesStorage' if DEBUG
+            else 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+        ),
+    },
+}
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -122,3 +206,51 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
+
+# Logging. With DEBUG=True, unhandled errors already show Django's own
+# debug page, so console output here mostly matters once DEBUG=False (no
+# debug page - errors would otherwise vanish silently). Also writes ERROR+
+# to a rotating file so they're not lost once the console itself isn't
+# being watched. LOGS_DIR is created on import since Django's FileHandler
+# doesn't create its own parent directory.
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} {levelname} {name}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'django.log',
+            'maxBytes': 5 * 1024 * 1024,
+            'backupCount': 5,
+            'formatter': 'verbose',
+            'level': 'ERROR',
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django.security.DisallowedHost': {
+            # ALLOWED_HOSTS rejections are expected background noise from
+            # internet scanners once this is ever reachable off localhost -
+            # still logged, just not at the level that pages anyone.
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

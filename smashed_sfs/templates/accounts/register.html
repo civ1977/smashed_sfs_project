@@ -30,8 +30,8 @@
         <div class="form-group">
             <label>Role:</label>
             <select name="role" required>
-                <option value="adviser">Class Adviser</option>
-                <option value="subject_teacher">Subject Teacher</option>
+                <option value="adviser" {% if selected_role == 'adviser' %}selected{% endif %}>Class Adviser</option>
+                <option value="subject_teacher" {% if selected_role == 'subject_teacher' %}selected{% endif %}>Subject Teacher</option>
             </select>
         </div>
         {% endif %}

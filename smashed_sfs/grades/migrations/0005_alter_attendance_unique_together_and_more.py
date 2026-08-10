@@ -40,6 +40,17 @@ class Migration(migrations.Migration):
             field=models.IntegerField(default=1),
             preserve_default=False,
         ),
+        # Moved ahead of the AddField('subjectmapping', 'school_profile_id', ...)
+        # below during the "Migration history vs. real schema" reconciliation
+        # (see CLAUDE.md) - both map to the same physical column
+        # (SubjectMapping.school_profile is a ForeignKey, whose column is named
+        # school_profile_id by Django's own convention), so adding the new
+        # plain field before removing the old FK field crashed a from-scratch
+        # build with "Duplicate column name 'school_profile_id'".
+        migrations.RemoveField(
+            model_name='subjectmapping',
+            name='school_profile',
+        ),
         migrations.AddField(
             model_name='subjectmapping',
             name='school_profile_id',
@@ -72,9 +83,5 @@ class Migration(migrations.Migration):
         migrations.RemoveField(
             model_name='grade',
             name='subject_mapping',
-        ),
-        migrations.RemoveField(
-            model_name='subjectmapping',
-            name='school_profile',
         ),
     ]

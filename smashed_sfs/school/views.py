@@ -1,13 +1,23 @@
+import io
+
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Q
+from django.db.models import Q, Count
+from django.db.models.functions import TruncMonth
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+from xhtml2pdf import pisa
+
+from datetime import date
 
 from accounts.forms import SectionForm, SchoolProfileForm
-from accounts.models import Teacher
+from accounts.models import Teacher, TeacherTimeRecord
+from accounts.views import build_dtr_days
 from students.models import SchoolProfile, Section, Student
-from portal.models import StudentAccount
-from grades.models import SubjectMapping, TeacherSubjectAssignment
+from grades.models import Grade, SubjectMapping, TeacherSubjectAssignment, SchoolCalendarException, SubjectTestMaxScore
+from grades.views import MONTH_NAMES, _score_stats
+from .models import TeacherAccountAuditLog, SectionAuditLog
 
 
 def _get_school_admin_teacher(request):
@@ -24,6 +34,10 @@ def _get_school_admin_teacher(request):
         return None, redirect('dashboard')
 
     return teacher, None
+
+
+def _section_label(section):
+    return f"Grade {section.grade_level}-{section.strand}-{section.section_name}"
 
 
 def _reassign_section_adviser(school_profile_id, section, new_adviser):
@@ -57,21 +71,255 @@ def school_dashboard(request):
 
 
 @login_required
+def school_subject_statistics(request):
+    """School-wide version of reports.subject_statistics_report: instead of
+    one adviser's own section, this consolidates every section per grade
+    level - Mean/Mode/Median/SD/MPS for Final Rating/Pre-Test/Final Exam,
+    per subject, per term, aggregated across all sections in that grade."""
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    if not teacher.school_profile_id:
+        messages.warning(request, 'Your account has no school assigned yet.')
+        return render(request, 'school/subject_statistics.html', {'grade_level_rows': []})
+
+    grade_levels = sorted(set(
+        Section.objects.filter(school_profile_id=teacher.school_profile_id).values_list('grade_level', flat=True)
+    ))
+
+    grade_level_rows = []
+    for grade_level in grade_levels:
+        section_ids = list(Section.objects.filter(
+            school_profile_id=teacher.school_profile_id, grade_level=grade_level
+        ).values_list('section_id', flat=True))
+        student_lrns = list(Student.objects.filter(section_id__in=section_ids).values_list('lrn', flat=True))
+
+        subjects = SubjectMapping.objects.filter(
+            school_profile_id=teacher.school_profile_id, grade_level=grade_level
+        ).order_by('subject_name')
+
+        # Multiple sections can teach the same subject under different
+        # TeacherSubjectAssignment rows (one per section) - gather them all
+        # per subject so a Pre-Test/Final Exam max score can still be found
+        # once scores from every section are combined below.
+        assignments_by_mapping = {}
+        for a in TeacherSubjectAssignment.objects.filter(section_id__in=section_ids):
+            assignments_by_mapping.setdefault(a.mapping_id, []).append(a)
+
+        assignment_ids = [a.assignment_id for assignments in assignments_by_mapping.values() for a in assignments]
+        max_scores = {
+            (m.assignment_id, m.term): m
+            for m in SubjectTestMaxScore.objects.filter(assignment_id__in=assignment_ids)
+        }
+
+        subject_scores = []
+        for subject in subjects:
+            grades = Grade.objects.filter(lrn__in=student_lrns, mapping_id=subject.mapping_id)
+            final_by_term = {1: [], 2: [], 3: []}
+            pretest_by_term = {1: [], 2: [], 3: []}
+            final_exam_by_term = {1: [], 2: [], 3: []}
+            for g in grades:
+                if g.grade is not None:
+                    final_by_term[g.term].append(g.grade)
+                if g.pretest_score is not None:
+                    pretest_by_term[g.term].append(g.pretest_score)
+                if g.final_exam_score is not None:
+                    final_exam_by_term[g.term].append(g.final_exam_score)
+
+            subject_scores.append({
+                'subject': subject,
+                'assignments': assignments_by_mapping.get(subject.mapping_id, []),
+                'final_by_term': final_by_term,
+                'pretest_by_term': pretest_by_term,
+                'final_exam_by_term': final_exam_by_term,
+            })
+
+        terms = []
+        for term in (1, 2, 3):
+            rows = []
+            for entry in subject_scores:
+                # Different sections' assignments can have different max
+                # scores set - once their Pre-Test/Final Exam numbers are
+                # combined there's no single "correct" denominator, so this
+                # just uses the first one found for the term as a stand-in.
+                max_score = None
+                for a in entry['assignments']:
+                    max_score = max_scores.get((a.assignment_id, term))
+                    if max_score:
+                        break
+                rows.append({
+                    'subject': entry['subject'],
+                    'final_rating': _score_stats(entry['final_by_term'][term], 100),
+                    'pretest': _score_stats(entry['pretest_by_term'][term], max_score.pretest_max if max_score else None),
+                    'final_exam': _score_stats(entry['final_exam_by_term'][term], max_score.final_exam_max if max_score else None),
+                })
+            terms.append({'term': term, 'rows': rows})
+
+        grade_level_rows.append({'grade_level': grade_level, 'terms': terms})
+
+    return render(request, 'school/subject_statistics.html', {
+        'grade_level_rows': grade_level_rows,
+    })
+
+
+@login_required
+def school_dtr_upload(request):
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    today = date.today()
+
+    # Any employee's DTR could have been prepared by any registrar/principal
+    # at this school, not just the one viewing this page - scope by the
+    # whole school's Teacher ids so "already uploaded" reflects the school,
+    # not just this account's own uploads.
+    school_teacher_ids = Teacher.objects.filter(
+        school_profile_id=teacher.school_profile_id
+    ).values_list('teacher_id', flat=True)
+
+    uploaded_months = (
+        TeacherTimeRecord.objects.filter(teacher_id__in=school_teacher_ids)
+        .annotate(month_start=TruncMonth('date'))
+        .values('month_start')
+        .annotate(record_count=Count('record_id'))
+        .order_by('-month_start')
+    )
+    uploaded_month_rows = [
+        {
+            'label': f"{MONTH_NAMES[row['month_start'].month - 1]} {row['month_start'].year}",
+            'record_count': row['record_count'],
+            'year': row['month_start'].year,
+            'month': row['month_start'].month,
+        }
+        for row in uploaded_months
+    ]
+
+    return render(request, 'school/dtr_upload.html', {
+        'dtr_current_year': today.year,
+        'dtr_current_month': today.month,
+        'dtr_months': list(enumerate(MONTH_NAMES, start=1)),
+        'uploaded_month_rows': uploaded_month_rows,
+    })
+
+
+@login_required
+def download_dtr_pdf(request, year, month):
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    school_teacher_ids = Teacher.objects.filter(
+        school_profile_id=teacher.school_profile_id
+    ).values_list('teacher_id', flat=True)
+
+    records = TeacherTimeRecord.objects.filter(
+        teacher_id__in=school_teacher_ids, date__year=year, date__month=month
+    )
+    employee_names = sorted(
+        {r.employee_name for r in records if r.employee_name}, key=str.lower
+    )
+    if not employee_names:
+        messages.error(request, f'No DTR data found for {MONTH_NAMES[month - 1]} {year}.')
+        return redirect('school_dtr_upload')
+
+    exceptions = {
+        e.date: e.is_school_day
+        for e in SchoolCalendarException.objects.filter(
+            school_profile_id=teacher.school_profile_id, date__year=year, date__month=month
+        )
+    }
+
+    records_by_employee = {}
+    for r in records:
+        records_by_employee.setdefault(r.employee_name, {})[r.date] = r
+
+    forms = [
+        {
+            'employee_name': name,
+            'days': build_dtr_days(year, month, exceptions, records_by_employee.get(name, {})),
+        }
+        for name in employee_names
+    ]
+
+    html = render_to_string('school/dtr_pdf.html', {
+        'forms': forms,
+        'month_name': MONTH_NAMES[month - 1],
+        'year': year,
+    })
+
+    buffer = io.BytesIO()
+    result = pisa.CreatePDF(src=html, dest=buffer)
+    if result.err:
+        messages.error(request, 'Could not generate the PDF. Please try again.')
+        return redirect('school_dtr_upload')
+
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    filename = f"DTR_{MONTH_NAMES[month - 1]}_{year}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+def delete_dtr_month(request, year, month):
+    if request.method != 'POST':
+        return redirect('school_dtr_upload')
+
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    school_teacher_ids = Teacher.objects.filter(
+        school_profile_id=teacher.school_profile_id
+    ).values_list('teacher_id', flat=True)
+
+    deleted_count, _ = TeacherTimeRecord.objects.filter(
+        teacher_id__in=school_teacher_ids, date__year=year, date__month=month
+    ).delete()
+
+    target_label = f"{MONTH_NAMES[month - 1]} {year}"
+    if deleted_count:
+        messages.success(request, f'Deleted {deleted_count} DTR record(s) for {target_label}.')
+    else:
+        messages.error(request, f'No DTR data found for {target_label}.')
+    return redirect('school_dtr_upload')
+
+
+@login_required
 def school_student_list(request):
     teacher, error = _get_school_admin_teacher(request)
     if error:
         return error
 
-    students = []
-    if teacher.school_profile_id:
-        section_ids = Section.objects.filter(
-            school_profile_id=teacher.school_profile_id
-        ).values_list('section_id', flat=True)
-        students = Student.objects.filter(section_id__in=section_ids).order_by('surname', 'name')
-    else:
-        messages.warning(request, 'Your account has no school assigned yet.')
+    query = request.GET.get('q', '').strip()
+    student_rows = []
 
-    return render(request, 'school/students.html', {'students': students})
+    if not teacher.school_profile_id:
+        messages.warning(request, 'Your account has no school assigned yet.')
+    elif query:
+        sections_by_id = {
+            s.section_id: s for s in Section.objects.filter(school_profile_id=teacher.school_profile_id)
+        }
+        students = Student.objects.filter(
+            section_id__in=sections_by_id.keys()
+        ).filter(
+            Q(lrn__icontains=query) | Q(surname__icontains=query) | Q(name__icontains=query)
+        ).order_by('surname', 'name')
+
+        adviser_ids = {s.adviser_id for s in sections_by_id.values() if s.adviser_id}
+        advisers_by_id = {t.teacher_id: t for t in Teacher.objects.filter(teacher_id__in=adviser_ids)}
+
+        student_rows = []
+        for s in students:
+            section = sections_by_id.get(s.section_id)
+            student_rows.append({
+                'student': s,
+                'section': section,
+                'adviser': advisers_by_id.get(section.adviser_id) if section else None,
+            })
+
+    return render(request, 'school/students.html', {'query': query, 'student_rows': student_rows})
 
 
 @login_required
@@ -82,41 +330,7 @@ def school_sections(request):
 
     if not teacher.school_profile_id:
         messages.warning(request, 'Your account has no school assigned yet.')
-        return render(request, 'school/sections.html', {'section_rows': [], 'unassigned_teachers': []})
-
-    if request.method == 'POST':
-        grade_level = request.POST.get('grade_level', '').strip()
-        track = request.POST.get('track', '').strip()
-        strand = request.POST.get('strand', '').strip()
-        section_name = request.POST.get('section_name', '').strip()
-        modality = request.POST.get('modality', '').strip()
-        adviser_teacher_id = request.POST.get('adviser_teacher_id', '').strip()
-
-        if not (grade_level and section_name):
-            messages.error(request, 'Grade level and section name are required.')
-            return redirect('school_sections')
-
-        section = Section.objects.create(
-            grade_level=grade_level,
-            track=track,
-            strand=strand,
-            section_name=section_name,
-            modality=modality,
-            adviser_id=None,
-            school_profile_id=teacher.school_profile_id,
-        )
-
-        if adviser_teacher_id:
-            adviser = Teacher.objects.filter(
-                teacher_id=adviser_teacher_id, school_profile_id=teacher.school_profile_id
-            ).first()
-            if adviser:
-                _reassign_section_adviser(teacher.school_profile_id, section, adviser)
-            else:
-                messages.warning(request, 'Selected teacher not found - section created without an adviser.')
-
-        messages.success(request, f'✅ Section {section_name} created.')
-        return redirect('school_sections')
+        return render(request, 'school/sections.html', {'section_rows': []})
 
     sections = Section.objects.filter(
         school_profile_id=teacher.school_profile_id
@@ -137,19 +351,44 @@ def school_sections(request):
         for s in sections
     ]
 
-    assigned_ids = [s.adviser_id for s in sections if s.adviser_id]
-    unassigned_teachers = Teacher.objects.filter(
-        school_profile_id=teacher.school_profile_id, role=Teacher.ROLE_ADVISER
-    ).exclude(teacher_id__in=assigned_ids).order_by('full_name')
-
     all_teachers = Teacher.objects.filter(
         school_profile_id=teacher.school_profile_id, role=Teacher.ROLE_ADVISER
     ).order_by('full_name')
 
+    teachers_by_id = {t.teacher_id: t for t in Teacher.objects.filter(school_profile_id=teacher.school_profile_id)}
+    audit_log = SectionAuditLog.objects.filter(school_profile_id=teacher.school_profile_id)[:50]
+    audit_log_rows = [
+        {'log': entry, 'performed_by': teachers_by_id.get(entry.performed_by)}
+        for entry in audit_log
+    ]
+
     return render(request, 'school/sections.html', {
         'section_rows': section_rows,
-        'unassigned_teachers': unassigned_teachers,
         'all_teachers': all_teachers,
+        'audit_log_rows': audit_log_rows,
+    })
+
+
+@login_required
+def school_section_students(request, section_id):
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    section = Section.objects.filter(
+        section_id=section_id, school_profile_id=teacher.school_profile_id
+    ).first()
+    if not section:
+        messages.error(request, 'Section not found.')
+        return redirect('school_sections')
+
+    adviser = Teacher.objects.filter(teacher_id=section.adviser_id).first() if section.adviser_id else None
+    students = Student.objects.filter(section_id=section.section_id).order_by('surname', 'name')
+
+    return render(request, 'school/section_students.html', {
+        'section': section,
+        'adviser': adviser,
+        'students': students,
     })
 
 
@@ -173,6 +412,13 @@ def reassign_section_adviser(request, section_id):
     if not adviser_teacher_id:
         _reassign_section_adviser(teacher.school_profile_id, section, None)
         messages.success(request, f'{section.section_name} is now unassigned.')
+        SectionAuditLog.objects.create(
+            school_profile_id=teacher.school_profile_id,
+            section_label=_section_label(section),
+            action=SectionAuditLog.ACTION_EDITED,
+            detail='Adviser unassigned',
+            performed_by=teacher.teacher_id,
+        )
     else:
         adviser = Teacher.objects.filter(
             teacher_id=adviser_teacher_id, school_profile_id=teacher.school_profile_id
@@ -182,7 +428,57 @@ def reassign_section_adviser(request, section_id):
         else:
             _reassign_section_adviser(teacher.school_profile_id, section, adviser)
             messages.success(request, f'✅ {section.section_name} adviser reassigned to {adviser.full_name}.')
+            SectionAuditLog.objects.create(
+                school_profile_id=teacher.school_profile_id,
+                section_label=_section_label(section),
+                action=SectionAuditLog.ACTION_EDITED,
+                detail=f'Adviser reassigned to {adviser.full_name}',
+                performed_by=teacher.teacher_id,
+            )
 
+    return redirect('school_sections')
+
+
+@login_required
+def delete_section(request, section_id):
+    if request.method != 'POST':
+        return redirect('school_sections')
+
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    section = Section.objects.filter(
+        section_id=section_id, school_profile_id=teacher.school_profile_id
+    ).first()
+    if not section:
+        messages.error(request, 'Section not found.')
+        return redirect('school_sections')
+
+    # A section with students or subject-teaching assignments still pointing
+    # at it can't be deleted - there's no cascading delete in this schema
+    # (see CLAUDE.md), so removing it would silently orphan those rows.
+    student_count = Student.objects.filter(section_id=section.section_id).count()
+    assignment_count = TeacherSubjectAssignment.objects.filter(section_id=section.section_id).count()
+    if student_count or assignment_count:
+        messages.error(
+            request,
+            f'Cannot delete {section.section_name}: it still has {student_count} student(s) and '
+            f'{assignment_count} subject-teaching assignment(s). Move or remove those first.'
+        )
+        return redirect('school_sections')
+
+    label = _section_label(section)
+    section.delete()
+
+    SectionAuditLog.objects.create(
+        school_profile_id=teacher.school_profile_id,
+        section_label=label,
+        action=SectionAuditLog.ACTION_DELETED,
+        detail='',
+        performed_by=teacher.teacher_id,
+    )
+    messages.success(request, f'✅ {label} deleted.')
     return redirect('school_sections')
 
 
@@ -194,7 +490,7 @@ def school_accounts(request):
 
     if not teacher.school_profile_id:
         messages.warning(request, 'Your account has no school assigned yet.')
-        return render(request, 'school/accounts.html', {'account_rows': [], 'sections': [], 'student_account_rows': []})
+        return render(request, 'school/accounts.html', {'account_rows': [], 'sections': []})
 
     teachers = Teacher.objects.filter(school_profile_id=teacher.school_profile_id).order_by('full_name')
     sections = Section.objects.filter(school_profile_id=teacher.school_profile_id).order_by('grade_level', 'section_name')
@@ -205,21 +501,23 @@ def school_accounts(request):
         for t in teachers
     ]
 
-    section_ids = [s.section_id for s in sections]
-    students_by_lrn = {
-        s.lrn: s for s in Student.objects.filter(section_id__in=section_ids)
-    }
-    student_accounts = StudentAccount.objects.filter(lrn__in=students_by_lrn.keys()).order_by('lrn')
-
-    student_account_rows = [
-        {'account': a, 'student': students_by_lrn.get(a.lrn)}
-        for a in student_accounts
+    teachers_by_id = {t.teacher_id: t for t in teachers}
+    audit_log = TeacherAccountAuditLog.objects.filter(
+        target_teacher_id__in=teachers_by_id.keys()
+    )[:50]
+    audit_log_rows = [
+        {
+            'log': entry,
+            'target': teachers_by_id.get(entry.target_teacher_id),
+            'performed_by': teachers_by_id.get(entry.performed_by),
+        }
+        for entry in audit_log
     ]
 
     return render(request, 'school/accounts.html', {
         'account_rows': account_rows,
         'sections': sections,
-        'student_account_rows': student_account_rows,
+        'audit_log_rows': audit_log_rows,
     })
 
 
@@ -252,47 +550,12 @@ def toggle_teacher_active(request, teacher_id):
         target.user.save()
 
     status = 'activated' if target.is_active else 'deactivated'
+    TeacherAccountAuditLog.objects.create(
+        target_teacher_id=target.teacher_id,
+        action=status,
+        performed_by=teacher.teacher_id,
+    )
     messages.success(request, f'✅ {target.full_name} {status}.')
-    return redirect('school_accounts')
-
-
-@login_required
-def toggle_student_account_active(request, account_id):
-    if request.method != 'POST':
-        return redirect('school_accounts')
-
-    teacher, error = _get_school_admin_teacher(request)
-    if error:
-        return error
-
-    target = StudentAccount.objects.filter(account_id=account_id).first()
-    if not target:
-        messages.error(request, 'Student account not found.')
-        return redirect('school_accounts')
-
-    # Same scoping discipline as everywhere else: only students whose section
-    # sits in this registrar/principal's own school - never another school's.
-    section_ids = Section.objects.filter(
-        school_profile_id=teacher.school_profile_id
-    ).values_list('section_id', flat=True)
-    student = Student.objects.filter(lrn=target.lrn, section_id__in=section_ids).first()
-    if not student:
-        messages.error(request, 'Student account not found in this school.')
-        return redirect('school_accounts')
-
-    target.is_active = not target.is_active
-    target.save()
-
-    # StudentAccount.is_active is this app's own record of standing; the
-    # linked auth.User.is_active is what Django's authenticate() actually
-    # checks, so keep them in sync - that's what blocks (or restores) future
-    # login. This never touches Grade/Attendance/Student rows, so historical
-    # data stays intact either way.
-    target.user.is_active = target.is_active
-    target.user.save()
-
-    status = 'activated' if target.is_active else 'deactivated'
-    messages.success(request, f'✅ {student.surname}, {student.name} account {status}.')
     return redirect('school_accounts')
 
 

@@ -5,43 +5,6 @@
 {% block content %}
 <h1>Sections</h1>
 
-<h3>Create a Section</h3>
-<div class="card" style="max-width: 480px; margin-bottom: var(--space-6);">
-    <form method="POST" action="{% url 'school_sections' %}">
-        {% csrf_token %}
-        <div class="form-group">
-            <label>Grade Level:</label>
-            <input type="text" name="grade_level" placeholder="11" required>
-        </div>
-        <div class="form-group">
-            <label>Track:</label>
-            <input type="text" name="track" placeholder="Academic">
-        </div>
-        <div class="form-group">
-            <label>Strand:</label>
-            <input type="text" name="strand" placeholder="STEM">
-        </div>
-        <div class="form-group">
-            <label>Section Name:</label>
-            <input type="text" name="section_name" placeholder="B" required>
-        </div>
-        <div class="form-group">
-            <label>Modality:</label>
-            <input type="text" name="modality" placeholder="F2F">
-        </div>
-        <div class="form-group">
-            <label>Adviser (optional):</label>
-            <select name="adviser_teacher_id">
-                <option value="">— Unassigned —</option>
-                {% for t in unassigned_teachers %}
-                <option value="{{ t.teacher_id }}">{{ t.full_name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <button type="submit" class="btn">Create Section</button>
-    </form>
-</div>
-
 <h3>All Sections</h3>
 {% if section_rows %}
 <table>
@@ -53,7 +16,9 @@
             <th>Section</th>
             <th>Adviser</th>
             <th>Students</th>
+            <th></th>
             <th>Reassign Adviser</th>
+            <th></th>
         </tr>
     </thead>
     <tbody>
@@ -72,6 +37,9 @@
             </td>
             <td class="num">{{ row.student_count }}</td>
             <td>
+                <a href="{% url 'school_section_students' row.section.section_id %}" class="btn ghost">View Class List</a>
+            </td>
+            <td>
                 <form method="POST" action="{% url 'reassign_section_adviser' row.section.section_id %}" style="display:flex; gap: var(--space-2);">
                     {% csrf_token %}
                     <select name="adviser_teacher_id">
@@ -83,11 +51,54 @@
                     <button type="submit" class="btn ghost">Save</button>
                 </form>
             </td>
+            <td>
+                <form method="POST" action="{% url 'delete_section' row.section.section_id %}"
+                      onsubmit="return confirm('Delete Grade {{ row.section.grade_level|escapejs }}-{{ row.section.strand|escapejs }}-{{ row.section.section_name|escapejs }}? This only works if it has no students or subject-teaching assignments left.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn risk">Delete</button>
+                </form>
+            </td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 {% else %}
 <p>No sections created for this school yet.</p>
+{% endif %}
+
+<h1 style="margin-top: var(--space-6);">Section Activity Log</h1>
+<p>Who edited or deleted a section, and when.</p>
+
+{% if audit_log_rows %}
+<table>
+    <thead>
+        <tr>
+            <th>Section</th>
+            <th>Action</th>
+            <th>Detail</th>
+            <th>By</th>
+            <th>When</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in audit_log_rows %}
+        <tr>
+            <td>{{ row.log.section_label }}</td>
+            <td>
+                {% if row.log.action == 'deleted' %}
+                    <span class="pill risk">Deleted</span>
+                {% else %}
+                    <span class="pill warn">Edited</span>
+                {% endif %}
+            </td>
+            <td>{{ row.log.detail|default:"—" }}</td>
+            <td>{% if row.performed_by %}{{ row.performed_by.full_name }}{% else %}Teacher #{{ row.log.performed_by }}{% endif %}</td>
+            <td>{{ row.log.performed_at|date:"Y-m-d H:i" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No section activity yet.</p>
 {% endif %}
 {% endblock %}

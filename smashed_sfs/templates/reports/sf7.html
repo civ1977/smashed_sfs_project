@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}SCHOOL FORM 7{% endblock %}
+
+{% block content %}
+<div class="no-print">
+    <a href="{% url 'select_student_report' %}" class="btn ghost">← Reports</a>
+    <button type="button" class="btn" onclick="window.print()">Print</button>
+</div>
+
+<div class="sf7-header">
+    <p>Republic of the Philippines</p>
+    <p>Department of Education</p>
+    {% if school_profile %}
+        <p>{{ school_profile.region }}</p>
+        <p class="bold">{{ school_profile.division }}</p>
+        <p>{{ school_profile.district }} · {{ school_profile.municipality }}</p>
+        <p>School: <span class="bold">{{ school_profile.school_name }}</span> ({{ school_profile.school_id }})</p>
+        <p>School Year: {{ school_profile.school_year }}</p>
+    {% else %}
+        <p style="color: var(--ink-faint);">No school profile linked to your account.</p>
+    {% endif %}
+</div>
+
+<h1 class="sf7-title">School Form 7 (SF7)</h1>
+<p class="sf7-subtitle">School Personnel Assignment List and Basic Profile</p>
+
+{% if rows %}
+<div class="sf7-table-wrap">
+    <table class="sf7-table">
+        <thead>
+            <tr>
+                <th>No.</th>
+                <th>Name</th>
+                <th>Position / Designation</th>
+                <th>Role</th>
+                <th>Advisory Section</th>
+                <th>Subjects Taught (Section, Schedule)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td class="mono">{{ forloop.counter }}</td>
+                <td>{{ row.teacher.full_name }}</td>
+                <td>{{ row.teacher.position|default:"—" }}</td>
+                <td>{{ row.teacher.get_role_display }}</td>
+                <td>
+                    {% if row.advisory_section %}
+                        {{ row.advisory_section.grade_level }}-{{ row.advisory_section.strand }}-{{ row.advisory_section.section_name }}
+                    {% else %}
+                        <span style="color: var(--ink-faint);">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if row.assignments %}
+                        <ul class="sf7-assignment-list">
+                        {% for a in row.assignments %}
+                            <li>{{ a.subject_name }} — {{ a.section_label }}<br><small>{{ a.schedule }}</small></li>
+                        {% endfor %}
+                        </ul>
+                    {% else %}
+                        <span style="color: var(--ink-faint);">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p style="margin-top: var(--space-5);">No personnel found for your school.</p>
+{% endif %}
+
+<style>
+    .sf7-header {
+        text-align: center;
+        margin: var(--space-4) 0;
+        line-height: 1.4;
+    }
+    .sf7-header p { margin: 0; }
+    .sf7-header .bold { font-weight: 700; }
+    .sf7-title {
+        text-align: center;
+        margin: var(--space-5) 0 0;
+    }
+    .sf7-subtitle {
+        text-align: center;
+        color: var(--ink-soft);
+        margin: 0 0 var(--space-5);
+    }
+    .sf7-table-wrap {
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        border: 1px solid var(--line);
+    }
+    .sf7-table { width: 100%; border-collapse: collapse; }
+    .sf7-table th {
+        background: var(--accent);
+        color: #fff;
+        font-size: 13px;
+        padding: var(--space-3);
+        text-align: left;
+    }
+    .sf7-table td { padding: var(--space-3); vertical-align: top; }
+    .sf7-table tbody tr:nth-child(even) { background: var(--bg-exhibit); }
+    .sf7-assignment-list { margin: 0; padding-left: var(--space-4); }
+    .sf7-assignment-list li { margin-bottom: var(--space-2); }
+    .sf7-assignment-list li:last-child { margin-bottom: 0; }
+
+    @media print {
+        .sf7-table th { background: #eee !important; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+</style>
+{% endblock %}

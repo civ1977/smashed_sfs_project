@@ -3,10 +3,16 @@
 {% block breadcrumb %}STUDENTS{% endblock %}
 
 {% block content %}
-<h1>All Students</h1>
+<h1>Find a Student</h1>
 
-{% if students %}
-    <p>Total: <strong>{{ students|length }}</strong> students</p>
+<form method="GET" action="{% url 'school_student_list' %}" style="display: flex; gap: var(--space-3); align-items: center; max-width: 480px; margin-top: var(--space-4);">
+    <input type="text" name="q" value="{{ query }}" placeholder="Search by LRN, surname, or first name" style="flex: 1;">
+    <button type="submit" class="btn">Search</button>
+</form>
+
+{% if query %}
+    {% if student_rows %}
+    <p style="margin-top: var(--space-4);">Found <strong>{{ student_rows|length }}</strong> student{{ student_rows|length|pluralize }} matching "{{ query }}"</p>
 
     <table>
         <thead>
@@ -17,24 +23,37 @@
                 <th>Middle Name</th>
                 <th>Sex</th>
                 <th>Birthday</th>
-                <th>Section</th>
+                <th>Year Level</th>
+                <th>Class (Section)</th>
+                <th>Adviser</th>
             </tr>
         </thead>
         <tbody>
-            {% for student in students %}
+            {% for row in student_rows %}
             <tr>
-                <td class="mono">{{ student.lrn }}</td>
-                <td>{{ student.surname }}</td>
-                <td>{{ student.name }}</td>
-                <td>{{ student.middle_name|default:"—" }}</td>
-                <td>{{ student.sex }}</td>
-                <td>{{ student.birthday|date:"Y-m-d" }}</td>
-                <td>{{ student.section_id }}</td>
+                <td class="mono">{{ row.student.lrn }}</td>
+                <td>{{ row.student.surname }}</td>
+                <td>{{ row.student.name }}</td>
+                <td>{{ row.student.middle_name|default:"—" }}</td>
+                <td>{{ row.student.sex }}</td>
+                <td>{{ row.student.birthday|date:"Y-m-d" }}</td>
+                <td>
+                    {% if row.section %}Grade {{ row.section.grade_level }}{% else %}<span class="pill risk">Unknown</span>{% endif %}
+                </td>
+                <td>
+                    {% if row.section %}{{ row.section.strand }}-{{ row.section.section_name }}{% else %}<span class="pill risk">Unknown</span>{% endif %}
+                </td>
+                <td>
+                    {% if row.adviser %}{{ row.adviser.full_name }}{% else %}<span class="pill warn">Unassigned</span>{% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    {% else %}
+    <p style="margin-top: var(--space-5);">No students found matching "{{ query }}".</p>
+    {% endif %}
 {% else %}
-    <p>No students found for this school yet.</p>
+<p style="margin-top: var(--space-5); color: var(--ink-soft);">Search by LRN, surname, or first name to find a specific learner's year level and class.</p>
 {% endif %}
 {% endblock %}

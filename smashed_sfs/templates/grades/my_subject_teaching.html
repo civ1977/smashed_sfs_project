@@ -21,7 +21,11 @@
             <td>{% if row.mapping %}{{ row.mapping.subject_name }}{% else %}<span class="pill risk">Unknown subject</span>{% endif %}</td>
             <td>{% if row.mapping %}Grade {{ row.mapping.grade_level }} · {{ row.mapping.strand }}{% else %}—{% endif %}</td>
             <td>{% if row.section %}{{ row.section.grade_level }}-{{ row.section.strand }}-{{ row.section.section_name }}{% else %}<span class="pill risk">Unknown section</span>{% endif %}</td>
-            <td><a href="{% url 'subject_teaching_grades' row.assignment.assignment_id %}" class="btn">Enter Grades</a></td>
+            <td>
+                <a href="{% url 'subject_teaching_grades' row.assignment.assignment_id 1 %}" class="btn">Term 1</a>
+                <a href="{% url 'subject_teaching_grades' row.assignment.assignment_id 2 %}" class="btn">Term 2</a>
+                <a href="{% url 'subject_teaching_grades' row.assignment.assignment_id 3 %}" class="btn">Term 3</a>
+            </td>
         </tr>
         {% endfor %}
     </tbody>
