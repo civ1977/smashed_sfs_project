@@ -6,10 +6,17 @@ import os
 import sys
 from pathlib import Path
 import pymysql
+from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 pymysql.install_as_MySQLdb()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Local, gitignored secrets (DB credentials, etc.) live in .env - see
+# .env.example for the expected keys. Real environment variables (e.g. set
+# by a hosting platform) still take precedence over anything in .env.
+load_dotenv(BASE_DIR / '.env')
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # Override with a DJANGO_SECRET_KEY environment variable for any real
@@ -95,14 +102,27 @@ TEMPLATES = [
 WSGI_APPLICATION = 'smashed_sfs.wsgi.application'
 
 # Database
+# No hardcoded credentials and no root: DB_USER/DB_PASSWORD must come from
+# .env (or a real environment variable), and should name a least-privilege
+# MySQL user scoped to just this database - see .env.example and
+# CLAUDE.md/README for the CREATE USER / GRANT statement. `manage.py test`
+# below overrides this with an isolated in-memory SQLite database instead,
+# so these are never required just to run the test suite.
+_DB_USER = os.environ.get('DB_USER')
+_DB_PASSWORD = os.environ.get('DB_PASSWORD')
+if ('test' not in sys.argv) and (not _DB_USER or not _DB_PASSWORD):
+    raise ImproperlyConfigured(
+        'DB_USER and DB_PASSWORD are not set. Copy .env.example to .env and fill in '
+        'a least-privilege MySQL user for this database (not root) - see CLAUDE.md/'
+        'README for the CREATE USER / GRANT statement to create one.'
+    )
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'smashed_sfs',
-        'USER': 'root',
-        # Override with a DB_PASSWORD environment variable where possible;
-        # this fallback matches the default local MySQL setup.
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'Password123#!'),
+        'USER': _DB_USER,
+        'PASSWORD': _DB_PASSWORD,
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
