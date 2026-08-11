@@ -42,7 +42,6 @@ urlpatterns = [
     path('tools/', views.tools, name='tools'),
     path('tools/dtr/', views.daily_time_record, name='daily_time_record'),
     path('tools/dtr/upload/', views.upload_dtr, name='upload_dtr'),
-    path('tools/dtr/rename/', views.rename_dtr_employee, name='rename_dtr_employee'),
     path('tools/dtr/save-cell/', views.save_dtr_cell, name='save_dtr_cell'),
     
     path('students/', include('students.urls')),

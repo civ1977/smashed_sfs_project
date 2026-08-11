@@ -3,7 +3,6 @@ import csv
 import io
 import math
 from datetime import date, datetime
-from urllib.parse import quote
 
 import openpyxl
 from django.shortcuts import render, redirect
@@ -11,9 +10,8 @@ from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib import messages
-from django.db import transaction, IntegrityError
+from django.db import transaction
 from django.http import JsonResponse
-from django.urls import reverse
 
 from students.models import Section, Student
 from portal.models import StudentAccount
@@ -403,26 +401,6 @@ def build_dtr_days(year, month, exceptions, records_by_date):
     return days
 
 
-def _dtr_name_options(teacher):
-    """Names to offer in the DTR's searchable Name field: every teacher at
-    the same school (so a registrar can pick a colleague they haven't
-    prepared a DTR for yet) plus anyone this account has already typed a
-    DTR name for (covers employees with no Teacher account at all, e.g.
-    imported straight from a biometric export)."""
-    names = set()
-    if teacher and teacher.school_profile_id:
-        names.update(
-            Teacher.objects.filter(school_profile_id=teacher.school_profile_id)
-            .exclude(full_name='').values_list('full_name', flat=True)
-        )
-    if teacher:
-        names.update(
-            TeacherTimeRecord.objects.filter(teacher_id=teacher.teacher_id)
-            .exclude(employee_name='').values_list('employee_name', flat=True).distinct()
-        )
-    return sorted(names, key=str.lower)
-
-
 @login_required
 def daily_time_record(request):
     teacher = Teacher.objects.filter(username=request.user.username).first()
@@ -438,8 +416,12 @@ def daily_time_record(request):
     if month < 1 or month > 12:
         month = today.month
 
-    default_name = teacher.full_name if teacher else ''
-    employee_name = request.GET.get('name', '').strip() or default_name
+    # Each account only ever sees/edits its own name's DTR - no override via
+    # a query param. Prevents one account from reading or planting records
+    # under someone else's name (which used to be possible via a search box
+    # and free-text rename here, and would otherwise leak into the
+    # registrar's school-wide PDF export).
+    employee_name = teacher.full_name if teacher else ''
 
     # SF2's own school-day convention (grades/views.py's _school_days_in_month):
     # Mon-Fri are school days and Sat/Sun are not, unless a
@@ -472,7 +454,6 @@ def daily_time_record(request):
     return render(request, 'accounts/dtr.html', {
         'teacher': teacher,
         'employee_name': employee_name,
-        'name_options': _dtr_name_options(teacher),
         'month': month,
         'month_name': date(year, month, 1).strftime('%B'),
         'year': year,
@@ -744,42 +725,6 @@ def upload_dtr(request):
 
 
 @login_required
-def rename_dtr_employee(request):
-    """Editing the Name line on the DTR form itself is a correction (a typo,
-    a formatting fix) to whoever's records are already loaded - it renames
-    every one of that person's TeacherTimeRecord rows under this account
-    and keeps all their time data. This is deliberately separate from the
-    Name field's search box, which just looks up a (possibly different,
-    possibly empty) existing person's DTR without touching any data."""
-    if request.method != 'POST':
-        return redirect('daily_time_record')
-
-    teacher = Teacher.objects.filter(username=request.user.username).first()
-    if not teacher:
-        return redirect('daily_time_record')
-
-    old_name = request.POST.get('old_name', '').strip()
-    new_name = request.POST.get('new_name', '').strip()
-    year = request.POST.get('year', '')
-    month = request.POST.get('month', '')
-
-    if new_name and old_name and new_name != old_name:
-        try:
-            TeacherTimeRecord.objects.filter(teacher_id=teacher.teacher_id, employee_name=old_name).update(
-                employee_name=new_name
-            )
-            messages.success(request, f'Renamed "{old_name}" to "{new_name}" - all their time records were kept.')
-        except IntegrityError:
-            messages.error(
-                request,
-                f'Could not rename to "{new_name}" - that name already has records on some of the same dates.',
-            )
-            new_name = old_name
-
-    return redirect(f"{reverse('daily_time_record')}?year={year}&month={month}&name={quote(new_name or old_name)}")
-
-
-@login_required
 def save_dtr_cell(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Invalid request.'}, status=400)
@@ -797,7 +742,10 @@ def save_dtr_cell(request):
     except ValueError:
         return JsonResponse({'error': 'Invalid date.'}, status=400)
 
-    employee_name = request.POST.get('employee_name', '').strip() or teacher.full_name
+    # Always this account's own name, never a client-submitted one - stops
+    # an account from planting a stray record under someone else's name
+    # that would otherwise leak into the registrar's school-wide PDF export.
+    employee_name = teacher.full_name
     value = request.POST.get('value', '').strip()
     record, _ = TeacherTimeRecord.objects.get_or_create(
         teacher_id=teacher.teacher_id, employee_name=employee_name, date=d

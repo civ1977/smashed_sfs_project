@@ -6,30 +6,13 @@
 <div class="no-print">
     <h2>&#128197; Daily Time Record</h2>
     <a href="{% url 'tools' %}" class="btn ghost">&larr; Back to Tools</a>
-    <a href="{% url 'daily_time_record' %}?year={{ prev_year }}&month={{ prev_month }}&name={{ employee_name|urlencode }}" class="btn ghost">&larr; {{ prev_month_name }}</a>
-    <a href="{% url 'daily_time_record' %}?year={{ next_year }}&month={{ next_month }}&name={{ employee_name|urlencode }}" class="btn ghost">{{ next_month_name }} &rarr;</a>
+    <a href="{% url 'daily_time_record' %}?year={{ prev_year }}&month={{ prev_month }}" class="btn ghost">&larr; {{ prev_month_name }}</a>
+    <a href="{% url 'daily_time_record' %}?year={{ next_year }}&month={{ next_month }}" class="btn ghost">{{ next_month_name }} &rarr;</a>
     <button type="button" class="btn" onclick="window.print()">Print</button>
 
-    <div class="dtr-search-row">
-        <input type="text" id="dtr-search-input" list="dtr-name-options" placeholder="Search a teacher/employee's DTR&hellip;">
-        <button type="button" class="btn ghost" onclick="dtrGoToSearchedName()">Search</button>
-        <datalist id="dtr-name-options">
-            {% for name in name_options %}
-            <option value="{{ name }}">{% endfor %}
-        </datalist>
-    </div>
-
-    <form id="dtr-rename-form" method="post" action="{% url 'rename_dtr_employee' %}" style="display:none;">
-        {% csrf_token %}
-        <input type="hidden" name="old_name" value="{{ employee_name }}">
-        <input type="hidden" name="new_name" id="dtr-rename-new-name">
-        <input type="hidden" name="year" value="{{ year }}">
-        <input type="hidden" name="month" value="{{ month }}">
-    </form>
     <p style="color: #999; font-size: 12px; margin-top: 6px;">
-        To import a CSV/Excel export, use the centralized upload on the school dashboard. Any cell below can
-        also be edited directly by clicking into it, and the Name on the form itself can be corrected in place
-        without losing its data - use the search box above instead to switch to a different person's DTR.
+        This shows only your own Daily Time Record. To import a CSV/Excel export, use the centralized upload
+        on the school dashboard. Any cell below can be edited directly by clicking into it.
     </p>
     <hr>
 </div>
@@ -38,14 +21,8 @@
     <div class="dtr-form-tag">Civil Service Form No. 48</div>
     <h1 class="dtr-title">Daily Time Record</h1>
 
-    <input
-        type="text"
-        id="dtr-name-input"
-        class="dtr-name-line dtr-name-input"
-        value="{{ employee_name }}"
-        autocomplete="off"
-    >
-    <div class="dtr-name-label">(Name &mdash; edit to correct a typo, data stays put)</div>
+    <div class="dtr-name-line">{{ employee_name }}</div>
+    <div class="dtr-name-label">(Name)</div>
 
     <div class="dtr-meta">
         <div class="dtr-meta-left">
@@ -118,16 +95,6 @@
 </div>
 
 <style>
-    .dtr-search-row { display: inline-flex; gap: var(--space-2); align-items: center; margin: 0 var(--space-2); }
-    .dtr-search-row input {
-        padding: var(--space-2) var(--space-3);
-        border: 1px solid var(--line-strong);
-        border-radius: var(--radius);
-        font-family: var(--font-body);
-        font-size: 14px;
-        min-width: 220px;
-    }
-
     .dtr-form {
         max-width: 620px;
         margin: var(--space-5) auto;
@@ -147,16 +114,6 @@
         padding-bottom: var(--space-1);
         min-height: 1.4em;
     }
-    .dtr-name-input {
-        display: block;
-        width: 100%;
-        background: transparent;
-        font-family: var(--font-body);
-        font-size: 15px;
-        border-radius: 0;
-    }
-    .dtr-name-input:hover { background: var(--bg-exhibit); }
-    .dtr-name-input:focus { outline: none; border-bottom: 1px solid var(--accent); background: var(--accent-wash); }
     .dtr-name-label { text-align: center; font-style: italic; font-size: 12px; color: var(--ink-soft); margin-bottom: var(--space-4); }
     .dtr-meta { display: flex; justify-content: space-between; gap: var(--space-5); font-size: 14px; margin-bottom: var(--space-4); }
     .dtr-meta-left, .dtr-meta-right { flex: 1; }
@@ -209,46 +166,8 @@
 </style>
 
 <script>
-    var currentEmployeeName = "{{ employee_name|escapejs }}";
-
-    function dtrGoToSearchedName() {
-        var value = document.getElementById('dtr-search-input').value.trim();
-        if (!value) return;
-        var url = new URL(window.location.href);
-        url.searchParams.set('name', value);
-        window.location.href = url.toString();
-    }
-
     (function () {
-        var searchInput = document.getElementById('dtr-search-input');
-        searchInput.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                dtrGoToSearchedName();
-            }
-        });
-
-        // The Name line on the printed form itself is a correction (fix a
-        // typo), not a search - it renames every record already loaded here
-        // and keeps the data, instead of navigating away to look up a
-        // (possibly empty) different name. Use the search box above to
-        // switch to viewing someone else's DTR.
-        var nameInput = document.getElementById('dtr-name-input');
-        var lastName = nameInput.value.trim();
-        nameInput.addEventListener('blur', function () {
-            var value = nameInput.value.trim();
-            if (!value || value === lastName) return;
-            document.getElementById('dtr-rename-new-name').value = value;
-            document.getElementById('dtr-rename-form').submit();
-        });
-        nameInput.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                nameInput.blur();
-            }
-        });
-
-        var csrfToken = document.querySelector('#dtr-rename-form [name=csrfmiddlewaretoken]').value;
+        var csrfToken = "{{ csrf_token }}";
         document.querySelectorAll('.dtr-editable').forEach(function (cell) {
             var lastSaved = cell.textContent.trim();
             cell.addEventListener('blur', function () {
@@ -266,7 +185,6 @@
                         date: cell.dataset.date,
                         field: cell.dataset.field,
                         value: value,
-                        employee_name: currentEmployeeName,
                     }),
                 }).then(function (resp) {
                     if (!resp.ok) throw new Error('save failed');
