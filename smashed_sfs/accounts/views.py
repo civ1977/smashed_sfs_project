@@ -2,12 +2,14 @@ import calendar
 import csv
 import io
 import math
+import re
 from datetime import date, datetime
 
 import openpyxl
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.decorators import login_required
+from django.urls import reverse
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.db import transaction
@@ -401,6 +403,71 @@ def build_dtr_days(year, month, exceptions, records_by_date):
     return days
 
 
+def _dtr_name_tokens(name):
+    """Splits a name into lowercase word tokens regardless of format -
+    "Dela Cruz, Juan A." and "Juan Dela Cruz" both become
+    {'dela', 'cruz', 'juan', 'a'} - so format/comma/order/middle-initial
+    differences between a biometric export's name column and a teacher's
+    own registered full_name don't block a match."""
+    normalized = name.replace(',', ' ').replace('.', ' ')
+    return [w.lower() for w in normalized.split() if w]
+
+
+def _dtr_names_match(own_full_name, other_name, min_common=2):
+    """True if `other_name` is plausibly the same person as `own_full_name`,
+    tolerating "Lastname, Givenname" / "Givenname Surname" /
+    "Givenname Middle Surname" format differences and word order.
+
+    Requires the FIRST word of own_full_name (assumed to be the given name,
+    since that's how the registration form's free-text "Full Name" field is
+    conventionally filled in) to appear in other_name, in addition to at
+    least `min_common` shared words overall. The given-name anchor matters:
+    plain "at least 2 shared words" alone is unsafe with common Filipino
+    multi-word surnames - "Juan Dela Cruz" and "Maria Dela Cruz" already
+    share 2 words ("dela", "cruz") without it, which would wrongly match two
+    different people."""
+    own_tokens = _dtr_name_tokens(own_full_name)
+    if not own_tokens:
+        return False
+    given_name = own_tokens[0]
+    other_tokens = set(_dtr_name_tokens(other_name))
+    if given_name not in other_tokens:
+        return False
+    return len(set(own_tokens) & other_tokens) >= min_common
+
+
+def _dtr_record_for_date(employee_name, teacher, school_teacher_ids, d):
+    """Same fuzzy-match + 'own teacher_id wins' tie-break as
+    daily_time_record's per-month merge below, but for a single date - so
+    code that fills in a blank field writes into the exact record the page
+    would display for that date, instead of creating a second, competing
+    record. Without this, a new own-teacher_id record would silently win
+    display priority over a registrar's bulk-uploaded one (same tie-break,
+    own teacher_id always wins), making that day's other fields look like
+    they'd vanished even though the original record is untouched."""
+    existing = None
+    for r in TeacherTimeRecord.objects.filter(teacher_id__in=school_teacher_ids, date=d):
+        if not _dtr_names_match(employee_name, r.employee_name):
+            continue
+        if existing is None or (existing.teacher_id != teacher.teacher_id and r.teacher_id == teacher.teacher_id):
+            existing = r
+    return existing
+
+
+_AM_PM_SUFFIX_RE = re.compile(r'\s*[AaPp]\.?[Mm]\.?\s*$')
+
+DTR_TIME_FIELDS = ('am_arrival', 'am_departure', 'pm_arrival', 'pm_departure')
+
+
+def _strip_am_pm(value):
+    """Drops a trailing AM/PM marker from a DTR time cell for this page's
+    on-screen table only - its A. M. / P. M. column headers already say
+    which half of the day each cell belongs to, so repeating it inside
+    every cell is redundant here. The printable PDF export (school/views.py's
+    download_dtr_pdf, a separate template) is untouched and keeps it."""
+    return _AM_PM_SUFFIX_RE.sub('', value) if value else value
+
+
 @login_required
 def daily_time_record(request):
     teacher = Teacher.objects.filter(username=request.user.username).first()
@@ -417,10 +484,16 @@ def daily_time_record(request):
         month = today.month
 
     # Each account only ever sees/edits its own name's DTR - no override via
-    # a query param. Prevents one account from reading or planting records
-    # under someone else's name (which used to be possible via a search box
-    # and free-text rename here, and would otherwise leak into the
-    # registrar's school-wide PDF export).
+    # a query param, and no browsing another employee's records by typing a
+    # different name (which used to be possible via a search box and
+    # free-text rename here, and would otherwise leak into the registrar's
+    # school-wide PDF export). What counts as "its own name" is now a fuzzy
+    # match (_dtr_names_match) rather than an exact string, and looks across
+    # every teacher_id at this school rather than only this account's own -
+    # a registrar's bulk DTR upload (school.views.school_dtr_upload) stamps
+    # every imported record with the *uploader's* teacher_id and whatever
+    # name format the biometric export used, so without this a teacher would
+    # never see DTR data a registrar prepared for them.
     employee_name = teacher.full_name if teacher else ''
 
     # SF2's own school-day convention (grades/views.py's _school_days_in_month):
@@ -440,13 +513,31 @@ def daily_time_record(request):
 
     records_by_date = {}
     if teacher:
-        records_by_date = {
-            r.date: r for r in TeacherTimeRecord.objects.filter(
-                teacher_id=teacher.teacher_id, employee_name=employee_name, date__year=year, date__month=month
-            )
-        }
+        if teacher.school_profile_id:
+            school_teacher_ids = Teacher.objects.filter(
+                school_profile_id=teacher.school_profile_id
+            ).values_list('teacher_id', flat=True)
+        else:
+            school_teacher_ids = [teacher.teacher_id]
+
+        candidates = TeacherTimeRecord.objects.filter(
+            teacher_id__in=school_teacher_ids, date__year=year, date__month=month
+        )
+        for r in candidates:
+            if not _dtr_names_match(employee_name, r.employee_name):
+                continue
+            existing = records_by_date.get(r.date)
+            # A record this account entered/edited itself (save_dtr_cell
+            # always writes under the viewing account's own teacher_id and
+            # exact full_name) is the more trustworthy source for that date
+            # over a registrar's bulk-uploaded, fuzzy-matched one.
+            if existing is None or (existing.teacher_id != teacher.teacher_id and r.teacher_id == teacher.teacher_id):
+                records_by_date[r.date] = r
 
     days = build_dtr_days(year, month, exceptions, records_by_date)
+    for entry in days:
+        for field in DTR_TIME_FIELDS:
+            entry[field] = _strip_am_pm(entry[field])
 
     prev_month, prev_year = (12, year - 1) if month == 1 else (month - 1, year)
     next_month, next_year = (1, year + 1) if month == 12 else (month + 1, year)
@@ -753,3 +844,114 @@ def save_dtr_cell(request):
     setattr(record, field, value or None)
     record.save()
     return JsonResponse({'status': 'ok'})
+
+
+@login_required
+def bulk_fill_dtr_lunch(request):
+    """One-click fill for the AM Departure / PM Arrival columns (the lunch
+    break punches) across a whole month - the same two times every school
+    day for most teachers, so typing them in one day at a time is pure
+    busywork. Only fills currently-blank cells (never overwrites a day the
+    teacher already entered something different for), and only touches
+    actual school days - weekends, holidays, and class-suspension dates
+    (all represented the same way by SchoolCalendarException, same as the
+    Saturday/Sunday/Holiday labels build_dtr_days already shows) are
+    skipped entirely, matching the rows that have no editable cells at all
+    on the page."""
+    if request.method != 'POST':
+        return redirect('daily_time_record')
+
+    teacher = Teacher.objects.filter(username=request.user.username).first()
+    if not teacher:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('daily_time_record')
+
+    today = date.today()
+    try:
+        year = int(request.POST.get('year', today.year))
+    except ValueError:
+        year = today.year
+    try:
+        month = int(request.POST.get('month', today.month))
+    except ValueError:
+        month = today.month
+
+    redirect_url = f"{reverse('daily_time_record')}?year={year}&month={month}"
+
+    # <input type="time"> submits 24-hour "HH:MM" - normalized through the
+    # same parser the bulk upload uses, so a filled cell reads the same
+    # "H:MM AM/PM" (displayed here with the AM/PM stripped, same as any
+    # other cell on this page) as every other entry path into this table.
+    am_departure = _dtr_parse_time(request.POST.get('am_departure', '').strip())
+    pm_arrival = _dtr_parse_time(request.POST.get('pm_arrival', '').strip())
+    if not am_departure and not pm_arrival:
+        messages.error(request, 'Enter an AM Departure and/or PM Arrival time to fill.')
+        return redirect(redirect_url)
+
+    exceptions = {}
+    if teacher.school_profile_id:
+        exceptions = {
+            e.date: e.is_school_day
+            for e in SchoolCalendarException.objects.filter(
+                school_profile_id=teacher.school_profile_id, date__year=year, date__month=month
+            )
+        }
+
+    employee_name = teacher.full_name
+    if teacher.school_profile_id:
+        school_teacher_ids = list(Teacher.objects.filter(
+            school_profile_id=teacher.school_profile_id
+        ).values_list('teacher_id', flat=True))
+    else:
+        school_teacher_ids = [teacher.teacher_id]
+
+    num_days = calendar.monthrange(year, month)[1]
+    filled = 0
+    for day in range(1, num_days + 1):
+        d = date(year, month, day)
+        is_school_day = exceptions.get(d, d.weekday() < 5)
+        if not is_school_day:
+            continue
+
+        record = _dtr_record_for_date(employee_name, teacher, school_teacher_ids, d)
+        if record is None:
+            record = TeacherTimeRecord(teacher_id=teacher.teacher_id, employee_name=employee_name, date=d)
+
+        changed = False
+        if am_departure and not record.am_departure:
+            record.am_departure = am_departure
+            changed = True
+        if pm_arrival and not record.pm_arrival:
+            record.pm_arrival = pm_arrival
+            changed = True
+        if changed:
+            record.save()
+            filled += 1
+
+    messages.success(request, f'⚡ Filled lunch break times for {filled} school day(s).')
+    return redirect(redirect_url)
+
+
+@login_required
+def save_dtr_signature(request):
+    """Saves (or clears, on an empty value) the on-screen-drawn signature
+    used under the certification statement on the DTR card - one per
+    teacher, reused on every month's card rather than re-drawn each time."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid request.'}, status=400)
+
+    teacher = Teacher.objects.filter(username=request.user.username).first()
+    if not teacher:
+        return JsonResponse({'error': 'Not linked to a Teacher profile.'}, status=403)
+
+    signature = request.POST.get('signature', '').strip()
+    if signature:
+        if not signature.startswith('data:image/png;base64,'):
+            return JsonResponse({'error': 'Invalid signature format.'}, status=400)
+        if len(signature) > 200_000:
+            return JsonResponse({'error': 'Signature image is too large.'}, status=400)
+        teacher.signature_image = signature
+    else:
+        teacher.signature_image = None
+    teacher.save()
+    return JsonResponse({'status': 'ok', 'signature': teacher.signature_image})

@@ -1,5 +1,10 @@
 import io
 
+import openpyxl
+from openpyxl.styles import Font, PatternFill
+
+from collections import defaultdict
+
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -11,7 +16,7 @@ from xhtml2pdf import pisa
 
 from datetime import date
 
-from accounts.forms import SectionForm, SchoolProfileForm
+from accounts.forms import SectionForm, SchoolProfileForm, SchoolOfficialsForm
 from accounts.models import Teacher, TeacherTimeRecord
 from accounts.views import build_dtr_days
 from students.models import SchoolProfile, Section, Student
@@ -202,6 +207,44 @@ def school_dtr_upload(request):
         'dtr_months': list(enumerate(MONTH_NAMES, start=1)),
         'uploaded_month_rows': uploaded_month_rows,
     })
+
+
+@login_required
+def download_dtr_upload_template(request):
+    """Blank starter workbook matching the column shape upload_dtr's own
+    parser (accounts/views.py's _dtr_parse_upload_bulk) prefers - Name +
+    separate Arrival/Departure date+time columns, the actual shape of this
+    school's DTR app export."""
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    headers = ['Name', 'Arrival Date', 'Arrival Time', 'Departure Date', 'Departure Time', 'Total']
+    sample_row = ['Dela Cruz, Juan', '2026-07-01', '08:00 AM', '2026-07-01', '05:00 PM', '9:00']
+
+    wb = openpyxl.Workbook()
+    sheet = wb.active
+    sheet.title = 'DTR Upload'
+
+    sheet.append(headers)
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='2F5496', end_color='2F5496', fill_type='solid')
+    for cell in sheet[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+
+    sheet.append(sample_row)
+
+    widths = [24, 14, 12, 14, 12, 10]
+    for i, width in enumerate(widths, start=1):
+        sheet.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="dtr_upload_template.xlsx"'
+    wb.save(response)
+    return response
 
 
 @login_required
@@ -756,18 +799,30 @@ def edit_my_section(request):
     if error:
         return error
 
+    school_profile = SchoolProfile.objects.filter(profile_id=section.school_profile_id).first()
+
     if request.method == 'POST':
         form = SectionForm(request.POST, instance=section, prefix='section')
-        if form.is_valid():
+        officials_form = SchoolOfficialsForm(
+            request.POST, instance=school_profile, prefix='officials'
+        ) if school_profile else None
+
+        if form.is_valid() and (officials_form is None or officials_form.is_valid()):
             form.save()
+            if officials_form:
+                officials_form.save()
             messages.success(request, '✅ Classroom details updated.')
             return redirect('tools')
     else:
         form = SectionForm(instance=section, prefix='section')
+        officials_form = SchoolOfficialsForm(
+            instance=school_profile, prefix='officials'
+        ) if school_profile else None
 
     return render(request, 'school/edit_my_section.html', {
         'section': section,
         'section_form': form,
+        'officials_form': officials_form,
     })
 
 

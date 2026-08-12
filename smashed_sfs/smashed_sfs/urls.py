@@ -43,6 +43,8 @@ urlpatterns = [
     path('tools/dtr/', views.daily_time_record, name='daily_time_record'),
     path('tools/dtr/upload/', views.upload_dtr, name='upload_dtr'),
     path('tools/dtr/save-cell/', views.save_dtr_cell, name='save_dtr_cell'),
+    path('tools/dtr/bulk-fill-lunch/', views.bulk_fill_dtr_lunch, name='bulk_fill_dtr_lunch'),
+    path('tools/dtr/save-signature/', views.save_dtr_signature, name='save_dtr_signature'),
     
     path('students/', include('students.urls')),
     path('grades/', include('grades.urls')),
