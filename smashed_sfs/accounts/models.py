@@ -28,6 +28,11 @@ class Teacher(models.Model):
     last_login = models.DateTimeField(blank=True, null=True)
     last_seen = models.DateTimeField(blank=True, null=True)
     school_profile_id = models.IntegerField(blank=True, null=True)
+    # An on-screen-drawn signature (data: URL, PNG) captured once from the
+    # DTR page (accounts/views.py's save_dtr_signature) and reused on every
+    # month's card from then on - one signature per teacher, not per DTR
+    # record, since a real signature doesn't change month to month either.
+    signature_image = models.TextField(blank=True, null=True)
 
     class Meta:
         db_table = 'teacher_adviser'
