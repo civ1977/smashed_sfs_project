@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('accounts', '0013_teacher_terms_accepted_at'),
+        ('accounts', '0012_add_hidden_fk_constraints'),
     ]
 
     operations = [
