@@ -3,9 +3,11 @@ from . import views
 
 urlpatterns = [
     path('upload/', views.upload_grades, name='upload_grades'),
+    path('template/', views.download_grade_template, name='download_grade_template'),
     path('save/', views.save_grades, name='save_grades'),
     path('view/<str:lrn>/', views.view_grades, name='view_grades'),
     path('rankings/', views.view_rankings, name='view_rankings'),
+    path('rankings/download/', views.download_rankings, name='download_rankings'),
     path('subjects/arrange/', views.arrange_subjects, name='arrange_subjects'),
     path('subjects/arrange/heading/<str:group>/toggle/', views.toggle_subject_group_heading, name='toggle_subject_group_heading'),
     path('subject/<int:mapping_id>/exclude/', views.exclude_subject_term, name='exclude_subject_term'),

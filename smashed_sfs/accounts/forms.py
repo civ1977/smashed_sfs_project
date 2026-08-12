@@ -34,6 +34,17 @@ class SchoolProfileForm(forms.ModelForm):
         ]
 
 
+class SchoolOfficialsForm(forms.ModelForm):
+    """Subset of SchoolProfileForm's fields - lets a Class Adviser fill in
+    the principal/registrar/guidance counselor names from their own section
+    edit page, without granting them access to the rest of the school-wide
+    profile (which stays registrar/principal-only via SchoolProfileForm)."""
+
+    class Meta:
+        model = SchoolProfile
+        fields = ['principal_name', 'registrar_name', 'guidance_counselor']
+
+
 class SectionForm(forms.ModelForm):
     """
     A Section always belongs to exactly one adviser, so this always creates a new

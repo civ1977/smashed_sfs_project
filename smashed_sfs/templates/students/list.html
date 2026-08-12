@@ -6,6 +6,7 @@
 <h1>My Students</h1>
 
 <a href="{% url 'upload_students' %}" class="btn">+ Upload CSV</a>
+<a href="{% url 'download_student_template' %}" class="btn ghost">⬇ Download Excel Template</a>
 
 {% if students %}
     <p style="margin-top: var(--space-4);">Total: <strong>{{ students|length }}</strong> students</p>

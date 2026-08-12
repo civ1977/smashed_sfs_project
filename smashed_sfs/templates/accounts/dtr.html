@@ -10,158 +10,267 @@
     <a href="{% url 'daily_time_record' %}?year={{ next_year }}&month={{ next_month }}" class="btn ghost">{{ next_month_name }} &rarr;</a>
     <button type="button" class="btn" onclick="window.print()">Print</button>
 
+    <form method="POST" action="{% url 'bulk_fill_dtr_lunch' %}" class="dtr-lunch-fill-form">
+        {% csrf_token %}
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        <label>AM Departure <input type="time" name="am_departure"></label>
+        <label>PM Arrival <input type="time" name="pm_arrival"></label>
+        <button type="submit" class="btn good">&#9889; Fill Lunch Break</button>
+    </form>
+
     <p style="color: #999; font-size: 12px; margin-top: 6px;">
         This shows only your own Daily Time Record. To import a CSV/Excel export, use the centralized upload
-        on the school dashboard. Any cell below can be edited directly by clicking into it.
+        on the school dashboard. Any cell below can be edited directly by clicking into it. "Fill Lunch Break"
+        only fills in blank AM Departure / PM Arrival cells for actual school days that month - weekends,
+        holidays, and class suspensions are skipped, and any day you've already filled in is left untouched.
     </p>
+
     <hr>
 </div>
 
+<style>
+    .dtr-lunch-fill-form {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        flex-wrap: wrap;
+        margin-top: var(--space-3);
+    }
+    .dtr-lunch-fill-form label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--ink-soft);
+    }
+    .dtr-signature-pad-card {
+        margin: var(--space-4) auto 0;
+        padding: var(--space-3);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        max-width: 380px;
+        background: var(--card);
+    }
+    .dtr-signature-canvas {
+        display: block;
+        width: 100%;
+        max-width: 330px;
+        height: 110px;
+        border: 1px dashed var(--line);
+        border-radius: 6px;
+        background: #fff;
+        touch-action: none;
+        cursor: crosshair;
+    }
+</style>
+
+<!-- .dtr-form is sized to the real card's physical dimensions (8cm x 22cm,
+     Civil Service Form No. 48 / "VANDA F48") using cm units throughout, so
+     print output matches the physical card exactly. .dtr-form-zoom scales
+     it up for comfortable on-screen editing only. This copy is what you
+     edit; it's hidden at print time in favor of .dtr-print-sheet below,
+     which prints two identical copies side by side on one A4 sheet (e.g.
+     one for the employee, one for the office file) - see CLAUDE.md. -->
+<div class="dtr-form-zoom no-print-sheet">
 <div class="dtr-form">
-    <div class="dtr-form-tag">Civil Service Form No. 48</div>
-    <h1 class="dtr-title">Daily Time Record</h1>
+    {% include 'partials/dtr_form_content.html' %}
+</div>
+</div>
 
-    <div class="dtr-name-line">{{ employee_name }}</div>
-    <div class="dtr-name-label">(Name)</div>
-
-    <div class="dtr-meta">
-        <div class="dtr-meta-left">
-            <div>For the month of <span class="dtr-fill">{{ month_name }}</span>, <span class="dtr-fill dtr-fill-year">{{ year }}</span></div>
-            <div>Official hours of arrival<br>and departure</div>
-        </div>
-        <div class="dtr-meta-right">
-            <div>Regular Days <span class="dtr-fill"></span></div>
-            <div>Saturdays <span class="dtr-fill"></span></div>
-        </div>
-    </div>
-
-    <table class="dtr-table">
-        <thead>
-            <tr>
-                <th rowspan="3">Days</th>
-                <th colspan="2">A. M.</th>
-                <th colspan="2">P. M.</th>
-                <th colspan="2">Under Time</th>
-            </tr>
-            <tr>
-                <th>Arrival</th>
-                <th>Departure</th>
-                <th>Arrival</th>
-                <th>Departure</th>
-                <th>Hours</th>
-                <th>Minutes</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in days %}
-            <tr>
-                <td class="dtr-day">{{ entry.day }}</td>
-                {% if entry.label %}
-                <td class="dtr-day-label-cell"><span class="dtr-day-label-text">{{ entry.label }}</span></td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
-                {% else %}
-                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="am_arrival">{{ entry.am_arrival }}</td>
-                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="am_departure">{{ entry.am_departure }}</td>
-                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="pm_arrival">{{ entry.pm_arrival }}</td>
-                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="pm_departure">{{ entry.pm_departure }}</td>
-                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="undertime_hours">{{ entry.undertime_hours }}</td>
-                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="undertime_minutes">{{ entry.undertime_minutes }}</td>
-                {% endif %}
-            </tr>
-            {% endfor %}
-            <tr class="dtr-total-row">
-                <td colspan="2" class="dtr-total-label">TOTAL</td>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
-            </tr>
-        </tbody>
-    </table>
-
-    <p class="dtr-certify">
-        <em>I CERTIFY on my honor that the above is a true and correct report of the hours of work
-        performed, record of which was made daily at the time of arrival and departure from office.</em>
+<div class="no-print dtr-signature-pad-card">
+    <h3 style="margin: 0 0 6px;">Employee Signature</h3>
+    <p style="color: #999; font-size: 12px; margin: 0 0 8px;">
+        Draw your signature below - it's saved once and reused under the certification statement on
+        every month's card, including the printed copy.
     </p>
+    {% if teacher.signature_image %}
+    <div style="margin-bottom: 8px;">
+        <div style="font-size: 12px; color: var(--ink-soft); margin-bottom: 4px;">Current signature:</div>
+        <img src="{{ teacher.signature_image }}" alt="Current signature" style="height: 40px;">
+    </div>
+    {% endif %}
+    <canvas id="dtr-signature-canvas" width="330" height="110" class="dtr-signature-canvas"></canvas>
+    <div style="margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <button type="button" class="btn ghost" id="dtr-signature-clear">Clear</button>
+        <button type="button" class="btn good" id="dtr-signature-save">Save Signature</button>
+        {% if teacher.signature_image %}
+        <button type="button" class="btn ghost" id="dtr-signature-remove">Remove Signature</button>
+        {% endif %}
+        <span id="dtr-signature-status" style="font-size: 12px; color: var(--ink-faint);"></span>
+    </div>
+</div>
 
-    <div class="dtr-signature">
-        <div class="dtr-signature-line"></div>
-        <div class="dtr-signature-label"><em>In-Charge</em></div>
+<div class="dtr-print-sheet">
+    <div class="dtr-form dtr-print-copy">
+        {% include 'partials/dtr_form_content.html' %}
+    </div>
+    <div class="dtr-print-gap"></div>
+    <div class="dtr-form dtr-print-copy">
+        {% include 'partials/dtr_form_content.html' %}
     </div>
 </div>
 
 <style>
-    .dtr-form {
-        max-width: 620px;
+    .dtr-form-zoom {
+        zoom: 1.75;
         margin: var(--space-5) auto;
-        padding: var(--space-6);
-        border: 1px solid var(--line);
-        border-radius: var(--radius-lg);
-        background: var(--card);
-        font-family: var(--font-body);
+        width: fit-content;
     }
-    .dtr-form-tag { font-size: 12px; color: var(--ink-faint); }
-    .dtr-title { text-align: center; font-size: 24px; margin: var(--space-2) 0 var(--space-5); }
+    /* Only ever shown at print time (see @media print below) - two
+       identical copies of the same card side by side on one A4 sheet. */
+    .dtr-print-sheet { display: none; }
+    .dtr-print-gap { width: 1cm; flex-shrink: 0; border-left: 1px dashed #999; }
+    .dtr-form {
+        width: 8cm;
+        margin: 0 auto;
+        padding: 0.35cm 0.3cm;
+        border: 1px solid var(--line);
+        background: var(--card);
+        font-family: Georgia, 'Times New Roman', serif;
+        color: #1a1a1a;
+        box-sizing: border-box;
+    }
+    .dtr-print-copy { flex-shrink: 0; }
+    .dtr-top-rule {
+        border-top: 2px solid #7a2020;
+        border-bottom: 1px solid #7a2020;
+        height: 2px;
+        margin: -0.35cm -0.3cm 0.25cm;
+    }
+    .dtr-form-tag { font-size: 6.5pt; letter-spacing: .02em; }
+    .dtr-title {
+        text-align: center;
+        font-size: 13pt;
+        font-weight: 700;
+        letter-spacing: .03em;
+        margin: 0.1cm 0 0.3cm;
+    }
     .dtr-name-line {
         border: none;
-        border-bottom: 1px dashed #000;
+        border-bottom: 1px solid #000;
         text-align: center;
         font-weight: 700;
-        padding-bottom: var(--space-1);
-        min-height: 1.4em;
+        font-size: 8.5pt;
+        padding-bottom: 2px;
+        min-height: 1.3em;
     }
-    .dtr-name-label { text-align: center; font-style: italic; font-size: 12px; color: var(--ink-soft); margin-bottom: var(--space-4); }
-    .dtr-meta { display: flex; justify-content: space-between; gap: var(--space-5); font-size: 14px; margin-bottom: var(--space-4); }
-    .dtr-meta-left, .dtr-meta-right { flex: 1; }
-    .dtr-meta div { margin-bottom: var(--space-2); font-style: italic; }
-    .dtr-fill { display: inline-block; min-width: 90px; border-bottom: 1px dashed #000; text-align: center; font-style: normal; }
-    .dtr-fill-year { min-width: 40px; }
+    .dtr-name-label { text-align: center; font-style: italic; font-weight: 700; font-size: 7pt; margin-bottom: 0.2cm; }
 
-    .dtr-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: var(--space-4); }
-    .dtr-table th, .dtr-table td {
-        border: 1px solid #000;
-        text-align: center;
-        padding: 4px 6px;
+    .dtr-meta { font-size: 7pt; font-style: italic; margin-bottom: 0.1cm; }
+    .dtr-meta-month-row { display: flex; align-items: baseline; margin-bottom: 0.06cm; white-space: nowrap; }
+    .dtr-meta-month-row .dtr-fill { flex: 1; margin-left: 4px; }
+    .dtr-meta-cols { display: flex; justify-content: space-between; gap: 0.15cm; }
+    .dtr-meta-left, .dtr-meta-right { flex: 1; min-width: 0; }
+    .dtr-meta-indent { padding-left: 0.5cm; }
+    .dtr-meta-right-row { display: flex; align-items: baseline; white-space: nowrap; }
+    .dtr-meta-right-row .dtr-fill { flex: 1; margin-left: 4px; }
+    .dtr-fill { display: inline-block; border-bottom: 1px solid #000; text-align: center; font-style: normal; min-width: 0.4cm; }
+
+    .dtr-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 6pt;
+        margin: 0.05cm 0 0.08cm;
+        border-top: 3px double #000;
+        border-bottom: 3px double #000;
+        border-left: 1.5pt solid #000;
+        border-right: 1.5pt solid #000;
     }
-    .dtr-table thead th { font-weight: 700; }
-    .dtr-day { font-weight: 600; width: 32px; }
-    .dtr-table td:not(.dtr-day):not(.dtr-total-label) { height: 22px; }
+    .dtr-table th, .dtr-table td {
+        border: 0.5pt solid #000;
+        text-align: center;
+        padding: 0px 2px;
+        line-height: 1.1;
+        overflow: hidden;
+    }
+    .dtr-table th.dtr-thick-r, .dtr-table td.dtr-thick-r { border-right: 1.5pt solid #000; }
+    .dtr-table thead th { font-weight: 700; padding: 2px 1px; }
+    .dtr-col-day { width: 9%; }
+    .dtr-day { font-weight: 700; }
+    .dtr-table td:not(.dtr-day):not(.dtr-total-label) { height: 0.39cm; }
     .dtr-total-row td { font-weight: 700; }
-    .dtr-total-label { text-align: right; padding-right: var(--space-3); }
-    .dtr-day-label-cell { position: relative; overflow: visible; }
+    .dtr-total-row .dtr-total-label { text-align: center; font-size: 6.5pt; }
+    /* Label rows (Saturday/Sunday/Holiday) drop their internal vertical
+       borders - the cells themselves are unchanged/still one <td> each,
+       but with no line left between them the label can overflow past its
+       own narrow cell into the empty ones beside it instead of being cut
+       off at a border. */
+    .dtr-label-row td:not(.dtr-day) { border-left: none; border-right: none; }
+    .dtr-table td.dtr-day-label-cell { text-align: left; overflow: visible; }
     .dtr-day-label-text {
-        position: absolute;
-        left: 6px;
-        top: 50%;
-        transform: translateY(-50%);
         white-space: nowrap;
         font-style: italic;
         font-weight: 700;
-        letter-spacing: .03em;
-        color: var(--ink-soft);
+        color: #555;
+        font-size: 7.5pt;
     }
 
-    .dtr-editable { cursor: text; }
+    .dtr-editable { cursor: text; font-size: 7.5pt; }
     .dtr-editable:hover { background: var(--bg-exhibit); }
-    .dtr-editable:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--accent-wash); }
+    .dtr-editable:focus { outline: 1.5px solid var(--accent); outline-offset: -1.5px; background: var(--accent-wash); }
     .dtr-editable.dtr-just-saved { background: var(--good-wash); }
 
-    .dtr-certify { font-size: 13px; line-height: 1.5; margin-bottom: var(--space-6); }
+    .dtr-certify { font-size: 6.5pt; font-style: italic; line-height: 1.3; margin: 0 0 0.28cm; text-align: justify; }
 
-    .dtr-signature { text-align: center; margin-top: var(--space-6); }
-    .dtr-signature-line { border-bottom: 1px solid #000; width: 220px; margin: 0 auto var(--space-1); }
-    .dtr-signature-label { font-size: 13px; }
+    /* Same fixed, centered width as .dtr-signature-line below (the
+       In-Charge line) - in the real card both signature lines are short
+       and the same length, not full-width. */
+    .dtr-employee-signature-line {
+        border-bottom: 1px solid #000;
+        width: 3.3cm;
+        height: 0.8cm;
+        margin: 0 auto 0.12cm;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+    }
+    .dtr-signature-img { max-width: 100%; max-height: 0.75cm; object-fit: contain; }
+
+    .dtr-verify {
+        font-size: 6.5pt;
+        font-style: italic;
+        border-top: 3px double #000;
+        padding-top: 0.1cm;
+        margin-bottom: 0.12cm;
+    }
+
+    .dtr-footer { display: flex; justify-content: space-between; align-items: flex-end; gap: 0.2cm; }
+    .dtr-footer-left { flex-shrink: 0; }
+    .dtr-vanda-brand { font-weight: 700; font-size: 8pt; letter-spacing: .02em; margin-bottom: 1px; }
+    .dtr-barcode {
+        width: 2.3cm;
+        height: 0.55cm;
+        background-image: repeating-linear-gradient(
+            90deg,
+            #000 0, #000 0.6px, transparent 0.6px, transparent 1.4px,
+            #000 1.4px, #000 2.6px, transparent 2.6px, transparent 3.4px,
+            #000 3.4px, #000 3.8px, transparent 3.8px, transparent 4.8px
+        );
+        background-size: 100% 100%;
+        /* Browsers drop background-image/background-color by default when
+           printing (to save ink) unless told otherwise - without this the
+           barcode (a pure CSS gradient, not a real <img>) silently
+           disappears on the printed/PDF-saved page even though it shows
+           fine on screen. */
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+    .dtr-barcode-digits { font-size: 5.5pt; letter-spacing: .1em; font-family: 'Courier New', monospace; margin-top: 1px; }
+    .dtr-footer-right { text-align: center; flex: 1; }
+    .dtr-signature-line { border-bottom: 1px solid #000; width: 3.3cm; margin: 0 auto 2px; }
+    .dtr-signature-label { font-size: 7pt; font-style: italic; }
+    .dtr-instruction { font-size: 6.5pt; margin-top: 0; }
 
     @media print {
-        @page { size: letter; margin: 0.5in; }
+        @page { size: A4; margin: 1cm; }
         .no-print, .header, .alert { display: none !important; }
         body { background: #fff; }
         .container { box-shadow: none; margin: 0; padding: 0; max-width: none; }
-        .dtr-form { border: none; max-width: none; }
+        .no-print-sheet { display: none !important; }
+        .dtr-print-sheet { display: flex; justify-content: center; align-items: flex-start; }
+        .dtr-print-sheet .dtr-form { border: none; width: 8cm; margin: 0; }
     }
 </style>
 
@@ -201,6 +310,94 @@
                 }
             });
         });
+    })();
+
+    (function () {
+        var canvas = document.getElementById('dtr-signature-canvas');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#1a1a1a';
+
+        var drawing = false;
+        var hasStroke = false;
+        var lastX = 0;
+        var lastY = 0;
+
+        function pointFromEvent(e) {
+            var rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left) * (canvas.width / rect.width),
+                y: (e.clientY - rect.top) * (canvas.height / rect.height),
+            };
+        }
+
+        canvas.addEventListener('pointerdown', function (e) {
+            drawing = true;
+            hasStroke = true;
+            var p = pointFromEvent(e);
+            lastX = p.x;
+            lastY = p.y;
+            canvas.setPointerCapture(e.pointerId);
+        });
+        canvas.addEventListener('pointermove', function (e) {
+            if (!drawing) return;
+            var p = pointFromEvent(e);
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
+            lastX = p.x;
+            lastY = p.y;
+        });
+        canvas.addEventListener('pointerup', function () { drawing = false; });
+        canvas.addEventListener('pointerleave', function () { drawing = false; });
+
+        var statusEl = document.getElementById('dtr-signature-status');
+        var csrfToken = "{{ csrf_token }}";
+
+        function saveSignature(dataUrl) {
+            statusEl.textContent = 'Saving...';
+            fetch("{% url 'save_dtr_signature' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({ signature: dataUrl || '' }),
+            }).then(function (resp) {
+                if (!resp.ok) throw new Error('save failed');
+                return resp.json();
+            }).then(function () {
+                statusEl.textContent = 'Saved';
+                window.location.reload();
+            }).catch(function () {
+                statusEl.textContent = 'Could not save - try again';
+            });
+        }
+
+        document.getElementById('dtr-signature-clear').addEventListener('click', function () {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            hasStroke = false;
+            statusEl.textContent = '';
+        });
+
+        document.getElementById('dtr-signature-save').addEventListener('click', function () {
+            if (!hasStroke) {
+                statusEl.textContent = 'Draw a signature first.';
+                return;
+            }
+            saveSignature(canvas.toDataURL('image/png'));
+        });
+
+        var removeBtn = document.getElementById('dtr-signature-remove');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', function () {
+                if (!confirm('Remove your saved signature?')) return;
+                saveSignature('');
+            });
+        }
     })();
 </script>
 {% endblock %}

@@ -5,15 +5,20 @@
 {% block content %}
 <h1>Reports</h1>
 
-<div style="display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-4);">
-    {% if not is_subject_teacher %}
+<h3 style="margin-top: var(--space-5);">School</h3>
+<div style="display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-3);">
+    <a href="{% url 'view_sf7' %}" class="btn">School Form 7</a>
+</div>
+
+{% if not is_subject_teacher %}
+<h3 style="margin-top: var(--space-5);">Classroom</h3>
+<div style="display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-3);">
     <a href="{% url 'view_rankings' %}#term-1" class="btn">Term 1 Rankings</a>
     <a href="{% url 'view_rankings' %}#term-2" class="btn">Term 2 Rankings</a>
     <a href="{% url 'view_rankings' %}#term-3" class="btn">Term 3 Rankings</a>
     <a href="{% url 'attendance_grid' %}" class="btn">Attendance (SF2)</a>
     <a href="{% url 'report_cards' %}" class="btn">Report Card</a>
     <a href="{% url 'subject_statistics_report' %}" class="btn">Subject Statistics</a>
-    {% endif %}
-    <a href="{% url 'view_sf7' %}" class="btn">School Form 7</a>
 </div>
+{% endif %}
 {% endblock %}

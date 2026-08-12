@@ -1,12 +1,25 @@
+import openpyxl
+from openpyxl.styles import Font, PatternFill
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.http import HttpResponse
 from django.utils import timezone
 from datetime import datetime
 from .models import Student, Section
 from accounts.models import Teacher
 from portal.models import StudentAccount
 from smashed_sfs.upload_utils import read_upload_rows, UploadFileError
+
+STUDENT_TEMPLATE_HEADERS = [
+    'LRN', 'Surname', 'Name', 'Middle Name', 'Extension', 'Sex', 'Birthday',
+    'School (G10)', 'School Address', 'Average', 'Completion Date', 'SHS Admission',
+]
+STUDENT_TEMPLATE_SAMPLE_ROW = [
+    '123456789012', 'Dela Cruz', 'Juan', 'Santos', '', 'MALE', '2008-06-30',
+    'Sample National High School', 'Sample Address, Sample City', '90.5', '2024-06-05', '2024-08-05',
+]
 
 
 def convert_date(date_str):
@@ -148,6 +161,33 @@ def save_students(request):
         return redirect('student_list')
     
     return redirect('upload_students')
+
+
+@login_required
+def download_student_template(request):
+    wb = openpyxl.Workbook()
+    sheet = wb.active
+    sheet.title = 'Students'
+
+    sheet.append(STUDENT_TEMPLATE_HEADERS)
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='2F5496', end_color='2F5496', fill_type='solid')
+    for cell in sheet[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+
+    sheet.append(STUDENT_TEMPLATE_SAMPLE_ROW)
+
+    widths = [14, 14, 14, 14, 10, 10, 12, 24, 24, 10, 16, 16]
+    for i, width in enumerate(widths, start=1):
+        sheet.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="student_upload_template.xlsx"'
+    wb.save(response)
+    return response
 
 
 @login_required

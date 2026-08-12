@@ -57,6 +57,36 @@
         </div>
     </div>
 
+    {% if officials_form %}
+    <div class="card" style="margin-bottom: var(--space-5); max-width: 480px;">
+        <h3>School Officials</h3>
+
+        <div class="form-group">
+            <label>{{ officials_form.principal_name.label }}</label>
+            {{ officials_form.principal_name }}
+            {% for error in officials_form.principal_name.errors %}
+                <small style="color: var(--risk);">{{ error }}</small>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label>{{ officials_form.registrar_name.label }}</label>
+            {{ officials_form.registrar_name }}
+            {% for error in officials_form.registrar_name.errors %}
+                <small style="color: var(--risk);">{{ error }}</small>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label>{{ officials_form.guidance_counselor.label }}</label>
+            {{ officials_form.guidance_counselor }}
+            {% for error in officials_form.guidance_counselor.errors %}
+                <small style="color: var(--risk);">{{ error }}</small>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <button type="submit" class="btn good">Save Changes</button>
     <a href="{% url 'tools' %}" class="btn ghost">Cancel</a>
 </form>

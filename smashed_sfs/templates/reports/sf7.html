@@ -8,20 +8,6 @@
     <button type="button" class="btn" onclick="window.print()">Print</button>
 </div>
 
-<div class="sf7-header">
-    <p>Republic of the Philippines</p>
-    <p>Department of Education</p>
-    {% if school_profile %}
-        <p>{{ school_profile.region }}</p>
-        <p class="bold">{{ school_profile.division }}</p>
-        <p>{{ school_profile.district }} · {{ school_profile.municipality }}</p>
-        <p>School: <span class="bold">{{ school_profile.school_name }}</span> ({{ school_profile.school_id }})</p>
-        <p>School Year: {{ school_profile.school_year }}</p>
-    {% else %}
-        <p style="color: var(--ink-faint);">No school profile linked to your account.</p>
-    {% endif %}
-</div>
-
 <h1 class="sf7-title">School Form 7 (SF7)</h1>
 <p class="sf7-subtitle">School Personnel Assignment List and Basic Profile</p>
 
@@ -73,13 +59,6 @@
 {% endif %}
 
 <style>
-    .sf7-header {
-        text-align: center;
-        margin: var(--space-4) 0;
-        line-height: 1.4;
-    }
-    .sf7-header p { margin: 0; }
-    .sf7-header .bold { font-weight: 700; }
     .sf7-title {
         text-align: center;
         margin: var(--space-5) 0 0;

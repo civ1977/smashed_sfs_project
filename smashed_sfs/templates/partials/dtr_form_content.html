@@ -1,0 +1,90 @@
+<div class="dtr-top-rule"></div>
+<div class="dtr-form-tag">CIVIL SERVICE FORM No. 48</div>
+<h1 class="dtr-title">DAILY TIME RECORD</h1>
+
+<div class="dtr-name-line">{{ employee_name }}</div>
+<div class="dtr-name-label">(Name)</div>
+
+<div class="dtr-meta">
+    <div class="dtr-meta-month-row">
+        <span>For the month of</span>
+        <span class="dtr-fill dtr-fill-grow">{{ month_name }}, {{ year }}</span>
+    </div>
+    <div class="dtr-meta-cols">
+        <div class="dtr-meta-left">
+            <div>Official hours for arrival</div>
+            <div class="dtr-meta-indent">and departure</div>
+        </div>
+        <div class="dtr-meta-right">
+            <div class="dtr-meta-right-row">( Regular days <span class="dtr-fill dtr-fill-grow"></span></div>
+            <div class="dtr-meta-right-row">( Saturdays <span class="dtr-fill dtr-fill-grow"></span></div>
+        </div>
+    </div>
+</div>
+
+<table class="dtr-table">
+    <thead>
+        <tr>
+            <th rowspan="2" class="dtr-col-day dtr-thick-r">Day</th>
+            <th colspan="2">A. M.</th>
+            <th colspan="2">P. M.</th>
+            <th colspan="2">UNDERTIME</th>
+        </tr>
+        <tr>
+            <th>Arrival</th>
+            <th class="dtr-thick-r">Depar-<br>ture</th>
+            <th>Arrival</th>
+            <th class="dtr-thick-r">Depar-<br>ture</th>
+            <th>Hours</th>
+            <th>Min-<br>utes</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in days %}
+        <tr{% if entry.label %} class="dtr-label-row"{% endif %}>
+            <td class="dtr-day dtr-thick-r">{{ entry.day }}</td>
+            {% if entry.label %}
+            <td class="dtr-day-label-cell"><span class="dtr-day-label-text">{{ entry.label }}</span></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            {% else %}
+            <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="am_arrival">{{ entry.am_arrival }}</td>
+            <td class="dtr-editable dtr-thick-r" contenteditable="true" data-date="{{ entry.date }}" data-field="am_departure">{{ entry.am_departure }}</td>
+            <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="pm_arrival">{{ entry.pm_arrival }}</td>
+            <td class="dtr-editable dtr-thick-r" contenteditable="true" data-date="{{ entry.date }}" data-field="pm_departure">{{ entry.pm_departure }}</td>
+            <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="undertime_hours">{{ entry.undertime_hours }}</td>
+            <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="undertime_minutes">{{ entry.undertime_minutes }}</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+        <tr class="dtr-total-row">
+            <td colspan="5" class="dtr-total-label dtr-thick-r">TOTAL</td>
+            <td colspan="2"></td>
+        </tr>
+    </tbody>
+</table>
+
+<p class="dtr-certify">
+    <em>I CERTIFY on my honor that the above is a true and correct report of the hours of work
+    performed, record of which was made daily at the time of arrival and departure from office.</em>
+</p>
+
+<div class="dtr-employee-signature-line">{% if teacher.signature_image %}<img src="{{ teacher.signature_image }}" class="dtr-signature-img" alt="Employee signature">{% endif %}</div>
+
+<div class="dtr-verify">Verified as to the prescribed office hours.</div>
+
+<div class="dtr-footer">
+    <div class="dtr-footer-left">
+        <div class="dtr-vanda-brand">VANDA F48</div>
+        <div class="dtr-barcode" aria-hidden="true"></div>
+        <div class="dtr-barcode-digits">4 806519 191200</div>
+    </div>
+    <div class="dtr-footer-right">
+        <div class="dtr-signature-line"></div>
+        <div class="dtr-signature-label">In-Charge</div>
+        <div class="dtr-instruction">(See Instruction on back)</div>
+    </div>
+</div>

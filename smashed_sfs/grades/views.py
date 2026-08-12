@@ -1,3 +1,6 @@
+import openpyxl
+from openpyxl.styles import Font, PatternFill
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -347,14 +350,10 @@ def _award_for_average(general_average, has_failing_grade):
     return None
 
 
-@login_required
-def view_rankings(request):
-    try:
-        teacher = Teacher.objects.get(username=request.user.username)
-    except Teacher.DoesNotExist:
-        messages.error(request, 'Your account is not linked to a Teacher profile.')
-        return redirect('dashboard')
-
+def _compute_term_rankings(teacher):
+    """Per-term class rankings, shared by the rankings page and its
+    downloadable Excel export so both agree on scoring, ties, and
+    ordering."""
     students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
     males = [s for s in students if s.sex in ('MALE', 'M')]
     females = [s for s in students if s.sex in ('FEMALE', 'F')]
@@ -411,7 +410,7 @@ def view_rankings(request):
                 incomplete_students.append(student)
                 continue
 
-            general_average = round(sum(term_values.values()) / len(term_values), 2)
+            general_average = round(sum(term_values.values()) / len(term_values))
             has_failing_grade = any(value < PASSING_GRADE for value in term_values.values())
             complete.append({
                 'student': student,
@@ -456,10 +455,137 @@ def view_rankings(request):
             'award_summary': award_summary,
         })
 
+    return terms
+
+
+@login_required
+def view_rankings(request):
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    terms = _compute_term_rankings(teacher)
+
     return render(request, 'grades/rankings.html', {
         'teacher': teacher,
         'terms': terms,
     })
+
+
+@login_required
+def download_rankings(request):
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    terms = _compute_term_rankings(teacher)
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='2F5496', end_color='2F5496', fill_type='solid')
+    headers = ['No.', 'Name of Learner', 'Average', 'Rank', 'Award']
+
+    for term_data in terms:
+        sheet = wb.create_sheet(title=f'Term {term_data["term"]}')
+        sheet.append(headers)
+        for cell in sheet[1]:
+            cell.font = header_font
+            cell.fill = header_fill
+
+        for i, row in enumerate(term_data['rankings'], start=1):
+            student = row['student']
+            name = f'{student.surname}, {student.name}'
+            if student.middle_name:
+                name += f' {student.middle_name}'
+            sheet.append([i, name, row['general_average'], row['rank'], row['award'] or ''])
+
+        widths = [6, 32, 12, 8, 22]
+        for col_i, width in enumerate(widths, start=1):
+            sheet.column_dimensions[openpyxl.utils.get_column_letter(col_i)].width = width
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="class_rankings.xlsx"'
+    wb.save(response)
+    return response
+
+
+def _class_students_and_subjects(teacher, term):
+    """Students and subjects for this teacher's own class gradesheet -
+    shared by the 'view all' gradesheet and its downloadable upload
+    template, so both agree on ordering and on which subjects are
+    excluded for the given term."""
+    ordered_students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+    males = [s for s in ordered_students if s.sex in ('MALE', 'M')]
+    females = [s for s in ordered_students if s.sex in ('FEMALE', 'F')]
+    students = males + females
+
+    teacher_section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
+    subjects = SubjectMapping.objects.filter(school_profile_id=teacher.school_profile_id)
+    if teacher_section:
+        subjects = subjects.filter(grade_level=teacher_section.grade_level)
+    subjects = list(subjects.order_by('subject_number'))
+
+    excluded_mapping_ids = set(
+        SubjectTermExclusion.objects.filter(
+            term=term, mapping_id__in=[s.mapping_id for s in subjects]
+        ).values_list('mapping_id', flat=True)
+    )
+    excluded_subjects = [s for s in subjects if s.mapping_id in excluded_mapping_ids]
+    included_subjects = [s for s in subjects if s.mapping_id not in excluded_mapping_ids]
+
+    return students, included_subjects, excluded_subjects
+
+
+@login_required
+def download_grade_template(request):
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    try:
+        term = int(request.GET.get('term', 1))
+    except ValueError:
+        term = 1
+    if term not in (1, 2, 3):
+        term = 1
+
+    students, subjects, _ = _class_students_and_subjects(teacher, term)
+    subject_names = [s.subject_name for s in subjects] or ['Subject1']
+
+    wb = openpyxl.Workbook()
+    sheet = wb.active
+    sheet.title = f'Term {term} Grades'
+
+    sheet.append(['LRN'] + subject_names)
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='2F5496', end_color='2F5496', fill_type='solid')
+    for cell in sheet[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+
+    for student in students:
+        sheet.append([student.lrn] + [''] * len(subject_names))
+
+    sheet.column_dimensions['A'].width = 14
+    for i in range(len(subject_names)):
+        sheet.column_dimensions[openpyxl.utils.get_column_letter(i + 2)].width = 14
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f'grade_upload_template_term{term}.xlsx'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
 
 
 @login_required
@@ -478,31 +604,7 @@ def view_grades(request, lrn):
         if term not in (1, 2, 3):
             term = 1
 
-        ordered_students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
-        males = [s for s in ordered_students if s.sex in ('MALE', 'M')]
-        females = [s for s in ordered_students if s.sex in ('FEMALE', 'F')]
-        students = males + females
-
-        # Scope the subject list to this teacher's own grade level so Grade
-        # 11 and Grade 12 mappings (which share a school_profile_id) don't
-        # get mixed into the same gradesheet.
-        teacher_section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
-        subjects = SubjectMapping.objects.filter(school_profile_id=teacher.school_profile_id)
-        if teacher_section:
-            subjects = subjects.filter(grade_level=teacher_section.grade_level)
-        subjects = subjects.order_by('subject_number')
-
-        # A subject not actually offered this term (e.g. a one-semester
-        # subject) can be removed from just this term via the gradesheet's
-        # Remove button - it stays required for whichever terms it isn't
-        # excluded from.
-        excluded_mapping_ids = set(
-            SubjectTermExclusion.objects.filter(
-                term=term, mapping_id__in=subjects.values_list('mapping_id', flat=True)
-            ).values_list('mapping_id', flat=True)
-        )
-        excluded_subjects = [s for s in subjects if s.mapping_id in excluded_mapping_ids]
-        subjects = [s for s in subjects if s.mapping_id not in excluded_mapping_ids]
+        students, subjects, excluded_subjects = _class_students_and_subjects(teacher, term)
         subject_ids = {s.mapping_id for s in subjects}
 
         grades_data = {}

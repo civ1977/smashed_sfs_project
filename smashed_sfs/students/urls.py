@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     path('upload/', views.upload_students, name='upload_students'),
+    path('template/', views.download_student_template, name='download_student_template'),
     path('save/', views.save_students, name='save_students'),
     path('list/', views.student_list, name='student_list'),
     path('<str:lrn>/edit/', views.update_student, name='update_student'),
