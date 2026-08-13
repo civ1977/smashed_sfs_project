@@ -99,7 +99,6 @@
         <tr>
             <th>Month</th>
             <th>Time Records</th>
-            <th>Download</th>
             <th></th>
             <th></th>
         </tr>
@@ -110,10 +109,7 @@
             <td>{{ row.label }}</td>
             <td class="num">{{ row.record_count }}</td>
             <td>
-                <a href="{% url 'download_dtr_pdf' row.year row.month %}" class="btn ghost">Download PDF</a>
-            </td>
-            <td>
-                <a href="{% url 'dtr_status' row.year row.month %}" class="btn ghost">Status</a>
+                <a href="{% url 'dtr_status' row.year row.month %}" class="btn ghost">Status &amp; Download</a>
             </td>
             <td>
                 <form method="POST" action="{% url 'delete_dtr_month' row.year row.month %}"

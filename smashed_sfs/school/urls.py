@@ -8,6 +8,7 @@ urlpatterns = [
     path('dtr/upload/template/', views.download_dtr_upload_template, name='download_dtr_upload_template'),
     path('dtr/download/<int:year>/<int:month>/', views.download_dtr_pdf, name='download_dtr_pdf'),
     path('dtr/status/<int:year>/<int:month>/', views.dtr_status, name='dtr_status'),
+    path('dtr/view/<int:teacher_id>/<int:year>/<int:month>/', views.view_employee_dtr, name='view_employee_dtr'),
     path('dtr/delete/<int:year>/<int:month>/', views.delete_dtr_month, name='delete_dtr_month'),
     path('dtr/calendar/add/', views.add_dtr_calendar_exception, name='add_dtr_calendar_exception'),
     path('dtr/calendar/<int:exception_id>/remove/', views.remove_dtr_calendar_exception, name='remove_dtr_calendar_exception'),

@@ -3,48 +3,72 @@
 {% block breadcrumb %}DTR STATUS{% endblock %}
 
 {% block content %}
-<a href="{% url 'school_dtr_upload' %}" class="btn ghost">← Upload DTR</a>
+<a href="{% url 'school_dtr_upload' %}" class="btn ghost">&larr; Upload DTR</a>
 
-<h1>DTR Status — {{ month_name }} {{ year }}</h1>
+<h1>DTR Status &mdash; {{ month_name }} {{ year }}</h1>
 <p>Every employee found in this month's uploaded/edited DTR data, and whether they've personally edited their own
-    copy and affixed a signature. Only employees marked <span class="pill good">Signed &amp; Ready</span> are
-    included when the bulk PDF is collated.</p>
+    copy and affixed a signature. Only employees marked <span class="pill good">Signed &amp; Ready</span> can be
+    selected below for the bulk download.</p>
 
 <p style="color: var(--ink-faint); font-size: 13px;">
     {{ ready_count }} of {{ status_rows|length }} employee(s) ready.
 </p>
 
 {% if status_rows %}
-<table style="max-width: 760px;">
-    <thead>
-        <tr>
-            <th>Employee (from file)</th>
-            <th>Edited Own DTR</th>
-            <th>Signature</th>
-            <th>Status</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for row in status_rows %}
-        <tr>
-            <td>{{ row.employee_name }}</td>
-            <td>{% if row.self_edited %}✅{% else %}—{% endif %}</td>
-            <td>{% if row.signed %}✅{% else %}—{% endif %}</td>
-            <td>
-                {% if row.status == 'ready' %}
-                    <span class="pill good">Signed &amp; Ready</span>
-                {% elif row.status == 'edited_unsigned' %}
-                    <span class="pill warn">Edited, Not Signed</span>
-                {% elif row.status == 'no_account' %}
-                    <span class="pill neutral">No Matching Account</span>
-                {% else %}
-                    <span class="pill risk">Not Started</span>
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<form method="POST" action="{% url 'download_dtr_pdf' year month %}">
+    {% csrf_token %}
+    <table style="max-width: 860px;">
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="dtr-select-all" title="Select all ready employees"></th>
+                <th>Employee (from file)</th>
+                <th>Edited Own DTR</th>
+                <th>Signature</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in status_rows %}
+            <tr>
+                <td>
+                    {% if row.status == 'ready' %}
+                    <input type="checkbox" name="teacher_ids" value="{{ row.teacher.teacher_id }}" class="dtr-select-row">
+                    {% endif %}
+                </td>
+                <td>{{ row.employee_name }}</td>
+                <td>{% if row.self_edited %}✅{% else %}—{% endif %}</td>
+                <td>{% if row.signed %}✅{% else %}—{% endif %}</td>
+                <td>
+                    {% if row.status == 'ready' %}
+                        <span class="pill good">Signed &amp; Ready</span>
+                    {% elif row.status == 'edited_unsigned' %}
+                        <span class="pill warn">Edited, Not Signed</span>
+                    {% elif row.status == 'no_account' %}
+                        <span class="pill neutral">No Matching Account</span>
+                    {% else %}
+                        <span class="pill risk">Not Started</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if row.teacher %}
+                    <a href="{% url 'view_employee_dtr' row.teacher.teacher_id year month %}" class="btn ghost">View</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <button type="submit" class="btn btn-success" style="margin-top: var(--space-3);">&#128424; Download Selected</button>
+</form>
+
+<script>
+    document.getElementById('dtr-select-all').addEventListener('change', function () {
+        document.querySelectorAll('.dtr-select-row').forEach(function (cb) {
+            cb.checked = this.checked;
+        }.bind(this));
+    });
+</script>
 {% else %}
 <p>No DTR data found for this month.</p>
 {% endif %}

@@ -400,27 +400,6 @@ DTR_EDITABLE_FIELDS = (
     'undertime_hours', 'undertime_minutes',
 )
 
-# Bar widths (points) + colors for the barcode-style mark printed on the
-# real "VANDA F48" card (school/dtr_pdf.html) - not a real scannable
-# encoding of the digits printed beneath it, just a visual match. xhtml2pdf
-# can't render the on-screen version's CSS gradient at all, so this is a
-# discrete table of colored cells instead - but computed directly from that
-# same gradient's repeating pattern (templates/accounts/dtr.html's
-# .dtr-barcode repeating-linear-gradient: black 0-0.6, gap 0.6-1.4, black
-# 1.4-2.6, gap 2.6-3.4, black 3.4-3.8, gap 3.8-4.8, out of a 4.8-unit
-# repeat), scaled and repeated to fill the same ~2.3cm width, rather than
-# an unrelated hand-picked sequence.
-_DTR_BARCODE_UNIT = [(0.6, '#000'), (0.8, '#fff'), (1.2, '#000'), (0.8, '#fff'), (0.4, '#000'), (1.0, '#fff')]
-_DTR_BARCODE_REPEATS = 9
-_DTR_BARCODE_TARGET_WIDTH_PT = 65.2  # 2.3cm, matching .dtr-barcode's on-screen width
-_DTR_BARCODE_SCALE = _DTR_BARCODE_TARGET_WIDTH_PT / (sum(w for w, _ in _DTR_BARCODE_UNIT) * _DTR_BARCODE_REPEATS)
-DTR_BARCODE_BARS = [
-    (round(width * _DTR_BARCODE_SCALE, 2), color)
-    for _ in range(_DTR_BARCODE_REPEATS)
-    for width, color in _DTR_BARCODE_UNIT
-]
-
-
 def build_dtr_days(year, month, exceptions, records_by_date, dtr_exceptions=None):
     """Builds the day-by-day grid for one Form 48: one entry per calendar
     day in the month, labeling non-school days (Saturday/Sunday/Holiday per

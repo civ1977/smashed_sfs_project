@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}BULK DTR{% endblock %}
+
+{% block content %}
+<div class="no-print">
+    <a href="{% url 'dtr_status' year month %}" class="btn ghost">&larr; Back to Status</a>
+    <button type="button" class="btn btn-success" onclick="window.print()">&#128424; Print / Save as PDF</button>
+    <p style="color: var(--ink-faint); font-size: 13px; margin-top: var(--space-2);">
+        {{ forms|length }} employee(s) selected for {{ month_name }} {{ year }}. This is the exact same layout
+        each employee sees on their own Daily Time Record page. Use your browser's Print dialog and choose
+        "Save as PDF" (or a physical printer) to get one file covering everyone below.
+    </p>
+</div>
+
+{% include 'partials/dtr_form_style.html' %}
+
+{% for form in forms %}
+<div class="dtr-print-sheet dtr-bulk-sheet">
+    <div class="dtr-form dtr-print-copy">
+        {% include 'partials/dtr_form_content.html' with days=form.days employee_name=form.employee_name teacher=form.teacher readonly=True %}
+    </div>
+    <div class="dtr-print-gap"></div>
+    <div class="dtr-form dtr-print-copy">
+        {% include 'partials/dtr_form_content.html' with days=form.days employee_name=form.employee_name teacher=form.teacher readonly=True %}
+    </div>
+</div>
+{% endfor %}
+
+<style>
+    /* partials/dtr_form_style.html hides .dtr-print-sheet outside @media
+       print (it's meant to stay invisible until you print the individual
+       DTR page) - this page IS the print preview, so it needs showing on
+       screen too, not just at print time. */
+    .dtr-bulk-sheet {
+        display: flex !important;
+        justify-content: center;
+        align-items: flex-start;
+        margin: var(--space-5) auto;
+        page-break-after: always;
+    }
+    .dtr-bulk-sheet:last-child { page-break-after: avoid; }
+    @media print {
+        .dtr-bulk-sheet { margin: 0; }
+    }
+</style>
+{% endblock %}

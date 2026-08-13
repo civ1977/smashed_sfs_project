@@ -1,4 +1,3 @@
-import io
 import json
 
 import openpyxl
@@ -12,17 +11,17 @@ from django.contrib import messages
 from django.db.models import Q, Count
 from django.db.models.functions import TruncMonth
 from django.http import HttpResponse, JsonResponse
-from django.template.loader import render_to_string
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.db import IntegrityError, transaction
-from xhtml2pdf import pisa
 
 from datetime import date, datetime
 
 from accounts.forms import SectionForm, SchoolProfileForm, SchoolOfficialsForm
 from accounts.models import Teacher, TeacherTimeRecord, DTRCalendarException
-from accounts.views import build_dtr_days, DTR_BARCODE_BARS, _dtr_calendar_exceptions, _dtr_names_match
+from accounts.views import (
+    build_dtr_days, DTR_TIME_FIELDS, _strip_am_pm, _dtr_calendar_exceptions, _dtr_names_match,
+)
 from students.models import SchoolProfile, Section, Student
 from grades.models import Grade, SubjectMapping, TeacherSubjectAssignment, SchoolCalendarException, SubjectTestMaxScore
 from grades.views import MONTH_NAMES, _score_stats
@@ -337,7 +336,19 @@ def _dtr_employee_status_rows(school_profile_id, year, month):
         {r.employee_name for r in records if r.employee_name}, key=str.lower
     )
 
-    rows = []
+    # The same person can appear under more than one spelling in one
+    # month's raw data - e.g. "Dela Cruz, Juan" from a registrar's
+    # Lastname-First bulk upload alongside "Juan Dela Cruz" from the
+    # teacher's own Firstname-Last account name once they self-edit.
+    # self_edited/signed/status come out identical for every spelling of
+    # the same matched teacher (both check matched.teacher_id /
+    # matched.signature_image, not the raw string), so collapse them into
+    # one row per teacher instead of double-counting the same person -
+    # download_dtr_pdf already relies on this same fuzzy match to collate
+    # one page per teacher; this keeps the Status page's counts and
+    # checklist consistent with that.
+    rows_by_teacher = {}
+    unmatched_rows = []
     for name in employee_names:
         matched = next((t for t in school_teachers if _dtr_names_match(t.full_name, name)), None)
         self_edited = matched is not None and any(
@@ -355,19 +366,46 @@ def _dtr_employee_status_rows(school_profile_id, year, month):
         else:
             status = 'not_started'
 
-        rows.append({
+        if matched is None:
+            unmatched_rows.append({
+                'employee_name': name,
+                'teacher': None,
+                'self_edited': False,
+                'signed': False,
+                'status': status,
+            })
+            continue
+
+        existing = rows_by_teacher.get(matched.teacher_id)
+        if existing:
+            if name not in existing['employee_name'].split(' / '):
+                existing['employee_name'] += f' / {name}'
+            continue
+
+        rows_by_teacher[matched.teacher_id] = {
             'employee_name': name,
             'teacher': matched,
             'self_edited': self_edited,
             'signed': signed,
             'status': status,
-        })
+        }
 
+    rows = sorted(list(rows_by_teacher.values()) + unmatched_rows, key=lambda r: r['employee_name'].lower())
     return rows, records
 
 
 @login_required
 def download_dtr_pdf(request, year, month):
+    """Print-preview page for whichever employees the registrar checked off
+    on the Status page. Renders each selected employee with the exact same
+    partials/dtr_form_content.html the employee's own DTR page uses (see
+    partials/dtr_form_style.html) instead of a second, separately
+    maintained PDF template - the old xhtml2pdf-based version had already
+    drifted from the on-screen page in real, visible ways (e.g.
+    accounts.views._strip_am_pm's AM/PM-suffix trimming only ever applied
+    there, never here). Producing an actual PDF file is left to the
+    browser's own Print -> Save as PDF, same as the individual page's own
+    Print button."""
     teacher, error = _get_school_admin_teacher(request)
     if error:
         return error
@@ -376,6 +414,14 @@ def download_dtr_pdf(request, year, month):
     if not records:
         messages.error(request, f'No DTR data found for {MONTH_NAMES[month - 1]} {year}.')
         return redirect('school_dtr_upload')
+
+    if request.method != 'POST':
+        return redirect('dtr_status', year, month)
+
+    selected_ids = {int(v) for v in request.POST.getlist('teacher_ids') if v.isdigit()}
+    if not selected_ids:
+        messages.error(request, 'Select at least one employee to download.')
+        return redirect('dtr_status', year, month)
 
     exceptions = {
         e.date: e.is_school_day
@@ -387,25 +433,17 @@ def download_dtr_pdf(request, year, month):
 
     # Only employees who signed their own copy AND actually edited it
     # themselves (rather than only appearing via a registrar's raw
-    # biometric import) are collated here - this mirrors exactly what that
-    # employee sees/signs on their own DTR page (same fuzzy-match +
-    # own-teacher-id-wins tie-break as accounts.views.daily_time_record), so
-    # the bulk copy is never out of sync with what they actually certified.
-    #
-    # status_rows has one entry per distinct raw employee_name string, and
-    # the same teacher can show up under more than one spelling (e.g. a
-    # registrar's biometric-export name alongside the teacher's own
-    # full_name from self-editing) - deduping by teacher_id here keeps each
-    # signed employee to exactly one page in the bulk PDF.
+    # biometric import) are ever selectable on the Status page - re-checked
+    # here too (status == 'ready') so a POST tampered to include someone
+    # else's id can never pull them into the bulk copy. status_rows is
+    # already deduped one row per matched teacher (see
+    # _dtr_employee_status_rows), so this also can't double-list anyone who
+    # shows up under more than one name spelling.
     forms = []
-    seen_teacher_ids = set()
     for row in status_rows:
-        if row['status'] != 'ready':
-            continue
         et = row['teacher']
-        if et.teacher_id in seen_teacher_ids:
+        if row['status'] != 'ready' or not et or et.teacher_id not in selected_ids:
             continue
-        seen_teacher_ids.add(et.teacher_id)
 
         records_by_date = {}
         for r in records:
@@ -415,37 +453,75 @@ def download_dtr_pdf(request, year, month):
             if existing is None or (existing.teacher_id != et.teacher_id and r.teacher_id == et.teacher_id):
                 records_by_date[r.date] = r
 
-        forms.append({
-            'employee_name': et.full_name,
-            'signature_image': et.signature_image,
-            'days': build_dtr_days(year, month, exceptions, records_by_date, dtr_exceptions),
-        })
+        days = build_dtr_days(year, month, exceptions, records_by_date, dtr_exceptions)
+        for entry in days:
+            for field in DTR_TIME_FIELDS:
+                entry[field] = _strip_am_pm(entry[field])
+
+        forms.append({'employee_name': et.full_name, 'teacher': et, 'days': days})
 
     if not forms:
-        messages.error(
-            request,
-            f'No employees have signed their own DTR for {MONTH_NAMES[month - 1]} {year} yet — '
-            f'check Status to see who still needs to.'
-        )
-        return redirect('school_dtr_upload')
+        messages.error(request, 'None of the selected employees are Signed & Ready.')
+        return redirect('dtr_status', year, month)
 
-    html = render_to_string('school/dtr_pdf.html', {
+    return render(request, 'school/dtr_bulk_print.html', {
         'forms': forms,
         'month_name': MONTH_NAMES[month - 1],
         'year': year,
-        'barcode_bar_widths': DTR_BARCODE_BARS,
+        'month': month,
     })
 
-    buffer = io.BytesIO()
-    result = pisa.CreatePDF(src=html, dest=buffer)
-    if result.err:
-        messages.error(request, 'Could not generate the PDF. Please try again.')
-        return redirect('school_dtr_upload')
 
-    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-    filename = f"DTR_{MONTH_NAMES[month - 1]}_{year}.pdf"
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    return response
+@login_required
+def view_employee_dtr(request, teacher_id, year, month):
+    """Read-only preview of one employee's DTR for a registrar/principal to
+    check before including them in a bulk selection - reuses the same
+    partials/dtr_form_content.html (with readonly=True, so nothing here is
+    editable) as the employee's own page and the bulk print view, so what's
+    previewed here is guaranteed to match what that employee actually
+    sees/signs."""
+    admin_teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    target = Teacher.objects.filter(teacher_id=teacher_id, school_profile_id=admin_teacher.school_profile_id).first()
+    if not target:
+        messages.error(request, 'Employee not found.')
+        return redirect('dtr_status', year, month)
+
+    school_teacher_ids = Teacher.objects.filter(
+        school_profile_id=admin_teacher.school_profile_id
+    ).values_list('teacher_id', flat=True)
+
+    exceptions = {
+        e.date: e.is_school_day
+        for e in SchoolCalendarException.objects.filter(
+            school_profile_id=admin_teacher.school_profile_id, date__year=year, date__month=month
+        )
+    }
+    dtr_exceptions = _dtr_calendar_exceptions(admin_teacher.school_profile_id, year, month)
+
+    records_by_date = {}
+    for r in TeacherTimeRecord.objects.filter(teacher_id__in=school_teacher_ids, date__year=year, date__month=month):
+        if not _dtr_names_match(target.full_name, r.employee_name):
+            continue
+        existing = records_by_date.get(r.date)
+        if existing is None or (existing.teacher_id != target.teacher_id and r.teacher_id == target.teacher_id):
+            records_by_date[r.date] = r
+
+    days = build_dtr_days(year, month, exceptions, records_by_date, dtr_exceptions)
+    for entry in days:
+        for field in DTR_TIME_FIELDS:
+            entry[field] = _strip_am_pm(entry[field])
+
+    return render(request, 'school/dtr_view.html', {
+        'teacher': target,
+        'days': days,
+        'employee_name': target.full_name,
+        'month_name': MONTH_NAMES[month - 1],
+        'year': year,
+        'month': month,
+    })
 
 
 @login_required

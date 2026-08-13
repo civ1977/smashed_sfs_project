@@ -50,6 +50,13 @@
             <td></td>
             <td></td>
             <td></td>
+            {% elif readonly %}
+            <td>{{ entry.am_arrival }}</td>
+            <td class="dtr-thick-r">{{ entry.am_departure }}</td>
+            <td>{{ entry.pm_arrival }}</td>
+            <td class="dtr-thick-r">{{ entry.pm_departure }}</td>
+            <td>{{ entry.undertime_hours }}</td>
+            <td>{{ entry.undertime_minutes }}</td>
             {% else %}
             <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="am_arrival">{{ entry.am_arrival }}</td>
             <td class="dtr-editable dtr-thick-r" contenteditable="true" data-date="{{ entry.date }}" data-field="am_departure">{{ entry.am_departure }}</td>

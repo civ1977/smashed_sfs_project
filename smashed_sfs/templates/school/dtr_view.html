@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}DTR &mdash; {{ teacher.full_name }}{% endblock %}
+
+{% block content %}
+<div class="no-print">
+    <a href="{% url 'dtr_status' year month %}" class="btn ghost">&larr; Back to Status</a>
+    <button type="button" class="btn" onclick="window.print()">Print</button>
+    <p style="color: var(--ink-faint); font-size: 12px; margin-top: var(--space-2);">
+        Read-only preview of {{ teacher.full_name }}'s Daily Time Record for {{ month_name }} {{ year }} &mdash;
+        exactly as they see it on their own page. Editing is only ever available to the employee's own account.
+    </p>
+</div>
+
+{% include 'partials/dtr_form_style.html' %}
+
+<div class="dtr-form-zoom no-print-sheet">
+<div class="dtr-form">
+    {% include 'partials/dtr_form_content.html' with readonly=True %}
+</div>
+</div>
+{% endblock %}
