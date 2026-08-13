@@ -14,9 +14,10 @@
         {% csrf_token %}
         <input type="hidden" name="year" value="{{ year }}">
         <input type="hidden" name="month" value="{{ month }}">
-        <label>AM Departure <input type="time" name="am_departure"></label>
-        <label>PM Arrival <input type="time" name="pm_arrival"></label>
+        <label>AM Departure <input type="text" name="am_departure" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" placeholder="HH:MM" maxlength="5" title="24-hour time, e.g. 14:30" style="width: 60px;"></label>
+        <label>PM Arrival <input type="text" name="pm_arrival" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" placeholder="HH:MM" maxlength="5" title="24-hour time, e.g. 14:30" style="width: 60px;"></label>
         <button type="submit" class="btn good">&#9889; Fill Lunch Break</button>
+        <span style="font-size: 12px; color: var(--ink-faint);">(times use 24-hour / military time, e.g. 14:30 for 2:30 PM)</span>
     </form>
 
     <p style="color: #999; font-size: 12px; margin-top: 6px;">
