@@ -37,7 +37,7 @@
             </td>
             <td class="num">{{ row.student_count }}</td>
             <td>
-                <a href="{% url 'school_section_students' row.section.section_id %}" class="btn ghost">View Class List</a>
+                <a href="{% url 'school_section_students' row.section.section_id %}" class="btn ghost" style="white-space: nowrap;">View Class</a>
             </td>
             <td>
                 <form method="POST" action="{% url 'reassign_section_adviser' row.section.section_id %}" style="display:flex; gap: var(--space-2);">
