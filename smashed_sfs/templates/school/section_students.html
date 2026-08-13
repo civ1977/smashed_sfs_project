@@ -13,11 +13,12 @@
 </p>
 
 {% if students %}
-<table>
+<div class="section-students-scroll">
+<table class="section-students-table">
     <thead>
         <tr>
-            <th>LRN</th>
-            <th>Surname</th>
+            <th class="freeze-col freeze-col-1">LRN</th>
+            <th class="freeze-col freeze-col-2">Surname</th>
             <th>Name</th>
             <th>Middle Name</th>
             <th>Sex</th>
@@ -27,8 +28,8 @@
     <tbody>
         {% for student in students %}
         <tr>
-            <td class="mono">{{ student.lrn }}</td>
-            <td>{{ student.surname }}</td>
+            <td class="mono freeze-col freeze-col-1">{{ student.lrn }}</td>
+            <td class="freeze-col freeze-col-2">{{ student.surname }}</td>
             <td>{{ student.name }}</td>
             <td>{{ student.middle_name|default:"—" }}</td>
             <td>{{ student.sex }}</td>
@@ -37,6 +38,34 @@
         {% endfor %}
     </tbody>
 </table>
+</div>
+
+<style>
+    .section-students-scroll {
+        overflow: auto;
+        max-height: calc(100vh - 260px);
+    }
+    .section-students-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--bg);
+    }
+    .section-students-table .freeze-col {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        box-sizing: border-box;
+        white-space: nowrap;
+        background: var(--bg);
+    }
+    .section-students-table .freeze-col-1 { left: 0; width: 130px; min-width: 130px; }
+    .section-students-table .freeze-col-2 { left: 130px; width: 150px; min-width: 150px; }
+    .section-students-table thead .freeze-col {
+        top: 0;
+        z-index: 4;
+    }
+</style>
 {% else %}
 <p style="margin-top: var(--space-5);">No students in this class yet.</p>
 {% endif %}

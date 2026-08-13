@@ -5,9 +5,21 @@
 {% block content %}
 <h1>Find a Student</h1>
 
-<form method="GET" action="{% url 'school_student_list' %}" style="display: flex; gap: var(--space-3); align-items: center; max-width: 480px; margin-top: var(--space-4);">
-    <input type="text" name="q" value="{{ query }}" placeholder="Search by LRN, surname, or first name" style="flex: 1;">
-    <button type="submit" class="btn">Search</button>
+<form method="GET" action="{% url 'school_student_list' %}" style="max-width: 480px; margin-top: var(--space-4);">
+    {% if school_year_options %}
+    <div class="form-group">
+        <label for="school-year-select">School Year</label>
+        <select id="school-year-select" name="profile_id" onchange="this.form.submit()">
+            {% for profile in school_year_options %}
+            <option value="{{ profile.profile_id }}" {% if profile.profile_id == selected_profile_id %}selected{% endif %}>{{ profile.school_year }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+    <div style="display: flex; gap: var(--space-3); align-items: center;">
+        <input type="text" name="q" value="{{ query }}" placeholder="Search by LRN, surname, or first name" style="flex: 1;">
+        <button type="submit" class="btn">Search</button>
+    </div>
 </form>
 
 {% if query %}

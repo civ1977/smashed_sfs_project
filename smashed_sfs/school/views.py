@@ -8,7 +8,7 @@ from collections import defaultdict
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Case, When, Value, IntegerField
 from django.db.models.functions import TruncMonth
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
@@ -585,32 +585,55 @@ def school_student_list(request):
 
     query = request.GET.get('q', '').strip()
     student_rows = []
+    school_year_options = []
+    selected_profile_id = teacher.school_profile_id
 
     if not teacher.school_profile_id:
         messages.warning(request, 'Your account has no school assigned yet.')
-    elif query:
-        sections_by_id = {
-            s.section_id: s for s in Section.objects.filter(school_profile_id=teacher.school_profile_id)
-        }
-        students = Student.objects.filter(
-            section_id__in=sections_by_id.keys()
-        ).filter(
-            Q(lrn__icontains=query) | Q(surname__icontains=query) | Q(name__icontains=query)
-        ).order_by('surname', 'name')
+    else:
+        # Every SchoolProfile sharing this school's DepEd school_id is a
+        # different school_year's own copy of that school (see
+        # SchoolProfile.school_id vs. .profile_id) - list them all here so a
+        # registrar can search a prior year's own sections/students instead
+        # of only whichever profile_id their account currently points at.
+        current_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
+        if current_profile:
+            school_year_options = list(
+                SchoolProfile.objects.filter(school_id=current_profile.school_id).order_by('-school_year')
+            )
+            option_ids = {p.profile_id for p in school_year_options}
+            requested_profile_id = request.GET.get('profile_id', '').strip()
+            if requested_profile_id.isdigit() and int(requested_profile_id) in option_ids:
+                selected_profile_id = int(requested_profile_id)
 
-        adviser_ids = {s.adviser_id for s in sections_by_id.values() if s.adviser_id}
-        advisers_by_id = {t.teacher_id: t for t in Teacher.objects.filter(teacher_id__in=adviser_ids)}
+        if query:
+            sections_by_id = {
+                s.section_id: s for s in Section.objects.filter(school_profile_id=selected_profile_id)
+            }
+            students = Student.objects.filter(
+                section_id__in=sections_by_id.keys()
+            ).filter(
+                Q(lrn__icontains=query) | Q(surname__icontains=query) | Q(name__icontains=query)
+            ).order_by('surname', 'name')
 
-        student_rows = []
-        for s in students:
-            section = sections_by_id.get(s.section_id)
-            student_rows.append({
-                'student': s,
-                'section': section,
-                'adviser': advisers_by_id.get(section.adviser_id) if section else None,
-            })
+            adviser_ids = {s.adviser_id for s in sections_by_id.values() if s.adviser_id}
+            advisers_by_id = {t.teacher_id: t for t in Teacher.objects.filter(teacher_id__in=adviser_ids)}
 
-    return render(request, 'school/students.html', {'query': query, 'student_rows': student_rows})
+            student_rows = []
+            for s in students:
+                section = sections_by_id.get(s.section_id)
+                student_rows.append({
+                    'student': s,
+                    'section': section,
+                    'adviser': advisers_by_id.get(section.adviser_id) if section else None,
+                })
+
+    return render(request, 'school/students.html', {
+        'query': query,
+        'student_rows': student_rows,
+        'school_year_options': school_year_options,
+        'selected_profile_id': selected_profile_id,
+    })
 
 
 @login_required
@@ -674,7 +697,18 @@ def school_section_students(request, section_id):
         return redirect('school_sections')
 
     adviser = Teacher.objects.filter(teacher_id=section.adviser_id).first() if section.adviser_id else None
-    students = Student.objects.filter(section_id=section.section_id).order_by('surname', 'name')
+    # All MALE students first, then all FEMALE - alphabetical by name within
+    # each group, rather than sex just happening to sort alphabetically
+    # (which would put FEMALE first).
+    students = Student.objects.filter(section_id=section.section_id).order_by(
+        Case(
+            When(sex='MALE', then=Value(0)),
+            When(sex='FEMALE', then=Value(1)),
+            default=Value(2),
+            output_field=IntegerField(),
+        ),
+        'surname', 'name',
+    )
 
     return render(request, 'school/section_students.html', {
         'section': section,
