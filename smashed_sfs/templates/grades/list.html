@@ -115,5 +115,19 @@
         top: 0;
         z-index: 4;
     }
+    /* Alternating pastel-blue stripe across the whole row (LRN/Name
+       columns included) - same pattern as the Summary of Ratings and
+       Attendance Grid pages, just with --accent-wash's blue instead of
+       --good-wash's green, so each student's row is easy to track by eye
+       across the subject columns. Specificity here (three
+       classes/pseudo-classes + two type selectors) beats .freeze-col's
+       own "background: var(--bg)" above, so the frozen columns pick up
+       the stripe too instead of reverting to plain background. */
+    .grades-list-table tbody tr:nth-child(odd) td {
+        background: var(--accent-wash);
+    }
+    .grades-list-table tbody tr:nth-child(even) td {
+        background: var(--bg);
+    }
 </style>
 {% endblock %}

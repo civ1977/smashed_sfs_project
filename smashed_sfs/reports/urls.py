@@ -2,9 +2,11 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('select-student/', views.select_student_for_report, name='select_student_report'),
+    path('', views.select_student_for_report, name='select_student_report'),
     path('subject-statistics/', views.subject_statistics_report, name='subject_statistics_report'),
     path('report-cards/', views.report_cards, name='report_cards'),
+    path('summary-of-ratings/', views.summary_of_ratings, name='summary_of_ratings'),
+    path('summary-of-ratings/export/', views.export_summary_of_ratings, name='export_summary_of_ratings'),
     path('sf7/', views.view_sf7, name='view_sf7'),
     path('sf9/<str:student_lrn>/', views.view_sf9, name='view_sf9'),
     path('sf10/<str:student_lrn>/', views.view_sf10, name='view_sf10'),

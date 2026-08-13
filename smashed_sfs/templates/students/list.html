@@ -98,6 +98,18 @@
         top: 0;
         z-index: 4;
     }
+    /* Alternating pastel-blue stripe across the whole row (LRN/Surname
+       columns included) - same pattern as the Ratings List, Summary of
+       Ratings, and Attendance Grid pages. Specificity here beats
+       .freeze-col's own "background: var(--bg)" above, so the frozen
+       columns pick up the stripe too instead of reverting to plain
+       background. */
+    .student-list-table tbody tr:nth-child(odd) td {
+        background: var(--accent-wash);
+    }
+    .student-list-table tbody tr:nth-child(even) td {
+        background: var(--bg);
+    }
 </style>
 
 <script>

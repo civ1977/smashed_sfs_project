@@ -14,14 +14,19 @@
     <input type="hidden" name="row_count" value="{{ students|length }}">
     <div style="margin-bottom: var(--space-4);">
         <strong>Schedule:</strong>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: var(--space-2) var(--space-4); margin-top: 4px;">
+        <span style="font-size: 12px; color: var(--ink-faint);">(times use 24-hour / military time, e.g. 14:30 for 2:30 PM)</span>
+        <div style="display: flex; flex-wrap: nowrap; gap: var(--space-4); margin-top: 4px; overflow-x: auto; padding-bottom: 4px;">
             {% for day, day_label in day_choices %}
-            <label style="display: flex; align-items: center; gap: 4px; white-space: nowrap;" title="{{ day_label }}">
+            <label style="display: flex; flex: none; align-items: center; gap: 4px; white-space: nowrap;" title="{{ day_label }}">
                 <input type="checkbox" name="days" value="{{ day }}" {% if day in schedule_dict %}checked{% endif %}>
                 {{ day }}
-                <input type="time" name="time_start_{{ day }}" value="{{ schedule_dict|get:day|get:'start'|default_if_none:'' }}">
+                <input type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" placeholder="HH:MM"
+                       title="24-hour time, e.g. 14:30" maxlength="5" style="width: 60px;"
+                       name="time_start_{{ day }}" value="{{ schedule_dict|get:day|get:'start'|default_if_none:'' }}">
                 <span>–</span>
-                <input type="time" name="time_end_{{ day }}" value="{{ schedule_dict|get:day|get:'end'|default_if_none:'' }}">
+                <input type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" placeholder="HH:MM"
+                       title="24-hour time, e.g. 14:30" maxlength="5" style="width: 60px;"
+                       name="time_end_{{ day }}" value="{{ schedule_dict|get:day|get:'end'|default_if_none:'' }}">
             </label>
             {% endfor %}
         </div>
@@ -141,6 +146,16 @@
         position: sticky;
         top: 0;
         z-index: 2;
+        background: var(--bg);
+    }
+    /* Alternating pastel-blue stripe across each student row - same
+       pattern as the Ratings List, Summary of Ratings, and Attendance
+       Grid pages, so each row is easy to track while entering scores.
+       Scoped to tbody only so the tfoot stats rows stay plain. */
+    .subject-grades-table tbody tr:nth-child(odd) td {
+        background: var(--accent-wash);
+    }
+    .subject-grades-table tbody tr:nth-child(even) td {
         background: var(--bg);
     }
 </style>

@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}SUMMARY OF RATINGS{% endblock %}
+
+{% block content %}
+<h1>Summary of Ratings{% if section %} - {{ section.grade_level }}-{{ section.strand }}-{{ section.section_name }}{% endif %}</h1>
+
+<a href="{% url 'select_student_report' %}" class="btn ghost">← Reports</a>
+{% if student_rows and subjects %}
+<a href="{% url 'export_summary_of_ratings' %}" class="btn">Export to Excel</a>
+{% endif %}
+
+{% if student_rows and subjects %}
+<div class="summary-ratings-scroll" style="margin-top: var(--space-4);">
+<table class="summary-ratings-table">
+    <thead>
+        <tr>
+            <th rowspan="2" class="row1 col-frozen">Student Name</th>
+            {% for subject in subjects %}
+            <th colspan="4" class="row1">{{ subject.subject_name }}</th>
+            {% endfor %}
+            <th rowspan="2" class="row1">General Average</th>
+        </tr>
+        <tr>
+            {% for subject in subjects %}
+            <th class="row2">Term 1</th><th class="row2">Term 2</th><th class="row2">Term 3</th><th class="row2">Average</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in student_rows %}
+        <tr>
+            <td class="col-frozen">{{ row.display_name }}</td>
+            {% for cell in row.subject_cells %}
+            <td>{{ cell.term_1|default_if_none:'—' }}</td>
+            <td>{{ cell.term_2|default_if_none:'—' }}</td>
+            <td>{{ cell.term_3|default_if_none:'—' }}</td>
+            <td>{{ cell.final|default_if_none:'—' }}</td>
+            {% endfor %}
+            <td>{{ row.general_average|default_if_none:'—' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p style="text-align: center; padding: var(--space-6);">
+    No students or subjects found for your advisory section.
+</p>
+{% endif %}
+
+<style>
+    /* Freeze panes: header rows pinned via position:sticky top, first
+       (Student Name) column pinned via position:sticky left - same idea as
+       Excel's View > Freeze Panes at row 2 / column B. A bounded max-height
+       on the scroll wrapper is what makes the header actually "stick"
+       while scrolling, rather than just scrolling off with the page. */
+    .summary-ratings-scroll {
+        overflow: auto;
+        max-height: 75vh;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+    }
+    .summary-ratings-table th,
+    .summary-ratings-table td {
+        text-align: center;
+        white-space: nowrap;
+    }
+    .summary-ratings-table td:first-child,
+    .summary-ratings-table th:first-child {
+        text-align: left;
+    }
+    .summary-ratings-table thead th {
+        position: sticky;
+        background: var(--bg);
+        z-index: 2;
+    }
+    .summary-ratings-table thead th.row1 {
+        top: 0;
+    }
+    /* Row 2's top offset is row 1's real rendered height, measured by the
+       script below rather than guessed - text size/padding can vary. */
+    .summary-ratings-table thead th.row2 {
+        top: var(--sor-row1-height, 34px);
+    }
+    .summary-ratings-table .col-frozen {
+        position: sticky;
+        left: 0;
+        background: var(--bg);
+        z-index: 1;
+    }
+    .summary-ratings-table thead th.col-frozen {
+        z-index: 3;
+    }
+    /* Alternating pastel-green row stripes - reuses the app's existing
+       "good" wash token (already theme-aware: light/dark both defined in
+       tokens.css) rather than hardcoding a new color. Targeted at "tbody
+       tr td" specifically (not just "tbody tr") so it also wins over
+       .col-frozen's own background above and the frozen Student Name
+       cell stays part of the same stripe as the rest of its row instead
+       of reverting to plain var(--bg). */
+    .summary-ratings-table tbody tr:nth-child(odd) td {
+        background: var(--good-wash);
+    }
+    .summary-ratings-table tbody tr:nth-child(even) td {
+        background: var(--bg);
+    }
+</style>
+<script>
+    (function () {
+        var table = document.querySelector('.summary-ratings-table');
+        if (!table) return;
+        function syncFreezeOffsets() {
+            var row1 = table.querySelector('thead tr:first-child');
+            if (row1) {
+                table.style.setProperty('--sor-row1-height', row1.offsetHeight + 'px');
+            }
+        }
+        syncFreezeOffsets();
+        window.addEventListener('resize', syncFreezeOffsets);
+    })();
+</script>
+{% endblock %}

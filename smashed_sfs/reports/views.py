@@ -2,6 +2,8 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import openpyxl
+from openpyxl.styles import Font, Alignment
+from openpyxl.utils import get_column_letter
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -28,6 +30,16 @@ def _remarks_for(final):
     if final is None:
         return None
     return 'Passed' if final >= 75 else 'Failed'
+
+
+def _student_display_name(student):
+    """'Surname, Name M.' - middle name reduced to its initial plus a
+    period; omitted entirely for students with no middle name on file
+    rather than showing a dangling comma or period."""
+    name = f'{student.surname.strip()}, {student.name.strip()}'
+    if student.middle_name and student.middle_name.strip():
+        name += f' {student.middle_name.strip()[0].upper()}.'
+    return name
 
 
 def _build_subject_rows(lrn, grade_level=None, term=None):
@@ -57,6 +69,7 @@ def _build_subject_rows(lrn, grade_level=None, term=None):
         final = _final_average(term_grades)
         subject_rows.append({
             'subject_name': subject_name,
+            'mapping_id': mapping_id,
             # Same field the class gradesheet orders by and the adviser's
             # own "Arrange Subjects" tool writes to (grades/views.py's
             # arrange_subjects) - one shared order across gradesheet,
@@ -332,6 +345,144 @@ def report_cards(request):
     students = males + females
 
     return render(request, 'reports/report_cards.html', {'students': students})
+
+
+def _summary_of_ratings_data(teacher):
+    """Shared data-shaping for the Summary of Ratings page and its Excel
+    export - one advisory section's students (all-MALE-then-all-FEMALE),
+    aligned to a shared subject column order. Returns (section, subjects,
+    student_rows); section is None (subjects/student_rows empty) if the
+    teacher has no advisory section."""
+    section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
+    if not section:
+        return None, [], []
+
+    students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+    males = [s for s in students if s.sex in ('MALE', 'M')]
+    females = [s for s in students if s.sex in ('FEMALE', 'F')]
+    students = males + females
+
+    # Master subject list/order for the section's grade level - every
+    # student's row is aligned to these same columns (via mapping_id) below,
+    # same source SF9/subject_statistics use, so a subject a given student
+    # has no grades for yet still gets a blank cell in the right column
+    # instead of shifting the row.
+    subjects = list(SubjectMapping.objects.filter(
+        school_profile_id=section.school_profile_id,
+        grade_level=section.grade_level,
+    ).order_by('subject_number', 'subject_name'))
+
+    student_rows = []
+    for student in students:
+        subject_rows = _build_subject_rows(student.lrn, grade_level=section.grade_level)
+        all_finals_ready = _gate_finals_pending_term3(subject_rows)
+        rows_by_mapping = {row['mapping_id']: row for row in subject_rows}
+
+        empty_cell = {'term_1': None, 'term_2': None, 'term_3': None, 'final': None}
+        subject_cells = [rows_by_mapping.get(subject.mapping_id, empty_cell) for subject in subjects]
+
+        finals = [row['final'] for row in subject_rows if row['final'] is not None]
+        general_average = round(sum(finals) / len(finals)) if (all_finals_ready and finals) else None
+
+        student_rows.append({
+            'student': student,
+            'display_name': _student_display_name(student),
+            'subject_cells': subject_cells,
+            'general_average': general_average,
+        })
+
+    return section, subjects, student_rows
+
+
+@login_required
+def summary_of_ratings(request):
+    try:
+        teacher = _get_teacher(request)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    section, subjects, student_rows = _summary_of_ratings_data(teacher)
+    if not section:
+        messages.error(request, 'No advisory section found for your account.')
+        return redirect('select_student_report')
+
+    return render(request, 'reports/summary_of_ratings.html', {
+        'section': section,
+        'subjects': subjects,
+        'student_rows': student_rows,
+    })
+
+
+@login_required
+def export_summary_of_ratings(request):
+    try:
+        teacher = _get_teacher(request)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    section, subjects, student_rows = _summary_of_ratings_data(teacher)
+    if not section:
+        messages.error(request, 'No advisory section found for your account.')
+        return redirect('select_student_report')
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Summary of Ratings'
+
+    header_font = Font(bold=True)
+    center = Alignment(horizontal='center', vertical='center')
+
+    ws.cell(row=1, column=1, value='Student Name')
+    ws.merge_cells(start_row=1, start_column=1, end_row=2, end_column=1)
+
+    col = 2
+    for subject in subjects:
+        ws.cell(row=1, column=col, value=subject.subject_name)
+        ws.merge_cells(start_row=1, start_column=col, end_row=1, end_column=col + 3)
+        for offset, label in enumerate(('Term 1', 'Term 2', 'Term 3', 'Average')):
+            ws.cell(row=2, column=col + offset, value=label)
+        col += 4
+
+    last_col = col
+    ws.cell(row=1, column=last_col, value='General Average')
+    ws.merge_cells(start_row=1, start_column=last_col, end_row=2, end_column=last_col)
+
+    for header_row in ws.iter_rows(min_row=1, max_row=2, min_col=1, max_col=last_col):
+        for cell in header_row:
+            cell.font = header_font
+            cell.alignment = center
+
+    row_num = 3
+    for row_data in student_rows:
+        ws.cell(row=row_num, column=1, value=row_data['display_name'])
+        col = 2
+        for cell_data in row_data['subject_cells']:
+            ws.cell(row=row_num, column=col, value=cell_data['term_1'])
+            ws.cell(row=row_num, column=col + 1, value=cell_data['term_2'])
+            ws.cell(row=row_num, column=col + 2, value=cell_data['term_3'])
+            ws.cell(row=row_num, column=col + 3, value=cell_data['final'])
+            col += 4
+        ws.cell(row=row_num, column=last_col, value=row_data['general_average'])
+        row_num += 1
+
+    # Excel's real Freeze Panes feature (View > Freeze Panes), matching the
+    # page's CSS sticky header/first-column: everything above row 3 and
+    # left of column B stays fixed while scrolling.
+    ws.freeze_panes = 'B3'
+
+    ws.column_dimensions['A'].width = 28
+    for c in range(2, last_col + 1):
+        ws.column_dimensions[get_column_letter(c)].width = 10
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f'Summary_of_Ratings_{section.section_name}.xlsx'.replace(' ', '_')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
 
 
 @login_required

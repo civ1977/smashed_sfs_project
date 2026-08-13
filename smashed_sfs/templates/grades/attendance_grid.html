@@ -98,6 +98,18 @@
         top: 0;
         z-index: 4;
     }
+    /* Alternating pastel-green stripe across the whole row - same idea
+       and token (--good-wash) as the Summary of Ratings page, so each
+       student's row is easy to track by eye all the way across the day
+       columns. The .att-cell buttons still paint their own opaque
+       present/absent/etc. color on top, so only the cell padding around
+       each button picks up the stripe. */
+    .attendance-grid tbody tr:nth-child(odd) td {
+        background: var(--good-wash);
+    }
+    .attendance-grid tbody tr:nth-child(even) td {
+        background: var(--bg);
+    }
 
     .att-cell {
         display: inline-flex;
