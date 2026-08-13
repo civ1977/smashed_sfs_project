@@ -37,10 +37,22 @@
             <input type="password" name="password_confirm" required>
         </div>
 
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="agree_terms" required>
+                I have read and agree to the
+                <a href="{% url 'user_agreement' %}" onclick="openTermsModal(event, '{% url 'user_agreement_embed' %}')">User's Agreement</a>
+                and <a href="{% url 'privacy_policy' %}" target="_blank" rel="noopener">Privacy Policy</a>.
+                If I am a minor, a parent or guardian has reviewed this with me.
+            </label>
+        </div>
+
         <button type="submit" class="btn good" style="width: 100%;">Request Access</button>
     </form>
     <p style="margin-top: var(--space-4);">
         Already approved? <a href="{% url 'login' %}">Login here</a>
     </p>
 </div>
+
+{% include 'partials/terms_modal.html' %}
 {% endblock %}

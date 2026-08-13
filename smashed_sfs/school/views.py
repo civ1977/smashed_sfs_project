@@ -1,4 +1,5 @@
 import io
+import json
 
 import openpyxl
 from openpyxl.styles import Font, PatternFill
@@ -10,19 +11,23 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q, Count
 from django.db.models.functions import TruncMonth
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
+from django.urls import reverse
+from django.views.decorators.http import require_POST
+from django.db import IntegrityError, transaction
 from xhtml2pdf import pisa
 
-from datetime import date
+from datetime import date, datetime
 
 from accounts.forms import SectionForm, SchoolProfileForm, SchoolOfficialsForm
-from accounts.models import Teacher, TeacherTimeRecord
-from accounts.views import build_dtr_days
+from accounts.models import Teacher, TeacherTimeRecord, DTRCalendarException
+from accounts.views import build_dtr_days, DTR_BARCODE_BARS, _dtr_calendar_exceptions, _dtr_names_match
 from students.models import SchoolProfile, Section, Student
 from grades.models import Grade, SubjectMapping, TeacherSubjectAssignment, SchoolCalendarException, SubjectTestMaxScore
 from grades.views import MONTH_NAMES, _score_stats
-from .models import TeacherAccountAuditLog, SectionAuditLog
+from .models import TeacherAccountAuditLog, SectionAuditLog, TimeSlot, ScheduleRequirement, ScheduleEntry
+from . import scheduler
 
 
 def _get_school_admin_teacher(request):
@@ -201,12 +206,77 @@ def school_dtr_upload(request):
         for row in uploaded_months
     ]
 
+    calendar_exceptions = DTRCalendarException.objects.filter(
+        school_profile_id=teacher.school_profile_id
+    ).order_by('date')
+
     return render(request, 'school/dtr_upload.html', {
         'dtr_current_year': today.year,
         'dtr_current_month': today.month,
         'dtr_months': list(enumerate(MONTH_NAMES, start=1)),
         'uploaded_month_rows': uploaded_month_rows,
+        'calendar_exceptions': calendar_exceptions,
+        'dtr_reason_choices': DTRCalendarException.REASON_CHOICES,
     })
+
+
+@login_required
+def add_dtr_calendar_exception(request):
+    """Marks a date Holiday or Class Suspension on the DTR calendar only -
+    see DTRCalendarException for why this is kept separate from SF2's own
+    SchoolCalendarException."""
+    if request.method != 'POST':
+        return redirect('school_dtr_upload')
+
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    date_str = request.POST.get('date', '').strip()
+    reason = request.POST.get('reason', '').strip()
+    valid_reasons = {value for value, _ in DTRCalendarException.REASON_CHOICES}
+    if reason not in valid_reasons:
+        messages.error(request, 'Select a valid reason.')
+        return redirect('school_dtr_upload')
+
+    try:
+        exception_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        messages.error(request, 'Enter a valid date.')
+        return redirect('school_dtr_upload')
+
+    exception, created = DTRCalendarException.objects.update_or_create(
+        school_profile_id=teacher.school_profile_id,
+        date=exception_date,
+        defaults={'reason': reason, 'created_by': teacher.teacher_id},
+    )
+    label = exception.get_reason_display()
+    verb = 'Added' if created else 'Updated'
+    messages.success(request, f'{verb} {label} for {exception_date.strftime("%B %d, %Y")}.')
+    return redirect('school_dtr_upload')
+
+
+@login_required
+def remove_dtr_calendar_exception(request, exception_id):
+    if request.method != 'POST':
+        return redirect('school_dtr_upload')
+
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    exception = DTRCalendarException.objects.filter(
+        exception_id=exception_id, school_profile_id=teacher.school_profile_id
+    ).first()
+    if exception:
+        label = exception.get_reason_display()
+        exception_date = exception.date
+        exception.delete()
+        messages.success(request, f'Removed {label} for {exception_date.strftime("%B %d, %Y")}.')
+    else:
+        messages.error(request, 'That calendar entry was not found.')
+
+    return redirect('school_dtr_upload')
 
 
 @login_required
@@ -247,23 +317,63 @@ def download_dtr_upload_template(request):
     return response
 
 
+def _dtr_employee_status_rows(school_profile_id, year, month):
+    """For every employee name found in this school's uploaded/edited DTR
+    data for `year`/`month`, resolves which Teacher account it belongs to
+    (same fuzzy name match as accounts.views.daily_time_record) and reports
+    whether that employee has personally edited their own copy (a
+    TeacherTimeRecord stamped with their own teacher_id - see
+    accounts.views.save_dtr_cell/bulk_fill_dtr_lunch, as opposed to only
+    appearing via a registrar's raw upload_dtr import) and whether they've
+    affixed a signature. Shared by the Status page and download_dtr_pdf so
+    both agree on exactly who counts as "done"."""
+    school_teachers = list(Teacher.objects.filter(school_profile_id=school_profile_id))
+    school_teacher_ids = [t.teacher_id for t in school_teachers]
+
+    records = list(TeacherTimeRecord.objects.filter(
+        teacher_id__in=school_teacher_ids, date__year=year, date__month=month
+    ))
+    employee_names = sorted(
+        {r.employee_name for r in records if r.employee_name}, key=str.lower
+    )
+
+    rows = []
+    for name in employee_names:
+        matched = next((t for t in school_teachers if _dtr_names_match(t.full_name, name)), None)
+        self_edited = matched is not None and any(
+            r.teacher_id == matched.teacher_id and _dtr_names_match(matched.full_name, r.employee_name)
+            for r in records
+        )
+        signed = bool(matched and matched.signature_image)
+
+        if matched is None:
+            status = 'no_account'
+        elif signed and self_edited:
+            status = 'ready'
+        elif self_edited:
+            status = 'edited_unsigned'
+        else:
+            status = 'not_started'
+
+        rows.append({
+            'employee_name': name,
+            'teacher': matched,
+            'self_edited': self_edited,
+            'signed': signed,
+            'status': status,
+        })
+
+    return rows, records
+
+
 @login_required
 def download_dtr_pdf(request, year, month):
     teacher, error = _get_school_admin_teacher(request)
     if error:
         return error
 
-    school_teacher_ids = Teacher.objects.filter(
-        school_profile_id=teacher.school_profile_id
-    ).values_list('teacher_id', flat=True)
-
-    records = TeacherTimeRecord.objects.filter(
-        teacher_id__in=school_teacher_ids, date__year=year, date__month=month
-    )
-    employee_names = sorted(
-        {r.employee_name for r in records if r.employee_name}, key=str.lower
-    )
-    if not employee_names:
+    status_rows, records = _dtr_employee_status_rows(teacher.school_profile_id, year, month)
+    if not records:
         messages.error(request, f'No DTR data found for {MONTH_NAMES[month - 1]} {year}.')
         return redirect('school_dtr_upload')
 
@@ -273,23 +383,57 @@ def download_dtr_pdf(request, year, month):
             school_profile_id=teacher.school_profile_id, date__year=year, date__month=month
         )
     }
+    dtr_exceptions = _dtr_calendar_exceptions(teacher.school_profile_id, year, month)
 
-    records_by_employee = {}
-    for r in records:
-        records_by_employee.setdefault(r.employee_name, {})[r.date] = r
+    # Only employees who signed their own copy AND actually edited it
+    # themselves (rather than only appearing via a registrar's raw
+    # biometric import) are collated here - this mirrors exactly what that
+    # employee sees/signs on their own DTR page (same fuzzy-match +
+    # own-teacher-id-wins tie-break as accounts.views.daily_time_record), so
+    # the bulk copy is never out of sync with what they actually certified.
+    #
+    # status_rows has one entry per distinct raw employee_name string, and
+    # the same teacher can show up under more than one spelling (e.g. a
+    # registrar's biometric-export name alongside the teacher's own
+    # full_name from self-editing) - deduping by teacher_id here keeps each
+    # signed employee to exactly one page in the bulk PDF.
+    forms = []
+    seen_teacher_ids = set()
+    for row in status_rows:
+        if row['status'] != 'ready':
+            continue
+        et = row['teacher']
+        if et.teacher_id in seen_teacher_ids:
+            continue
+        seen_teacher_ids.add(et.teacher_id)
 
-    forms = [
-        {
-            'employee_name': name,
-            'days': build_dtr_days(year, month, exceptions, records_by_employee.get(name, {})),
-        }
-        for name in employee_names
-    ]
+        records_by_date = {}
+        for r in records:
+            if not _dtr_names_match(et.full_name, r.employee_name):
+                continue
+            existing = records_by_date.get(r.date)
+            if existing is None or (existing.teacher_id != et.teacher_id and r.teacher_id == et.teacher_id):
+                records_by_date[r.date] = r
+
+        forms.append({
+            'employee_name': et.full_name,
+            'signature_image': et.signature_image,
+            'days': build_dtr_days(year, month, exceptions, records_by_date, dtr_exceptions),
+        })
+
+    if not forms:
+        messages.error(
+            request,
+            f'No employees have signed their own DTR for {MONTH_NAMES[month - 1]} {year} yet — '
+            f'check Status to see who still needs to.'
+        )
+        return redirect('school_dtr_upload')
 
     html = render_to_string('school/dtr_pdf.html', {
         'forms': forms,
         'month_name': MONTH_NAMES[month - 1],
         'year': year,
+        'barcode_bar_widths': DTR_BARCODE_BARS,
     })
 
     buffer = io.BytesIO()
@@ -302,6 +446,34 @@ def download_dtr_pdf(request, year, month):
     filename = f"DTR_{MONTH_NAMES[month - 1]}_{year}.pdf"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
+
+
+@login_required
+def dtr_status(request, year, month):
+    """Per-employee status for one uploaded month: every name found in that
+    month's uploaded/edited DTR data (the "1st column" of the original
+    excel/csv, i.e. TeacherTimeRecord.employee_name), and whether they've
+    personally edited their own copy and affixed a signature - the exact
+    same criteria download_dtr_pdf uses to decide who gets collated into
+    the bulk PDF, so this page doubles as a checklist of who's ready."""
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    status_rows, records = _dtr_employee_status_rows(teacher.school_profile_id, year, month)
+    if not records:
+        messages.error(request, f'No DTR data found for {MONTH_NAMES[month - 1]} {year}.')
+        return redirect('school_dtr_upload')
+
+    ready_count = sum(1 for r in status_rows if r['status'] == 'ready')
+
+    return render(request, 'school/dtr_status.html', {
+        'status_rows': status_rows,
+        'ready_count': ready_count,
+        'month_name': MONTH_NAMES[month - 1],
+        'year': year,
+        'month': month,
+    })
 
 
 @login_required
@@ -975,3 +1147,389 @@ def remove_adviser_subject_assignment(request, assignment_id):
     name = assignment_teacher.full_name if assignment_teacher else 'Teacher'
     messages.success(request, f'Assignment removed from {name}.')
     return redirect('adviser_subject_assignments')
+
+
+# ---------------------------------------------------------------------------
+# Class Scheduling
+# ---------------------------------------------------------------------------
+
+def _require_admin_teacher_json(request):
+    """Same gate as _get_school_admin_teacher, but returns None instead of
+    an HTML redirect - the caller is a JSON endpoint, so a redirect
+    response would just look like a failed fetch() to the browser."""
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        return None
+    if teacher.role not in (Teacher.ROLE_REGISTRAR, Teacher.ROLE_PRINCIPAL):
+        return None
+    return teacher
+
+
+@login_required
+def school_scheduling(request):
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    if not teacher.school_profile_id:
+        messages.warning(request, 'Your account has no school assigned yet.')
+        return render(request, 'school/scheduling.html', {'sections': [], 'teachers': []})
+
+    school_profile_id = teacher.school_profile_id
+    scheduler.ensure_time_slots(school_profile_id)
+
+    sections = Section.objects.filter(school_profile_id=school_profile_id).order_by(
+        'grade_level', 'strand', 'section_name'
+    )
+    subject_teachers = Teacher.objects.filter(
+        school_profile_id=school_profile_id,
+        role__in=(Teacher.ROLE_SUBJECT_TEACHER, Teacher.ROLE_ADVISER),
+    ).order_by('full_name')
+
+    if not sections:
+        messages.info(request, 'Add a section first before building a schedule.')
+        return render(request, 'school/scheduling.html', {
+            'sections': [], 'teachers': subject_teachers,
+        })
+
+    view_mode = request.GET.get('view') if request.GET.get('view') in ('section', 'teacher') else 'section'
+    slots = list(TimeSlot.objects.filter(school_profile_id=school_profile_id).order_by('slot_order'))
+    days = [d for d, _ in ScheduleEntry.DAY_CHOICES]
+
+    context = {
+        'sections': sections,
+        'teachers': subject_teachers,
+        'days': days,
+        'view_mode': view_mode,
+    }
+
+    if view_mode == 'teacher':
+        teacher_id = request.GET.get('teacher_id')
+        selected_teacher = subject_teachers.filter(teacher_id=teacher_id).first() or subject_teachers.first()
+        context['selected_teacher'] = selected_teacher
+
+        grid = {}
+        if selected_teacher:
+            sections_by_id = {s.section_id: s for s in sections}
+            mappings_by_id = {m.mapping_id: m for m in SubjectMapping.objects.filter(school_profile_id=school_profile_id)}
+            entries = ScheduleEntry.objects.filter(
+                school_profile_id=school_profile_id, teacher_id=selected_teacher.teacher_id
+            )
+            for e in entries:
+                mapping = mappings_by_id.get(e.mapping_id)
+                section = sections_by_id.get(e.section_id)
+                grid[(e.timeslot_id, e.day_of_week)] = {
+                    'subject': mapping.subject_name if mapping else '',
+                    'section': section.section_name if section else '',
+                }
+
+        slot_rows = []
+        for slot in slots:
+            if slot.is_break:
+                slot_rows.append({'slot': slot, 'is_break': True})
+                continue
+            cells = [{'day': day, 'info': grid.get((slot.timeslot_id, day))} for day in days]
+            slot_rows.append({'slot': slot, 'is_break': False, 'cells': cells})
+        context['slot_rows'] = slot_rows
+
+    else:
+        section_id = request.GET.get('section_id')
+        selected_section = sections.filter(section_id=section_id).first() or sections.first()
+        context['selected_section'] = selected_section
+
+        # Subjects offered for "+ Add to Roster" are narrowed to this
+        # section's grade level (and strand, when the subject specifies
+        # one) - the same match school_assignments enforces on submit, so
+        # picking from this list can't fail that check.
+        context['mappings'] = SubjectMapping.objects.filter(
+            school_profile_id=school_profile_id, is_active=True, grade_level=selected_section.grade_level
+        ).filter(Q(strand='') | Q(strand=selected_section.strand)).order_by('subject_name')
+
+        assignments = list(TeacherSubjectAssignment.objects.filter(section_id=selected_section.section_id))
+        teachers_by_id = {t.teacher_id: t for t in subject_teachers}
+        mappings_by_id = {m.mapping_id: m for m in SubjectMapping.objects.filter(school_profile_id=school_profile_id)}
+        requirements = {
+            r.assignment_id: r.sessions_per_week
+            for r in ScheduleRequirement.objects.filter(
+                assignment_id__in=[a.assignment_id for a in assignments]
+            )
+        }
+
+        entries = list(ScheduleEntry.objects.filter(section_id=selected_section.section_id))
+        placed_count = defaultdict(int)
+        grid = {}
+        for e in entries:
+            grid[(e.timeslot_id, e.day_of_week)] = e.assignment_id
+            placed_count[e.assignment_id] += 1
+
+        roster = []
+        for a in assignments:
+            t = teachers_by_id.get(a.teacher_id)
+            m = mappings_by_id.get(a.mapping_id)
+            needed = requirements.get(a.assignment_id, scheduler.DEFAULT_SESSIONS_PER_WEEK)
+            roster.append({
+                'assignment': a,
+                'teacher': t,
+                'mapping': m,
+                'needed': needed,
+                'placed': placed_count.get(a.assignment_id, 0),
+                'label': f"{m.subject_name if m else '(subject removed)'} — {t.full_name if t else '(teacher removed)'}",
+            })
+        context['roster'] = roster
+
+        slot_rows = []
+        for slot in slots:
+            if slot.is_break:
+                slot_rows.append({'slot': slot, 'is_break': True})
+                continue
+            cells = [{'day': day, 'selected_id': grid.get((slot.timeslot_id, day))} for day in days]
+            slot_rows.append({'slot': slot, 'is_break': False, 'cells': cells})
+        context['slot_rows'] = slot_rows
+
+    return render(request, 'school/scheduling.html', context)
+
+
+@require_POST
+def save_schedule_cell(request):
+    teacher = _require_admin_teacher_json(request)
+    if not teacher:
+        return JsonResponse({'ok': False, 'error': 'Not authorized.'}, status=403)
+
+    try:
+        payload = json.loads(request.body)
+    except ValueError:
+        return JsonResponse({'ok': False, 'error': 'Bad request.'}, status=400)
+
+    day = payload.get('day')
+    section_id = payload.get('section_id')
+    timeslot_id = payload.get('timeslot_id')
+    assignment_id = payload.get('assignment_id') or None
+
+    if day not in dict(ScheduleEntry.DAY_CHOICES):
+        return JsonResponse({'ok': False, 'error': 'Invalid day.'}, status=400)
+
+    section = Section.objects.filter(section_id=section_id, school_profile_id=teacher.school_profile_id).first()
+    timeslot = TimeSlot.objects.filter(
+        timeslot_id=timeslot_id, school_profile_id=teacher.school_profile_id, is_break=False
+    ).first()
+    if not section or not timeslot:
+        return JsonResponse({'ok': False, 'error': 'Section or time slot not found.'}, status=404)
+
+    with transaction.atomic():
+        ScheduleEntry.objects.filter(
+            section_id=section.section_id, day_of_week=day, timeslot_id=timeslot.timeslot_id
+        ).delete()
+
+        if not assignment_id:
+            return JsonResponse({'ok': True, 'cleared': True})
+
+        assignment = TeacherSubjectAssignment.objects.filter(
+            assignment_id=assignment_id, section_id=section.section_id
+        ).first()
+        if not assignment:
+            return JsonResponse({'ok': False, 'error': 'That assignment is not part of this section.'}, status=404)
+
+        conflict = ScheduleEntry.objects.filter(
+            teacher_id=assignment.teacher_id, day_of_week=day, timeslot_id=timeslot.timeslot_id
+        ).exclude(section_id=section.section_id).first()
+        if conflict:
+            conflict_teacher = Teacher.objects.filter(teacher_id=assignment.teacher_id).first()
+            conflict_section = Section.objects.filter(section_id=conflict.section_id).first()
+            return JsonResponse({
+                'ok': False,
+                'error': (
+                    f"{conflict_teacher.full_name if conflict_teacher else 'This teacher'} is already "
+                    f"teaching {conflict_section.section_name if conflict_section else 'another section'} "
+                    f"at this time on {day}."
+                ),
+            }, status=409)
+
+        try:
+            ScheduleEntry.objects.create(
+                school_profile_id=teacher.school_profile_id,
+                assignment_id=assignment.assignment_id,
+                teacher_id=assignment.teacher_id,
+                section_id=section.section_id,
+                mapping_id=assignment.mapping_id,
+                day_of_week=day,
+                timeslot_id=timeslot.timeslot_id,
+            )
+        except IntegrityError:
+            return JsonResponse({'ok': False, 'error': 'That slot was just taken. Try again.'}, status=409)
+
+    subject = SubjectMapping.objects.filter(mapping_id=assignment.mapping_id).first()
+    placed_teacher = Teacher.objects.filter(teacher_id=assignment.teacher_id).first()
+    return JsonResponse({
+        'ok': True,
+        'subject_name': subject.subject_name if subject else '',
+        'teacher_name': placed_teacher.full_name if placed_teacher else '',
+    })
+
+
+@login_required
+@require_POST
+def add_schedule_roster(request):
+    """The 'holistic' entry point: pick a teacher, a subject, and how many
+    times/week - nothing about day or time. Creates (or reuses) the
+    TeacherSubjectAssignment + ScheduleRequirement, then immediately runs
+    the auto-scheduler so the new sessions land on the grid without a
+    separate Auto-Generate click."""
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    section_id = request.POST.get('section_id', '')
+    redirect_url = reverse('school_scheduling') + f'?section_id={section_id}'
+
+    subject_teacher_id = request.POST.get('teacher_id', '').strip()
+    mapping_id = request.POST.get('mapping_id', '').strip()
+    sessions_per_week = request.POST.get('sessions_per_week', '').strip()
+
+    if not (subject_teacher_id and mapping_id):
+        messages.error(request, 'Pick a teacher and a subject.')
+        return redirect(redirect_url)
+
+    section = Section.objects.filter(section_id=section_id, school_profile_id=teacher.school_profile_id).first()
+    subject_teacher = Teacher.objects.filter(
+        teacher_id=subject_teacher_id,
+        school_profile_id=teacher.school_profile_id,
+        role__in=(Teacher.ROLE_SUBJECT_TEACHER, Teacher.ROLE_ADVISER),
+    ).first()
+    mapping = SubjectMapping.objects.filter(
+        mapping_id=mapping_id, school_profile_id=teacher.school_profile_id
+    ).first()
+
+    if not (section and subject_teacher and mapping):
+        messages.error(request, 'Section, teacher, or subject not found in this school.')
+        return redirect(redirect_url)
+
+    # Same grade/strand match school_assignments enforces - the "+ Add to
+    # Roster" subject dropdown is already narrowed to this section, but a
+    # stale form submit (e.g. after switching sections) could still send a
+    # mismatched mapping_id, so this is checked again here.
+    strand_mismatch = section.strand and mapping.strand and mapping.strand != section.strand
+    if mapping.grade_level != section.grade_level or strand_mismatch:
+        messages.error(
+            request,
+            f"{mapping.subject_name} (Grade {mapping.grade_level} {mapping.strand}) doesn't match "
+            f"{section.grade_level}-{section.strand}-{section.section_name}."
+        )
+        return redirect(redirect_url)
+
+    if not sessions_per_week.isdigit() or int(sessions_per_week) < 1:
+        sessions_per_week = str(scheduler.DEFAULT_SESSIONS_PER_WEEK)
+
+    assignment = TeacherSubjectAssignment.objects.filter(
+        teacher_id=subject_teacher.teacher_id, section_id=section.section_id, mapping_id=mapping.mapping_id,
+    ).first()
+    if not assignment:
+        assignment = TeacherSubjectAssignment.objects.create(
+            teacher_id=subject_teacher.teacher_id, section_id=section.section_id, mapping_id=mapping.mapping_id,
+        )
+
+    ScheduleRequirement.objects.update_or_create(
+        assignment_id=assignment.assignment_id,
+        defaults={'sessions_per_week': int(sessions_per_week)},
+    )
+
+    scheduler.ensure_time_slots(teacher.school_profile_id)
+    result = scheduler.generate_schedule(teacher.school_profile_id)
+
+    messages.success(
+        request,
+        f'✅ {subject_teacher.full_name} — {mapping.subject_name} ({sessions_per_week}x/week) added. '
+        f"Auto-placed {result['created']} session(s) across the school."
+    )
+    for item in result['unresolved']:
+        messages.warning(
+            request,
+            f"Couldn't fit {item['still_needed']} more session(s) of {item['subject']} "
+            f"({item['teacher']} · {item['section']}) anywhere conflict-free."
+        )
+
+    return redirect(redirect_url)
+
+
+@login_required
+@require_POST
+def auto_generate_schedule(request):
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    if not teacher.school_profile_id:
+        messages.warning(request, 'Your account has no school assigned yet.')
+        return redirect('school_scheduling')
+
+    scheduler.ensure_time_slots(teacher.school_profile_id)
+    result = scheduler.generate_schedule(teacher.school_profile_id)
+
+    if result['created']:
+        messages.success(request, f"✅ Auto-generated {result['created']} class session(s).")
+    else:
+        messages.info(
+            request,
+            'Nothing to auto-generate — every assignment is already fully scheduled '
+            '(or there is no teacher/subject/section roster yet — set that up under Manage Assignments).'
+        )
+
+    for item in result['unresolved']:
+        messages.warning(
+            request,
+            f"Couldn't fit {item['still_needed']} more session(s) of {item['subject']} "
+            f"({item['teacher']} · {item['section']}) anywhere conflict-free — "
+            f"free up a slot manually and re-run, or clear a conflicting entry."
+        )
+
+    query = request.POST.get('return_qs', '')
+    url = reverse('school_scheduling')
+    return redirect(url + ('?' + query if query else ''))
+
+
+@login_required
+@require_POST
+def clear_section_schedule(request):
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    section_id = request.POST.get('section_id', '')
+    section = Section.objects.filter(section_id=section_id, school_profile_id=teacher.school_profile_id).first()
+    if not section:
+        messages.error(request, 'Section not found.')
+        return redirect('school_scheduling')
+
+    deleted, _detail = ScheduleEntry.objects.filter(section_id=section.section_id).delete()
+    messages.success(request, f'Cleared {deleted} scheduled session(s) for {section.section_name}.')
+    return redirect(reverse('school_scheduling') + f'?section_id={section.section_id}')
+
+
+@login_required
+@require_POST
+def save_schedule_requirement(request):
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    assignment_id = request.POST.get('assignment_id', '')
+    section_id = request.POST.get('section_id', '')
+    sessions_per_week = request.POST.get('sessions_per_week', '').strip()
+
+    assignment = TeacherSubjectAssignment.objects.filter(assignment_id=assignment_id).first()
+    valid_section = None
+    if assignment:
+        valid_section = Section.objects.filter(
+            section_id=assignment.section_id, school_profile_id=teacher.school_profile_id
+        ).first()
+
+    if not assignment or not valid_section or not sessions_per_week.isdigit() or int(sessions_per_week) < 1:
+        messages.error(request, 'Could not update that requirement.')
+    else:
+        ScheduleRequirement.objects.update_or_create(
+            assignment_id=assignment.assignment_id,
+            defaults={'sessions_per_week': int(sessions_per_week)},
+        )
+        messages.success(request, 'Updated sessions/week.')
+
+    return redirect(reverse('school_scheduling') + f'?section_id={section_id}')

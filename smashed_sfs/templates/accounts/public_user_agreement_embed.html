@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>User's Agreement</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'tokens.css' %}">
+    <style>
+        /* Standalone doc for the registration-page popup's <iframe> - no nav
+           or footer chrome, just the agreement text in a readable column. */
+        body { margin: 0; background: #fff; }
+        .pubpage-hero { margin: var(--space-5) auto; }
+    </style>
+</head>
+<body>
+    <div class="pubpage-hero">
+        {% include 'partials/user_agreement_content.html' %}
+    </div>
+</body>
+</html>

@@ -28,6 +28,11 @@ class Teacher(models.Model):
     last_login = models.DateTimeField(blank=True, null=True)
     last_seen = models.DateTimeField(blank=True, null=True)
     school_profile_id = models.IntegerField(blank=True, null=True)
+    # Set once, at registration, when the required "I agree to the User's
+    # Agreement and Privacy Policy" checkbox is submitted (accounts/views.py
+    # register()). Null for accounts created before this field existed -
+    # there's no forced re-consent flow for those.
+    terms_accepted_at = models.DateTimeField(blank=True, null=True)
     # An on-screen-drawn signature (data: URL, PNG) captured once from the
     # DTR page (accounts/views.py's save_dtr_signature) and reused on every
     # month's card from then on - one signature per teacher, not per DTR
@@ -68,3 +73,33 @@ class TeacherTimeRecord(models.Model):
     class Meta:
         db_table = 'teacher_time_record'
         unique_together = ('teacher_id', 'employee_name', 'date')
+
+
+class DTRCalendarException(models.Model):
+    """A date marked Holiday or Class Suspension on the Daily Time Record
+    calendar only - deliberately separate from grades.SchoolCalendarException
+    (which SF2/attendance and the report cards also read), so a registrar
+    marking a day here never changes attendance-taking or SF2 elsewhere.
+    Every weekday defaults to a school day unless a row here says otherwise;
+    weekends already default to non-school days regardless."""
+
+    REASON_HOLIDAY = 'holiday'
+    REASON_SUSPENSION = 'suspension'
+    REASON_CHOICES = [
+        (REASON_HOLIDAY, 'Holiday'),
+        (REASON_SUSPENSION, 'Class Suspension'),
+    ]
+
+    exception_id = models.AutoField(primary_key=True)
+    school_profile_id = models.IntegerField()
+    date = models.DateField()
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES, default=REASON_HOLIDAY)
+    created_by = models.IntegerField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'dtr_calendar_exception'
+        unique_together = ('school_profile_id', 'date')
+
+    def __str__(self):
+        return f'{self.school_profile_id} {self.date} {self.get_reason_display()}'

@@ -1,70 +1,132 @@
 <html>
 <head>
 <style>
+    /* Matches templates/accounts/dtr.html's physical-card design (Civil
+       Service Form No. 48 / "VANDA F48") - each individual copy is still
+       exactly 8cm x 22cm, but the page itself is A4 with two identical
+       copies side by side (one employee per A4 sheet, cut apart along the
+       gap - e.g. one copy for the employee, one for the office file).
+       xhtml2pdf's CSS support is limited (no flexbox, no gradients), so
+       bordered tables/divs stand in for the on-screen version's flex
+       layout, the side-by-side placement is a 2-column table rather than
+       flex, and the barcode is a small table of alternating black/white
+       cells rather than a CSS gradient. */
     @page {
-        size: letter;
-        margin: 0.5in;
+        size: A4;
+        margin: 1cm;
     }
     body {
-        font-family: Helvetica, Arial, sans-serif;
-        font-size: 10pt;
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 6pt;
+        color: #1a1a1a;
     }
-    .dtr-form {
+    table.dtr-sheet {
+        width: 100%;
         page-break-after: always;
     }
-    .dtr-form:last-child {
+    table.dtr-sheet:last-of-type {
         page-break-after: avoid;
     }
+    table.dtr-sheet td.dtr-sheet-cell {
+        width: 8cm;
+        padding: 0.3cm;
+        vertical-align: top;
+    }
+    table.dtr-sheet td.dtr-sheet-gap {
+        width: 1cm;
+        border-left: 0.5pt dashed #999;
+    }
+    .dtr-form {
+        width: 207pt;
+    }
+    table.dtr-top-rule-table {
+        width: 207pt;
+        margin-bottom: 3px;
+    }
+    .dtr-top-rule {
+        border-top: 2px solid #7a2020;
+        border-bottom: 1px solid #7a2020;
+        font-size: 1px;
+        line-height: 1px;
+        padding: 0;
+    }
     .dtr-form-tag {
-        font-size: 8pt;
-        color: #666;
+        font-size: 6.5pt;
+        line-height: 7pt;
+        font-family: 'Times New Roman', serif;
     }
     .dtr-title {
         text-align: center;
-        font-size: 16pt;
-        margin: 4px 0 14px;
+        font-size: 13pt;
+        line-height: 15pt;
+        font-weight: bold;
+        font-family: 'Times New Roman', serif;
+        margin: 1px 0 5px;
     }
     .dtr-name-line {
         text-align: center;
         font-weight: bold;
-        font-size: 11pt;
-        border-bottom: 1px dashed #000;
+        font-size: 8.5pt;
+        line-height: 9pt;
+        font-family: 'Times New Roman', serif;
+        border-bottom: 1px solid #000;
         padding-bottom: 2px;
     }
     .dtr-name-label {
         text-align: center;
         font-style: italic;
-        font-size: 8pt;
-        color: #555;
-        margin-bottom: 12px;
+        font-weight: bold;
+        font-size: 7pt;
+        line-height: 8pt;
+        font-family: 'Times New Roman', serif;
+        margin-bottom: 3px;
     }
     .dtr-meta {
-        width: 100%;
-        margin-bottom: 12px;
-    }
-    .dtr-meta td {
+        width: 207pt;
+        font-size: 7pt;
+        line-height: 7pt;
         font-style: italic;
-        font-size: 9pt;
-        padding: 2px 0;
-        vertical-align: top;
+        font-family: 'Times New Roman', serif;
+        margin-bottom: 0px;
     }
+    table.dtr-meta-month-table {
+        width: 207pt;
+        margin-bottom: 5pt;
+    }
+    .dtr-meta-month-table td {
+        padding: 0;
+        white-space: nowrap;
+        line-height: 7pt;
+    }
+    .dtr-meta-cols td { vertical-align: top; padding: 0; }
+    .dtr-meta-cols td div { white-space: nowrap; margin-bottom: 5pt; line-height: 7pt; }
+    .dtr-meta-indent { padding-left: 14px; }
+    table.dtr-meta-right-table td { padding: 0; white-space: nowrap; line-height: 7pt; }
+    table.dtr-meta-right-table tr.dtr-meta-row-gap td { padding-bottom: 5pt; }
     .dtr-fill {
-        display: inline-block;
-        min-width: 70px;
-        border-bottom: 1px dashed #000;
+        border-bottom: 1px solid #000;
         text-align: center;
         font-style: normal;
+        line-height: 7pt;
     }
     table.dtr-table {
-        width: 540pt;
+        width: 207pt;
         border-collapse: collapse;
-        font-size: 9pt;
-        margin-bottom: 12px;
+        font-size: 6pt;
+        margin-bottom: 1px;
+        border-top: 3px double #000;
+        border-bottom: 3px double #000;
+        border-left: 1.5pt solid #000;
+        border-right: 1.5pt solid #000;
     }
     .dtr-table th, .dtr-table td {
-        border: 1px solid #000;
+        border: 0.5pt solid #000;
         text-align: center;
-        padding: 3px 4px;
+        vertical-align: middle;
+        padding: 1px 2px 0px;
+    }
+    .dtr-table th.dtr-thick-r, .dtr-table td.dtr-thick-r {
+        border-right: 1.5pt solid #000;
     }
     .dtr-table thead th {
         font-weight: bold;
@@ -77,111 +139,110 @@
         font-weight: bold;
         color: #555;
         text-align: left;
-        padding-left: 6px;
+        padding-left: 3px;
+        font-size: 5.5pt;
     }
     .dtr-total-row td {
         font-weight: bold;
     }
     .dtr-total-label {
-        text-align: right;
-        padding-right: 8px;
+        text-align: center;
+        font-size: 6.5pt;
+    }
+    table.dtr-certify-block {
+        width: 207pt;
     }
     .dtr-certify {
-        font-size: 9pt;
-        line-height: 1.4;
-        margin-bottom: 24px;
+        font-size: 6.5pt;
+        font-style: italic;
+        font-family: 'Times New Roman', serif;
+        line-height: 1.3;
+        padding: 0 2pt;
+        text-align: justify;
     }
-    .dtr-signature {
+    .dtr-sig-row {
+        padding-top: 0pt;
+    }
+    /* Plain standalone <div> borders don't reliably render in xhtml2pdf -
+       only border-bottom on a table <td> does (proven by the meta fill
+       lines above), so both signature lines use a small centered table
+       instead of a div. */
+    table.dtr-sig-table {
+        margin-bottom: 2px;
+    }
+    .dtr-sig-fill {
+        border-bottom: 1px solid #000;
+        line-height: 7pt;
+        padding: 0;
         text-align: center;
     }
-    .dtr-signature-line {
-        border-bottom: 1px solid #000;
-        width: 200px;
-        margin: 0 auto 2px;
+    .dtr-sig-img {
+        height: 18pt;
+    }
+    .dtr-verify {
+        font-size: 6.5pt;
+        line-height: 7.5pt;
+        font-style: italic;
+        font-family: 'Times New Roman', serif;
+        border-top: 3px double #000;
+        padding-top: 2px;
+        margin-bottom: 1px;
+    }
+    .dtr-footer {
+        width: 100%;
+    }
+    .dtr-footer td { vertical-align: bottom; }
+    .dtr-vanda-brand {
+        font-weight: bold;
+        font-size: 8pt;
+        margin-bottom: 1px;
+    }
+    table.dtr-barcode {
+        border-collapse: collapse;
+        margin-bottom: 1px;
+    }
+    table.dtr-barcode td {
+        border: none;
+        padding: 0;
+        height: 11pt;
+    }
+    .dtr-barcode-digits {
+        font-size: 5.5pt;
+        font-family: 'Courier New', monospace;
+        letter-spacing: 1px;
+    }
+    .dtr-footer-right {
+        text-align: center;
     }
     .dtr-signature-label {
-        font-size: 9pt;
+        font-size: 7pt;
         font-style: italic;
+        font-family: 'Times New Roman', serif;
+    }
+    .dtr-instruction {
+        font-size: 6.5pt;
+        font-family: 'Times New Roman', serif;
+        margin-top: 0;
     }
 </style>
 </head>
 <body>
 {% for form in forms %}
-<div class="dtr-form">
-    <div class="dtr-form-tag">Civil Service Form No. 48</div>
-    <h1 class="dtr-title">Daily Time Record</h1>
-
-    <div class="dtr-name-line">{{ form.employee_name }}</div>
-    <div class="dtr-name-label">(Name)</div>
-
-    <table class="dtr-meta">
-        <tr>
-            <td width="50%">
-                For the month of <span class="dtr-fill">{{ month_name }}</span>, <span class="dtr-fill" style="min-width:40px;">{{ year }}</span><br>
-                Official hours of arrival and departure
-            </td>
-            <td width="50%">
-                Regular Days <span class="dtr-fill"></span><br>
-                Saturdays <span class="dtr-fill"></span>
-            </td>
-        </tr>
-    </table>
-
-    <table class="dtr-table">
-        <thead>
-            <tr>
-                <th style="width: 40pt;">Days</th>
-                <th style="width: 84pt;">A. M.<br/>Arrival</th>
-                <th style="width: 84pt;">A. M.<br/>Departure</th>
-                <th style="width: 84pt;">P. M.<br/>Arrival</th>
-                <th style="width: 84pt;">P. M.<br/>Departure</th>
-                <th style="width: 82pt;">Under Time<br/>Hours</th>
-                <th style="width: 82pt;">Under Time<br/>Minutes</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in form.days %}
-            <tr>
-                <td class="dtr-day" style="width: 40pt;">{{ entry.day }}</td>
-                {% if entry.label %}
-                <td class="dtr-day-label" style="width: 84pt;">{{ entry.label }}</td>
-                <td style="width: 84pt;"></td>
-                <td style="width: 84pt;"></td>
-                <td style="width: 84pt;"></td>
-                <td style="width: 82pt;"></td>
-                <td style="width: 82pt;"></td>
-                {% else %}
-                <td style="width: 84pt;">{{ entry.am_arrival }}</td>
-                <td style="width: 84pt;">{{ entry.am_departure }}</td>
-                <td style="width: 84pt;">{{ entry.pm_arrival }}</td>
-                <td style="width: 84pt;">{{ entry.pm_departure }}</td>
-                <td style="width: 82pt;">{{ entry.undertime_hours }}</td>
-                <td style="width: 82pt;">{{ entry.undertime_minutes }}</td>
-                {% endif %}
-            </tr>
-            {% endfor %}
-            <tr class="dtr-total-row">
-                <td class="dtr-total-label" style="width: 40pt;">TOTAL</td>
-                <td style="width: 84pt;"></td>
-                <td style="width: 84pt;"></td>
-                <td style="width: 84pt;"></td>
-                <td style="width: 84pt;"></td>
-                <td style="width: 82pt;"></td>
-                <td style="width: 82pt;"></td>
-            </tr>
-        </tbody>
-    </table>
-
-    <p class="dtr-certify">
-        <i>I CERTIFY on my honor that the above is a true and correct report of the hours of work performed,
-        record of which was made daily at the time of arrival and departure from office.</i>
-    </p>
-
-    <div class="dtr-signature">
-        <div class="dtr-signature-line"></div>
-        <div class="dtr-signature-label"><i>In-Charge</i></div>
-    </div>
-</div>
+<table class="dtr-sheet" cellspacing="0" cellpadding="0">
+    <tr>
+        <td class="dtr-sheet-cell">
+            <div class="dtr-form">
+                {% include 'school/_dtr_form_content.html' %}
+            </div>
+        </td>
+        <td class="dtr-sheet-gap"></td>
+        <td class="dtr-sheet-cell">
+            <div class="dtr-form">
+                {% include 'school/_dtr_form_content.html' %}
+            </div>
+        </td>
+    </tr>
+</table>
 {% endfor %}
 </body>
 </html>

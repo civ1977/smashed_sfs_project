@@ -21,6 +21,9 @@ class StudentAccount(models.Model):
     decided_at = models.DateTimeField(blank=True, null=True)
     decided_by = models.IntegerField(blank=True, null=True)
     last_seen = models.DateTimeField(blank=True, null=True)
+    # See accounts.Teacher.terms_accepted_at - same idea, set at registration
+    # (portal/views.py portal_register()).
+    terms_accepted_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         db_table = 'student_account'

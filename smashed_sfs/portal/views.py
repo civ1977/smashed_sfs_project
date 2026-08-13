@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.db import transaction
+from django.utils import timezone
 
 from students.models import Student
 from grades.views import build_student_grade_sheet
@@ -69,9 +70,13 @@ def portal_register(request):
             messages.error(request, 'An account request for this LRN already exists.')
             return render(request, 'portal/register.html')
 
+        if request.POST.get('agree_terms') != 'on':
+            messages.error(request, "Please check the box confirming you agree to the User's Agreement and Privacy Policy.")
+            return render(request, 'portal/register.html')
+
         with transaction.atomic():
             user = User.objects.create_user(username=username, password=password, email=email)
-            StudentAccount.objects.create(user=user, lrn=lrn)
+            StudentAccount.objects.create(user=user, lrn=lrn, terms_accepted_at=timezone.now())
 
         return render(request, 'portal/register_submitted.html')
 

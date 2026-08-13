@@ -9,7 +9,9 @@ import openpyxl
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.decorators import login_required
+from django.utils import timezone
 from django.urls import reverse
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.db import transaction
@@ -18,7 +20,7 @@ from django.http import JsonResponse
 from students.models import Section, Student
 from portal.models import StudentAccount
 from grades.models import Grade, SubjectMapping, SchoolCalendarException
-from .models import Teacher, TeacherTimeRecord
+from .models import Teacher, TeacherTimeRecord, DTRCalendarException
 from .forms import SchoolProfileSelectForm, SchoolProfileForm, SectionForm
 
 # Score bands for the dashboard's Term Ratings chart - DepEd-style grade
@@ -93,6 +95,10 @@ def register(request):
             messages.error(request, 'Password must be at least 8 characters.')
             return render(request, 'accounts/register.html', {'account_type': account_type})
 
+        if request.POST.get('agree_terms') != 'on':
+            messages.error(request, "Please check the box confirming you agree to the User's Agreement and Privacy Policy.")
+            return render(request, 'accounts/register.html', {'account_type': account_type})
+
         if User.objects.filter(username=username).exists():
             messages.error(request, 'Username already exists.')
             return render(request, 'accounts/register.html', {'account_type': account_type})
@@ -119,6 +125,7 @@ def register(request):
                 position=position,
                 email=email,
                 role=role,
+                terms_accepted_at=timezone.now(),
             )
 
         login(request, user)
@@ -157,6 +164,21 @@ def pricing(request):
 
 def privacy_policy(request):
     return render(request, 'accounts/public_privacy_policy.html')
+
+
+def user_agreement(request):
+    return render(request, 'accounts/public_user_agreement.html')
+
+
+@xframe_options_sameorigin
+def user_agreement_embed(request):
+    """Chrome-less version of the User's Agreement (no nav/footer) for the
+    registration pages' popup <iframe> - see templates/partials/terms_modal.html.
+    Django's default X-Frame-Options: DENY (XFrameOptionsMiddleware) blocks
+    this from rendering inside an <iframe> at all, even same-origin, unless
+    explicitly relaxed here - SAMEORIGIN rather than fully exempt, so only
+    this site can frame it."""
+    return render(request, 'accounts/public_user_agreement_embed.html')
 
 
 def contact_us(request):
@@ -378,29 +400,77 @@ DTR_EDITABLE_FIELDS = (
     'undertime_hours', 'undertime_minutes',
 )
 
+# Bar widths (points) + colors for the barcode-style mark printed on the
+# real "VANDA F48" card (school/dtr_pdf.html) - not a real scannable
+# encoding of the digits printed beneath it, just a visual match. xhtml2pdf
+# can't render the on-screen version's CSS gradient at all, so this is a
+# discrete table of colored cells instead - but computed directly from that
+# same gradient's repeating pattern (templates/accounts/dtr.html's
+# .dtr-barcode repeating-linear-gradient: black 0-0.6, gap 0.6-1.4, black
+# 1.4-2.6, gap 2.6-3.4, black 3.4-3.8, gap 3.8-4.8, out of a 4.8-unit
+# repeat), scaled and repeated to fill the same ~2.3cm width, rather than
+# an unrelated hand-picked sequence.
+_DTR_BARCODE_UNIT = [(0.6, '#000'), (0.8, '#fff'), (1.2, '#000'), (0.8, '#fff'), (0.4, '#000'), (1.0, '#fff')]
+_DTR_BARCODE_REPEATS = 9
+_DTR_BARCODE_TARGET_WIDTH_PT = 65.2  # 2.3cm, matching .dtr-barcode's on-screen width
+_DTR_BARCODE_SCALE = _DTR_BARCODE_TARGET_WIDTH_PT / (sum(w for w, _ in _DTR_BARCODE_UNIT) * _DTR_BARCODE_REPEATS)
+DTR_BARCODE_BARS = [
+    (round(width * _DTR_BARCODE_SCALE, 2), color)
+    for _ in range(_DTR_BARCODE_REPEATS)
+    for width, color in _DTR_BARCODE_UNIT
+]
 
-def build_dtr_days(year, month, exceptions, records_by_date):
+
+def build_dtr_days(year, month, exceptions, records_by_date, dtr_exceptions=None):
     """Builds the day-by-day grid for one Form 48: one entry per calendar
     day in the month, labeling non-school days (Saturday/Sunday/Holiday per
     `exceptions`) and filling in whatever DTR fields exist in
     `records_by_date` (a {date: TeacherTimeRecord} mapping) for the rest.
     Shared by the single-employee DTR view and the school-wide PDF export so
-    both agree on what a day looks like."""
+    both agree on what a day looks like.
+
+    `dtr_exceptions` (a {date: 'Holiday'/'Class Suspension'} mapping from
+    DTRCalendarException, DTR-only and separate from `exceptions`/
+    SchoolCalendarException which SF2/attendance also reads) takes priority
+    over `exceptions` when both cover the same date - a registrar marking a
+    day here always makes it a non-school day on the DTR with that specific
+    label, without touching SF2's own calendar."""
+    dtr_exceptions = dtr_exceptions or {}
     num_days = calendar.monthrange(year, month)[1]
     days = []
     for day in range(1, num_days + 1):
         d = date(year, month, day)
-        is_school_day = exceptions.get(d, d.weekday() < 5)
-        if not is_school_day:
-            label = 'Saturday' if d.weekday() == 5 else 'Sunday' if d.weekday() == 6 else 'Holiday'
+        dtr_label = dtr_exceptions.get(d)
+        if dtr_label:
+            is_school_day = False
+            label = dtr_label
         else:
-            label = None
+            is_school_day = exceptions.get(d, d.weekday() < 5)
+            if not is_school_day:
+                label = 'Saturday' if d.weekday() == 5 else 'Sunday' if d.weekday() == 6 else 'Holiday'
+            else:
+                label = None
         record = records_by_date.get(d)
         entry = {'day': day, 'date': d.isoformat(), 'label': label}
         for field in DTR_EDITABLE_FIELDS:
             entry[field] = getattr(record, field, '') or '' if record else ''
         days.append(entry)
     return days
+
+
+def _dtr_calendar_exceptions(school_profile_id, year, month):
+    """{date: 'Holiday'/'Class Suspension'} for this school/month, from the
+    DTR-only calendar (school.views.add_dtr_calendar_exception) - shared by
+    the single-employee DTR view and the school-wide PDF export, same as
+    `exceptions`/SchoolCalendarException is."""
+    if not school_profile_id:
+        return {}
+    return {
+        e.date: e.get_reason_display()
+        for e in DTRCalendarException.objects.filter(
+            school_profile_id=school_profile_id, date__year=year, date__month=month
+        )
+    }
 
 
 def _dtr_name_tokens(name):
@@ -534,7 +604,8 @@ def daily_time_record(request):
             if existing is None or (existing.teacher_id != teacher.teacher_id and r.teacher_id == teacher.teacher_id):
                 records_by_date[r.date] = r
 
-    days = build_dtr_days(year, month, exceptions, records_by_date)
+    dtr_exceptions = _dtr_calendar_exceptions(teacher.school_profile_id if teacher else None, year, month)
+    days = build_dtr_days(year, month, exceptions, records_by_date, dtr_exceptions)
     for entry in days:
         for field in DTR_TIME_FIELDS:
             entry[field] = _strip_am_pm(entry[field])

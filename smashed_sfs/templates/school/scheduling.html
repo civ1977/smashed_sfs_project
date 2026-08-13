@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}SCHEDULING{% endblock %}
+
+{% block content %}
+<h1>Class Scheduling</h1>
+<p>Auto-build the weekly timetable, then fine-tune any cell by hand. A teacher can never be double-booked — the grid rejects a conflicting change on the spot.</p>
+
+{% if not sections %}
+    <p>No sections found. <a href="{% url 'school_sections' %}">Add a section</a> first, then set up who teaches what under <a href="{% url 'school_assignments' %}">Manage Assignments</a>.</p>
+{% else %}
+
+<div class="card" style="margin-bottom: var(--space-4);">
+    <div style="display:flex; gap: var(--space-3); align-items:center; flex-wrap:wrap;">
+        <div style="display:flex; gap: var(--space-2);">
+            <a href="?view=section{% if selected_section %}&section_id={{ selected_section.section_id }}{% endif %}"
+               class="btn {% if view_mode != 'section' %}ghost{% endif %}">By Section</a>
+            <a href="?view=teacher{% if selected_teacher %}&teacher_id={{ selected_teacher.teacher_id }}{% endif %}"
+               class="btn {% if view_mode != 'teacher' %}ghost{% endif %}">By Teacher</a>
+        </div>
+
+        {% if view_mode == 'teacher' %}
+        <form method="get" style="display:flex; gap: var(--space-2); align-items:center; margin-left:auto;">
+            <input type="hidden" name="view" value="teacher">
+            <select name="teacher_id" onchange="this.form.submit()">
+                {% for t in teachers %}
+                <option value="{{ t.teacher_id }}" {% if selected_teacher.teacher_id == t.teacher_id %}selected{% endif %}>{{ t.full_name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        {% else %}
+        <form method="get" style="display:flex; gap: var(--space-2); align-items:center; margin-left:auto;">
+            <input type="hidden" name="view" value="section">
+            <select name="section_id" onchange="this.form.submit()">
+                {% for s in sections %}
+                <option value="{{ s.section_id }}" {% if selected_section.section_id == s.section_id %}selected{% endif %}>Grade {{ s.grade_level }}-{{ s.strand }}-{{ s.section_name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        {% endif %}
+
+        <form method="post" action="{% url 'auto_generate_schedule' %}">
+            {% csrf_token %}
+            <input type="hidden" name="return_qs" value="view={{ view_mode }}{% if view_mode == 'section' and selected_section %}&section_id={{ selected_section.section_id }}{% elif selected_teacher %}&teacher_id={{ selected_teacher.teacher_id }}{% endif %}">
+            <button type="submit" class="btn good">⚡ Auto-Generate Schedule</button>
+        </form>
+
+        {% if view_mode == 'section' and selected_section %}
+        <form method="post" action="{% url 'clear_section_schedule' %}" onsubmit="return confirm('Clear the entire schedule for this section?');">
+            {% csrf_token %}
+            <input type="hidden" name="section_id" value="{{ selected_section.section_id }}">
+            <button type="submit" class="btn risk">Clear This Section</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+{% if view_mode == 'section' and selected_section %}
+<div class="card" style="margin-bottom: var(--space-4);">
+    <h3>Roster — Grade {{ selected_section.grade_level }}-{{ selected_section.strand }}-{{ selected_section.section_name }}</h3>
+    {% if roster %}
+    <table>
+        <thead><tr><th>Subject</th><th>Teacher</th><th>Sessions/week</th><th>Placed</th></tr></thead>
+        <tbody>
+            {% for r in roster %}
+            <tr>
+                <td>{{ r.mapping.subject_name|default:"(subject removed)" }}</td>
+                <td>{{ r.teacher.full_name|default:"(teacher removed)" }}</td>
+                <td>
+                    <form method="post" action="{% url 'save_schedule_requirement' %}" style="display:flex; gap: var(--space-1); align-items:center;">
+                        {% csrf_token %}
+                        <input type="hidden" name="assignment_id" value="{{ r.assignment.assignment_id }}">
+                        <input type="hidden" name="section_id" value="{{ selected_section.section_id }}">
+                        <input type="number" name="sessions_per_week" value="{{ r.needed }}" min="1" max="10" style="width:60px;">
+                        <button type="submit" class="btn ghost" style="padding: 2px 10px; font-size:12px;">Save</button>
+                    </form>
+                </td>
+                <td>
+                    <span class="pill {% if r.placed >= r.needed %}good{% elif r.placed > 0 %}warn{% else %}neutral{% endif %}">{{ r.placed }}/{{ r.needed }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No teacher/subject roster yet for this section — add one below.</p>
+    {% endif %}
+
+    <form method="post" action="{% url 'add_schedule_roster' %}" style="display:flex; gap: var(--space-2); align-items:flex-end; flex-wrap:wrap; margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--line);">
+        {% csrf_token %}
+        <input type="hidden" name="section_id" value="{{ selected_section.section_id }}">
+        <div class="form-group" style="margin-bottom:0; min-width:200px;">
+            <label for="add-roster-teacher">Teacher</label>
+            <select id="add-roster-teacher" name="teacher_id" required>
+                <option value="">Select teacher…</option>
+                {% for t in teachers %}
+                <option value="{{ t.teacher_id }}">{{ t.full_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0; min-width:220px;">
+            <label for="add-roster-subject">Subject to teach</label>
+            <select id="add-roster-subject" name="mapping_id" required>
+                <option value="">Select subject…</option>
+                {% for m in mappings %}
+                <option value="{{ m.mapping_id }}">{{ m.subject_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0; width:120px;">
+            <label for="add-roster-sessions">Sessions/week</label>
+            <input type="number" id="add-roster-sessions" name="sessions_per_week" value="4" min="1" max="10" required>
+        </div>
+        <button type="submit" class="btn good">+ Add &amp; Auto-Schedule</button>
+    </form>
+    <p style="font-size:12px; color:var(--ink-faint); margin: var(--space-2) 0 0;">
+        That's it — no day or time to pick. The scheduler places the sessions itself, avoiding every existing conflict.
+        (Need bulk edits instead? Use <a href="{% url 'school_assignments' %}">Manage Assignments</a>.)
+    </p>
+</div>
+{% endif %}
+
+<div class="card">
+    {% if view_mode == 'teacher' %}
+    <h3>{{ selected_teacher.full_name|default:"No subject teachers found" }}'s Week{% if selected_teacher %} <span style="font-size:12px; color:var(--ink-faint); font-weight:400;">(read-only — edit from the section view)</span>{% endif %}</h3>
+    {% endif %}
+    <div class="sched-grid-scroll">
+        <table class="sched-grid">
+            <thead>
+                <tr>
+                    <th class="freeze-col">Time</th>
+                    {% for day in days %}<th>{{ day }}</th>{% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in slot_rows %}
+                <tr>
+                    <td class="freeze-col mono">{{ row.slot.label }}<br>{{ row.slot.start_time|time:"g:iA" }}–{{ row.slot.end_time|time:"g:iA" }}</td>
+                    {% if row.is_break %}
+                    <td colspan="5" class="sched-break">{{ row.slot.label }}</td>
+                    {% else %}
+                        {% for cell in row.cells %}
+                            {% if view_mode == 'section' %}
+                            <td>
+                                <select class="sched-cell" data-day="{{ cell.day }}" data-timeslot="{{ row.slot.timeslot_id }}" data-section="{{ selected_section.section_id }}">
+                                    <option value="">—</option>
+                                    {% for r in roster %}
+                                    <option value="{{ r.assignment.assignment_id }}" {% if cell.selected_id == r.assignment.assignment_id %}selected{% endif %}>{{ r.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            {% else %}
+                            <td class="sched-readonly">
+                                {% if cell.info %}<strong>{{ cell.info.subject }}</strong><br><span class="mono">{{ cell.info.section }}</span>{% endif %}
+                            </td>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<style>
+    .sched-grid-scroll { overflow: auto; max-height: calc(100vh - 320px); }
+    .sched-grid { border-collapse: collapse; width: 100%; }
+    .sched-grid th, .sched-grid td {
+        text-align: center;
+        padding: var(--space-2);
+        border-bottom: 1px solid var(--line);
+        white-space: nowrap;
+    }
+    .sched-grid thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--bg);
+    }
+    .sched-grid .freeze-col {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        background: var(--bg);
+        text-align: left;
+        min-width: 130px;
+    }
+    .sched-grid thead .freeze-col { z-index: 4; }
+    .sched-break {
+        color: var(--ink-soft);
+        font-style: italic;
+        background: var(--bg-exhibit);
+    }
+    .sched-cell { width: 100%; min-width: 190px; }
+    .sched-readonly { min-width: 140px; font-size: 13px; }
+</style>
+
+<script>
+(function () {
+    function getCookie(name) {
+        var value = null;
+        document.cookie.split(';').forEach(function (part) {
+            part = part.trim();
+            if (part.indexOf(name + '=') === 0) {
+                value = decodeURIComponent(part.substring(name.length + 1));
+            }
+        });
+        return value;
+    }
+    var csrftoken = getCookie('csrftoken');
+
+    document.querySelectorAll('.sched-cell').forEach(function (sel) {
+        var previous = sel.value;
+        sel.addEventListener('change', function () {
+            var next = sel.value;
+            fetch('{% url "save_schedule_cell" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken,
+                },
+                body: JSON.stringify({
+                    section_id: sel.dataset.section,
+                    day: sel.dataset.day,
+                    timeslot_id: sel.dataset.timeslot,
+                    assignment_id: next || null,
+                }),
+            })
+                .then(function (response) {
+                    return response.json().then(function (data) { return { ok: response.ok, data: data }; });
+                })
+                .then(function (result) {
+                    if (!result.ok || !result.data.ok) {
+                        sel.value = previous;
+                        alert((result.data && result.data.error) || 'Could not save that change.');
+                    } else {
+                        previous = next;
+                    }
+                })
+                .catch(function () {
+                    sel.value = previous;
+                    alert('Could not save that change. Please try again.');
+                });
+        });
+    });
+})();
+</script>
+{% endblock %}
