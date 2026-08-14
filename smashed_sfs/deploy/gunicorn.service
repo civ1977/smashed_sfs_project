@@ -18,11 +18,15 @@ After=network.target mysql.service
 [Service]
 User=deploy
 Group=www-data
-WorkingDirectory=/home/deploy/smashed_sfs
-EnvironmentFile=/home/deploy/smashed_sfs/.env
-ExecStart=/home/deploy/smashed_sfs/venv/bin/gunicorn \
+# NOTE: the GitHub repo has one extra level of nesting - the actual Django
+# project (manage.py, requirements.txt, wsgi.py) lives at
+# ~/smashed_sfs/smashed_sfs/, not ~/smashed_sfs/. All paths below point at
+# that inner directory.
+WorkingDirectory=/home/deploy/smashed_sfs/smashed_sfs
+EnvironmentFile=/home/deploy/smashed_sfs/smashed_sfs/.env
+ExecStart=/home/deploy/smashed_sfs/smashed_sfs/venv/bin/gunicorn \
     --workers 3 \
-    --bind unix:/home/deploy/smashed_sfs/gunicorn.sock \
+    --bind unix:/home/deploy/smashed_sfs/smashed_sfs/gunicorn.sock \
     smashed_sfs.wsgi:application
 Restart=on-failure
 
