@@ -30,7 +30,9 @@ from . import scheduler
 
 
 def _get_school_admin_teacher(request):
-    """Resolve the requesting Teacher and confirm they're not an adviser.
+    """Resolve the requesting Teacher and confirm they're a registrar,
+    principal, or Non-Teaching Officer (is_officer=True - a Non-Teaching
+    account without that flag gets Tools/DTR only, not this).
     Returns (teacher, error_redirect) - error_redirect is None on success."""
     try:
         teacher = Teacher.objects.get(username=request.user.username)
@@ -38,8 +40,9 @@ def _get_school_admin_teacher(request):
         messages.error(request, 'Your account is not linked to a Teacher profile.')
         return None, redirect('login')
 
-    if teacher.role not in (Teacher.ROLE_REGISTRAR, Teacher.ROLE_PRINCIPAL):
-        messages.error(request, 'This page is only available to registrar/principal accounts.')
+    is_officer = teacher.role == Teacher.ROLE_NON_TEACHING and teacher.is_officer
+    if teacher.role not in (Teacher.ROLE_REGISTRAR, Teacher.ROLE_PRINCIPAL) and not is_officer:
+        messages.error(request, 'This page is only available to registrar/principal/officer accounts.')
         return None, redirect('dashboard')
 
     return teacher, None
@@ -1271,7 +1274,8 @@ def _require_admin_teacher_json(request):
         teacher = Teacher.objects.get(username=request.user.username)
     except Teacher.DoesNotExist:
         return None
-    if teacher.role not in (Teacher.ROLE_REGISTRAR, Teacher.ROLE_PRINCIPAL):
+    is_officer = teacher.role == Teacher.ROLE_NON_TEACHING and teacher.is_officer
+    if teacher.role not in (Teacher.ROLE_REGISTRAR, Teacher.ROLE_PRINCIPAL) and not is_officer:
         return None
     return teacher
 

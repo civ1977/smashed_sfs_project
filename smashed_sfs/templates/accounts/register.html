@@ -23,7 +23,11 @@
 
         <div class="form-group">
             <label>Position:</label>
+            {% if account_type == 'non_teaching' %}
+            <input type="text" name="position" placeholder="Registrar, Librarian, Guidance Counselor, Admin Aide, etc." required>
+            {% else %}
             <input type="text" name="position" placeholder="Teacher I, Teacher II, etc." required>
+            {% endif %}
         </div>
 
         {% if account_type == 'teaching' %}
@@ -32,6 +36,16 @@
             <select name="role" required>
                 <option value="adviser" {% if selected_role == 'adviser' %}selected{% endif %}>Class Adviser</option>
                 <option value="subject_teacher" {% if selected_role == 'subject_teacher' %}selected{% endif %}>Subject Teacher</option>
+            </select>
+        </div>
+        {% endif %}
+
+        {% if account_type == 'non_teaching' %}
+        <div class="form-group">
+            <label>Role:</label>
+            <select name="non_teaching_role" required>
+                <option value="officer">Officer &mdash; full school dashboard access</option>
+                <option value="non_officer">Non-Officer &mdash; Tools/Daily Time Record only</option>
             </select>
         </div>
         {% endif %}

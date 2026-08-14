@@ -38,6 +38,11 @@ class Teacher(models.Model):
     # month's card from then on - one signature per teacher, not per DTR
     # record, since a real signature doesn't change month to month either.
     signature_image = models.TextField(blank=True, null=True)
+    # Only meaningful when role == ROLE_NON_TEACHING: an Officer gets the
+    # same full school-admin access as Registrar/Principal (see
+    # school/views.py's _get_school_admin_teacher); a Non-Officer only gets
+    # Tools (their own DTR). Ignored for every other role.
+    is_officer = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'teacher_adviser'

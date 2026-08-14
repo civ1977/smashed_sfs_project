@@ -81,15 +81,18 @@ def shell_context(request):
             ],
         }
 
-    if teacher.role == Teacher.ROLE_NON_TEACHING:
+    if teacher.role == Teacher.ROLE_NON_TEACHING and not teacher.is_officer:
         return {
             'shell_role': 'non_teaching',
             'shell_breadcrumb_context': 'MY ACCOUNT',
             'shell_nav_items': [
-                _nav_item(request, 'Dashboard', 'dashboard'),
+                _nav_item(request, 'Tools', 'tools'),
             ],
         }
 
+    # Registrar/Principal, and a Non-Teaching Officer (is_officer=True) -
+    # same full school-admin nav for all three, matching
+    # school/views.py's _get_school_admin_teacher gate.
     school_profile = None
     if teacher.school_profile_id:
         school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()

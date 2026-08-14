@@ -19,20 +19,68 @@
             {% for error in school_select_form.school_profile.errors %}
                 <small style="color: var(--risk);">{{ error }}</small>
             {% endfor %}
-            <small>Pick your school, or choose "+ Add a new school" and fill in the details below.</small>
+            <small>Pick your school and its details fill in automatically. Only choose "+ Add a new school" if yours isn't listed.</small>
         </div>
 
-        <h4>New school details</h4>
-        <p><small>Only needed if you selected "+ Add a new school" above.</small></p>
-        {% for field in school_create_form %}
-        <div class="form-group">
-            <label>{{ field.label }}</label>
-            {{ field }}
-            {% for error in field.errors %}
-                <small style="color: var(--risk);">{{ error }}</small>
+        <div id="new-school-details">
+            <h4 id="new-school-details-heading">New school details</h4>
+            {% for field in school_create_form %}
+            <div class="form-group">
+                <label>{{ field.label }}</label>
+                {{ field }}
+                {% for error in field.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+            </div>
             {% endfor %}
         </div>
-        {% endfor %}
+
+        {{ school_profiles_data|json_script:"school-profiles-data" }}
+        <script>
+            (function () {
+                var select = document.getElementById('id_school-school_profile');
+                var details = document.getElementById('new-school-details');
+                var heading = document.getElementById('new-school-details-heading');
+                var dataEl = document.getElementById('school-profiles-data');
+                if (!select || !details || !dataEl) return;
+
+                var profiles = JSON.parse(dataEl.textContent);
+
+                function sync() {
+                    var value = select.value;
+                    var profile = profiles[value];
+
+                    if (value === 'new') {
+                        heading.textContent = 'New school details';
+                        details.style.display = '';
+                        details.querySelectorAll('input, select, textarea').forEach(function (el) {
+                            el.readOnly = false;
+                            el.disabled = false;
+                            if (el.tagName !== 'SELECT') el.value = '';
+                        });
+                        return;
+                    }
+
+                    if (!profile) {
+                        details.style.display = 'none';
+                        return;
+                    }
+
+                    heading.textContent = 'School details (already on file)';
+                    details.style.display = '';
+                    Object.keys(profile).forEach(function (fieldName) {
+                        var el = document.getElementById('id_newschool-' + fieldName);
+                        if (!el) return;
+                        el.value = profile[fieldName] != null ? profile[fieldName] : '';
+                        el.readOnly = true;
+                        el.disabled = true;
+                    });
+                }
+
+                select.addEventListener('change', sync);
+                sync();
+            })();
+        </script>
     </div>
     {% endif %}
 

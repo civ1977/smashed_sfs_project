@@ -17,7 +17,7 @@ from django.contrib import messages
 from django.db import transaction
 from django.http import JsonResponse
 
-from students.models import Section, Student
+from students.models import Section, Student, SchoolProfile
 from portal.models import StudentAccount
 from grades.models import Grade, SubjectMapping, SchoolCalendarException
 from .models import Teacher, TeacherTimeRecord, DTRCalendarException
@@ -80,8 +80,10 @@ def register(request):
         password = request.POST.get('password')
         password_confirm = request.POST.get('password_confirm')
 
+        is_officer = False
         if account_type == 'non_teaching':
             role = Teacher.ROLE_NON_TEACHING
+            is_officer = request.POST.get('non_teaching_role') == 'officer'
         else:
             role = request.POST.get('role')
             if role not in TEACHING_ROLE_CHOICES:
@@ -125,6 +127,7 @@ def register(request):
                 position=position,
                 email=email,
                 role=role,
+                is_officer=is_officer,
                 terms_accepted_at=timezone.now(),
             )
 
@@ -224,7 +227,9 @@ def dashboard(request):
     if teacher.role == Teacher.ROLE_NON_TEACHING:
         if not teacher.school_profile_id:
             return redirect('complete_profile')
-        return render(request, 'accounts/no_dashboard.html', {'teacher': teacher})
+        if teacher.is_officer:
+            return redirect('school_dashboard')
+        return redirect('tools')
 
     if teacher.role == Teacher.ROLE_SUBJECT_TEACHER:
         if not teacher.school_profile_id:
@@ -334,6 +339,13 @@ def complete_profile(request):
     school_create_form = SchoolProfileForm(data, prefix='newschool') if needs_school else None
     section_form = SectionForm(data, prefix='section') if needs_section else None
 
+    school_profiles_data = {}
+    if needs_school:
+        school_profiles_data = {
+            str(p.profile_id): {field: getattr(p, field) for field in SchoolProfileForm.Meta.fields}
+            for p in SchoolProfile.objects.filter(is_active=True)
+        }
+
     if request.method == 'POST':
         new_school_needed = False
         school_valid = True
@@ -374,6 +386,7 @@ def complete_profile(request):
         'needs_section': needs_section,
         'school_select_form': school_select_form,
         'school_create_form': school_create_form,
+        'school_profiles_data': school_profiles_data,
         'section_form': section_form,
     })
 
@@ -387,7 +400,10 @@ def ancillary(request):
 def tools(request):
     teacher = Teacher.objects.filter(username=request.user.username).first()
     is_adviser = bool(teacher and teacher.role == Teacher.ROLE_ADVISER)
-    is_school_admin = bool(teacher and teacher.role in (Teacher.ROLE_REGISTRAR, Teacher.ROLE_PRINCIPAL))
+    is_school_admin = bool(teacher and (
+        teacher.role in (Teacher.ROLE_REGISTRAR, Teacher.ROLE_PRINCIPAL)
+        or (teacher.role == Teacher.ROLE_NON_TEACHING and teacher.is_officer)
+    ))
     return render(request, 'accounts/tools.html', {
         'page_title': 'Tools',
         'is_adviser': is_adviser,
