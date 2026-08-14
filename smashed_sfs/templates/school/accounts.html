@@ -12,6 +12,7 @@
         <tr>
             <th>Name</th>
             <th>Position</th>
+            <th>Role</th>
             <th>Section</th>
             <th>Status</th>
             <th>Reassign Section</th>
@@ -23,6 +24,17 @@
         <tr>
             <td>{{ row.teacher.full_name }}</td>
             <td>{{ row.teacher.position|default:"—" }}</td>
+            <td>
+                {% if row.teacher.role == 'non_teaching' %}
+                    {% if row.teacher.is_officer %}
+                        <span class="pill good">Officer</span>
+                    {% else %}
+                        <span class="pill">Non-Officer</span>
+                    {% endif %}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
             <td>
                 {% if row.section %}
                     {{ row.section.grade_level }}-{{ row.section.strand }}-{{ row.section.section_name }}
@@ -49,7 +61,7 @@
                     <button type="submit" class="btn ghost">Save</button>
                 </form>
             </td>
-            <td>
+            <td style="display:flex; gap: var(--space-2); flex-wrap: wrap;">
                 <form method="POST" action="{% url 'toggle_teacher_active' row.teacher.teacher_id %}">
                     {% csrf_token %}
                     {% if row.teacher.is_active %}
@@ -58,6 +70,16 @@
                         <button type="submit" class="btn good">Activate</button>
                     {% endif %}
                 </form>
+                {% if row.teacher.role == 'non_teaching' %}
+                <form method="POST" action="{% url 'toggle_teacher_officer' row.teacher.teacher_id %}">
+                    {% csrf_token %}
+                    {% if row.teacher.is_officer %}
+                        <button type="submit" class="btn ghost">Demote to Non-Officer</button>
+                    {% else %}
+                        <button type="submit" class="btn ghost">Promote to Officer</button>
+                    {% endif %}
+                </form>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}

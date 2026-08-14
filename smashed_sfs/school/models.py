@@ -84,9 +84,13 @@ class TeacherAccountAuditLog(models.Model):
 
     ACTION_ACTIVATED = 'activated'
     ACTION_DEACTIVATED = 'deactivated'
+    ACTION_PROMOTED_OFFICER = 'promoted_officer'
+    ACTION_DEMOTED_OFFICER = 'demoted_officer'
     ACTION_CHOICES = [
         (ACTION_ACTIVATED, 'Activated'),
         (ACTION_DEACTIVATED, 'Deactivated'),
+        (ACTION_PROMOTED_OFFICER, 'Promoted to Officer'),
+        (ACTION_DEMOTED_OFFICER, 'Demoted to Non-Officer'),
     ]
 
     log_id = models.AutoField(primary_key=True)

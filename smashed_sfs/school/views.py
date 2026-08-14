@@ -888,6 +888,42 @@ def toggle_teacher_active(request, teacher_id):
 
 
 @login_required
+def toggle_teacher_officer(request, teacher_id):
+    """Promote/demote an existing Non-Teaching account between Officer
+    (full school-admin access) and Non-Officer (Tools/DTR only) - the
+    is_officer flag is otherwise only set once, at registration, so this
+    is the only way to change it for an account created before that
+    choice existed or that was registered with the wrong one."""
+    if request.method != 'POST':
+        return redirect('school_accounts')
+
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    target = Teacher.objects.filter(
+        teacher_id=teacher_id, school_profile_id=teacher.school_profile_id,
+        role=Teacher.ROLE_NON_TEACHING,
+    ).first()
+    if not target:
+        messages.error(request, 'Non-teaching account not found in this school.')
+        return redirect('school_accounts')
+
+    target.is_officer = not target.is_officer
+    target.save()
+
+    status = 'promoted_officer' if target.is_officer else 'demoted_officer'
+    TeacherAccountAuditLog.objects.create(
+        target_teacher_id=target.teacher_id,
+        action=status,
+        performed_by=teacher.teacher_id,
+    )
+    label = 'promoted to Officer' if target.is_officer else 'demoted to Non-Officer'
+    messages.success(request, f'✅ {target.full_name} {label}.')
+    return redirect('school_accounts')
+
+
+@login_required
 def reassign_teacher_section(request, teacher_id):
     if request.method != 'POST':
         return redirect('school_accounts')

@@ -19,6 +19,7 @@ urlpatterns = [
     path('sections/<int:section_id>/delete/', views.delete_section, name='delete_section'),
     path('accounts/', views.school_accounts, name='school_accounts'),
     path('accounts/<int:teacher_id>/toggle-active/', views.toggle_teacher_active, name='toggle_teacher_active'),
+    path('accounts/<int:teacher_id>/toggle-officer/', views.toggle_teacher_officer, name='toggle_teacher_officer'),
     path('accounts/<int:teacher_id>/reassign-section/', views.reassign_teacher_section, name='reassign_teacher_section'),
     path('assignments/', views.school_assignments, name='school_assignments'),
     path('assignments/<int:assignment_id>/remove/', views.remove_teacher_subject_assignment, name='remove_teacher_subject_assignment'),

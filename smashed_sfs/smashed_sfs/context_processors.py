@@ -107,7 +107,7 @@ def shell_context(request):
             _nav_item(request, 'Sections', 'school_sections',
                       match_names={'school_sections', 'reassign_section_adviser'}),
             _nav_item(request, 'Accounts', 'school_accounts',
-                      match_names={'school_accounts', 'toggle_teacher_active', 'reassign_teacher_section'}),
+                      match_names={'school_accounts', 'toggle_teacher_active', 'toggle_teacher_officer', 'reassign_teacher_section'}),
             _nav_item(request, 'Assignments', 'school_assignments',
                       match_names={'school_assignments', 'remove_teacher_subject_assignment'}),
         ],
