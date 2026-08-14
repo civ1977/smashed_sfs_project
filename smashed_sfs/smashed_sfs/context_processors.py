@@ -81,6 +81,15 @@ def shell_context(request):
             ],
         }
 
+    if teacher.role == Teacher.ROLE_NON_TEACHING:
+        return {
+            'shell_role': 'non_teaching',
+            'shell_breadcrumb_context': 'MY ACCOUNT',
+            'shell_nav_items': [
+                _nav_item(request, 'Dashboard', 'dashboard'),
+            ],
+        }
+
     school_profile = None
     if teacher.school_profile_id:
         school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
