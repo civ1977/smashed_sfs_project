@@ -1,11 +1,22 @@
 from django.contrib import admin
+from django.urls import reverse
+from django.utils.html import format_html
+
 from .models import SchoolProfile, Section, Student
 
 
 @admin.register(SchoolProfile)
 class SchoolProfileAdmin(admin.ModelAdmin):
-    list_display = ('profile_id', 'school_name', 'school_id', 'school_year')
+    list_display = ('profile_id', 'school_name', 'school_id', 'school_year', 'view_accounts')
     search_fields = ('school_name', 'school_id')
+
+    def view_accounts(self, obj):
+        url = reverse('admin:accounts_teacher_changelist')
+        return format_html(
+            '<a class="button" href="{}?school_profile_id__exact={}">View Accounts</a>',
+            url, obj.profile_id,
+        )
+    view_accounts.short_description = 'Accounts'
 
 
 @admin.register(Section)
