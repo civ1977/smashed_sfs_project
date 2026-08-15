@@ -531,6 +531,26 @@ tr:last-child td { border-bottom: none; }
 .pubpage-steps h3 { font-size: 15px; margin: 0 0 var(--space-1); color: var(--ink); }
 .pubpage-steps p { font-size: 13.5px; line-height: 1.55; color: var(--ink-soft); margin: 0; }
 
+.pubpage-video-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 16 / 9;
+  margin-top: var(--space-4);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #000;
+}
+.pubpage-video-wrap iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
 .pubpage-badge {
   display: inline-flex;
   align-items: center;
