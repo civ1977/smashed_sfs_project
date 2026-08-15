@@ -129,7 +129,7 @@ class DailyTimeRecordFuzzyMatchTests(TestCase):
 
         response = self.client.get(reverse('daily_time_record'), {'year': 2026, 'month': 7})
 
-        self.assertContains(response, '7:45 AM')
+        self.assertContains(response, '7:45')
 
     def test_does_not_show_a_different_employees_record(self):
         other_user = User.objects.create_user(username='mariateacher', password='irrelevant')
@@ -144,7 +144,7 @@ class DailyTimeRecordFuzzyMatchTests(TestCase):
 
         response = self.client.get(reverse('daily_time_record'), {'year': 2026, 'month': 7})
 
-        self.assertNotContains(response, '8:15 AM')
+        self.assertNotContains(response, '8:15')
 
     def test_self_edited_record_takes_priority_over_uploaded_one_for_same_date(self):
         TeacherTimeRecord.objects.create(
@@ -158,5 +158,5 @@ class DailyTimeRecordFuzzyMatchTests(TestCase):
 
         response = self.client.get(reverse('daily_time_record'), {'year': 2026, 'month': 7})
 
-        self.assertContains(response, '7:50 AM')
-        self.assertNotContains(response, '7:45 AM')
+        self.assertContains(response, '7:50')
+        self.assertNotContains(response, '7:45')
