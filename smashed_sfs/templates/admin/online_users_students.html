@@ -1,0 +1,36 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<p><a href="{% url 'admin:online_users' %}">&larr; Back to Online Users</a></p>
+
+<h1>{{ school_name }} &mdash; Students</h1>
+<p>
+    <strong>{{ students_online }}</strong> online right now
+    (active within the last {{ online_window_minutes }} minutes). Refresh this page for the latest status.
+</p>
+
+<table>
+    <thead>
+        <tr><th>Name</th><th>Status</th><th>Last seen</th></tr>
+    </thead>
+    <tbody>
+        {% for row in student_rows %}
+        <tr>
+            <td>{{ row.name }}</td>
+            <td>
+                {% if row.online %}
+                    <span style="color: #2e7d32; font-weight: bold;">&#9679; Online</span>
+                {% else %}
+                    <span style="color: #999;">&#9675; Offline</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if row.label %}{{ row.label }}{% elif row.last_seen %}{{ row.last_seen|timesince }} ago{% else %}&mdash;{% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3">No students.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

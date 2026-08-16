@@ -51,30 +51,15 @@
 
     <div style="flex: 1; min-width: 320px;">
         <h4>Students</h4>
-        <table>
-            <thead>
-                <tr><th>Name</th><th>Status</th><th>Last seen</th></tr>
-            </thead>
-            <tbody>
-                {% for row in school.student_rows %}
-                <tr>
-                    <td>{{ row.name }}</td>
-                    <td>
-                        {% if row.online %}
-                            <span style="color: #2e7d32; font-weight: bold;">&#9679; Online</span>
-                        {% else %}
-                            <span style="color: #999;">&#9675; Offline</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if row.label %}{{ row.label }}{% elif row.last_seen %}{{ row.last_seen|timesince }} ago{% else %}&mdash;{% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="3">No students.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <p>
+            {{ school.students_total }} student{{ school.students_total|pluralize }} on file,
+            {{ school.students_online }} online right now.
+        </p>
+        {% if school.profile_id is not None %}
+        <a class="button" href="{% url 'admin:online_users_students' profile_id=school.profile_id %}">View Students</a>
+        {% else %}
+        <a class="button" href="{% url 'admin:online_users_students_unassigned' %}">View Students</a>
+        {% endif %}
     </div>
 </div>
 {% endfor %}
