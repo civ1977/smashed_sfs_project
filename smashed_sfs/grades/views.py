@@ -32,8 +32,7 @@ GRADE_TERMS = [
 ATTENDANCE_MONTH_OPTIONS = [{'value': m, 'label': m} for m in ATTENDANCE_MONTHS]
 
 GRADE_LEVELS = [
-    {'value': '11', 'label': 'Grade 11'},
-    {'value': '12', 'label': 'Grade 12'},
+    {'value': str(g), 'label': f'Grade {g}'} for g in range(4, 13)
 ]
 
 
