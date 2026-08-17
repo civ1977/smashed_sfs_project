@@ -58,6 +58,8 @@
             gap: var(--space-3);
         }
         .shell-user a { color: var(--accent-soft); }
+        .shell-user a.shell-username { color: var(--ink-faint); text-decoration: none; }
+        .shell-user a.shell-logout { color: #C0504D; text-decoration: none; }
 
         .container.shell-content {
             flex: 1;
@@ -92,8 +94,8 @@
                 </span>
                 <span class="shell-user">
                     {% if user.is_authenticated %}
-                        ● <a href="{% url 'account_settings' %}">{{ user.username }}</a>
-                        <a href="{% url 'logout' %}">Logout</a>
+                        ● <a href="{% url 'account_settings' %}" class="shell-username">{{ user.username }}</a>
+                        <a href="{% url 'logout' %}" class="shell-logout">Logout</a>
                     {% else %}
                         <a href="{% url 'login' %}">Login</a>
                         <a href="{% url 'register' %}">Register</a>
