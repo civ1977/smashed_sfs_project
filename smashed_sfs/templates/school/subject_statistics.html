@@ -21,6 +21,8 @@
     <thead>
         <tr>
             <th rowspan="2">Subject</th>
+            <th rowspan="2">Classes</th>
+            <th rowspan="2">Students</th>
             <th colspan="5">Final Rating</th>
             <th colspan="5">Pre-Test Score</th>
             <th colspan="5">Final Exam Score</th>
@@ -35,6 +37,8 @@
         {% for row in term_data.rows %}
         <tr>
             <td>{{ row.subject.subject_name }}</td>
+            <td>{{ row.class_count }}</td>
+            <td>{{ row.student_count }}</td>
             <td>{{ row.final_rating.mean|default_if_none:'—' }}</td>
             <td>{{ row.final_rating.mode|default_if_none:'—' }}</td>
             <td>{{ row.final_rating.median|default_if_none:'—' }}</td>

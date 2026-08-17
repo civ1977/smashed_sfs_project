@@ -105,7 +105,11 @@ def school_subject_statistics(request):
         section_ids = list(Section.objects.filter(
             school_profile_id=teacher.school_profile_id, grade_level=grade_level
         ).values_list('section_id', flat=True))
-        student_lrns = list(Student.objects.filter(section_id__in=section_ids).values_list('lrn', flat=True))
+        section_by_lrn = {
+            s['lrn']: s['section_id']
+            for s in Student.objects.filter(section_id__in=section_ids).values('lrn', 'section_id')
+        }
+        student_lrns = list(section_by_lrn.keys())
 
         subjects = SubjectMapping.objects.filter(
             school_profile_id=teacher.school_profile_id, grade_level=grade_level
@@ -131,9 +135,16 @@ def school_subject_statistics(request):
             final_by_term = {1: [], 2: [], 3: []}
             pretest_by_term = {1: [], 2: [], 3: []}
             final_exam_by_term = {1: [], 2: [], 3: []}
+            # Which sections actually have a Final Rating entered for this
+            # subject/term - a count of assigned sections would include ones
+            # with no grades in yet, which "classes involved" shouldn't.
+            final_sections_by_term = {1: set(), 2: set(), 3: set()}
             for g in grades:
                 if g.grade is not None:
                     final_by_term[g.term].append(g.grade)
+                    section_id = section_by_lrn.get(g.lrn)
+                    if section_id is not None:
+                        final_sections_by_term[g.term].add(section_id)
                 if g.pretest_score is not None:
                     pretest_by_term[g.term].append(g.pretest_score)
                 if g.final_exam_score is not None:
@@ -145,6 +156,7 @@ def school_subject_statistics(request):
                 'final_by_term': final_by_term,
                 'pretest_by_term': pretest_by_term,
                 'final_exam_by_term': final_exam_by_term,
+                'final_sections_by_term': final_sections_by_term,
             })
 
         terms = []
@@ -162,6 +174,8 @@ def school_subject_statistics(request):
                         break
                 rows.append({
                     'subject': entry['subject'],
+                    'class_count': len(entry['final_sections_by_term'][term]),
+                    'student_count': len(entry['final_by_term'][term]),
                     'final_rating': _score_stats(entry['final_by_term'][term], 100),
                     'pretest': _score_stats(entry['pretest_by_term'][term], max_score.pretest_max if max_score else None),
                     'final_exam': _score_stats(entry['final_exam_by_term'][term], max_score.final_exam_max if max_score else None),
