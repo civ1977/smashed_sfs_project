@@ -15,7 +15,7 @@ from django.shortcuts import render
 from django.urls import path
 from django.utils import timezone
 
-from accounts.models import Teacher
+from accounts.models import SiteVisit, Teacher
 from portal.models import StudentAccount
 from students.models import SchoolProfile, Section, Student
 
@@ -24,6 +24,22 @@ from students.models import SchoolProfile, Section, Student
 ONLINE_WINDOW = timedelta(minutes=5)
 UNASSIGNED_DIVISION = 'Unassigned Division'
 UNASSIGNED_SCHOOL = 'Unassigned School'
+
+
+def _visit_counts(now):
+    """Unique-IP visitor counts, read off SiteVisit (one row per IP per
+    calendar date - see TrackSiteVisitMiddleware). Day/week/month are
+    trailing windows ending today, not calendar-aligned periods."""
+    today = now.date()
+    week_start = today - timedelta(days=6)
+    month_start = today - timedelta(days=29)
+
+    return {
+        'day': SiteVisit.objects.filter(visited_date=today).count(),
+        'week': SiteVisit.objects.filter(visited_date__gte=week_start).values('ip_address').distinct().count(),
+        'month': SiteVisit.objects.filter(visited_date__gte=month_start).values('ip_address').distinct().count(),
+        'lifetime': SiteVisit.objects.values('ip_address').distinct().count(),
+    }
 
 
 def _status(last_seen, now):
@@ -116,6 +132,7 @@ def online_users_view(request):
         'division_blocks': division_blocks,
         'total_online': total_online,
         'online_window_minutes': int(ONLINE_WINDOW.total_seconds() // 60),
+        'visit_counts': _visit_counts(now),
     }
     return render(request, 'admin/online_users.html', context)
 

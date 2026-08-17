@@ -51,6 +51,25 @@ class Teacher(models.Model):
         return self.full_name
 
 
+class SiteVisit(models.Model):
+    """One row per (IP address, calendar date) - get_or_create'd by
+    smashed_sfs.middleware.TrackSiteVisitMiddleware on every request that
+    isn't served directly by whitenoise, so a visitor's repeat requests
+    within the same day never create more than one row. Powers the
+    day/week/month/lifetime unique-visitor counters on the Online Users
+    admin page (smashed_sfs/admin_monitoring.py)."""
+    visit_id = models.AutoField(primary_key=True)
+    ip_address = models.GenericIPAddressField()
+    visited_date = models.DateField()
+
+    class Meta:
+        db_table = 'site_visit'
+        unique_together = ('ip_address', 'visited_date')
+
+    def __str__(self):
+        return f'{self.ip_address} ({self.visited_date})'
+
+
 class TeacherTimeRecord(models.Model):
     """One day's worth of Daily Time Record (Civil Service Form No. 48)
     entries for a named employee - either typed in by hand or imported

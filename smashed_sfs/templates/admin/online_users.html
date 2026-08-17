@@ -7,6 +7,25 @@
     (active within the last {{ online_window_minutes }} minutes). Refresh this page for the latest status.
 </p>
 
+<div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px;">
+    <div style="border: 1px solid #ccc; border-radius: 4px; padding: 12px 20px; min-width: 120px; text-align: center;">
+        <div style="font-size: 22px; font-weight: bold;">{{ visit_counts.day }}</div>
+        <div style="color: #666; font-size: 12px;">Unique visitors today</div>
+    </div>
+    <div style="border: 1px solid #ccc; border-radius: 4px; padding: 12px 20px; min-width: 120px; text-align: center;">
+        <div style="font-size: 22px; font-weight: bold;">{{ visit_counts.week }}</div>
+        <div style="color: #666; font-size: 12px;">Unique visitors, last 7 days</div>
+    </div>
+    <div style="border: 1px solid #ccc; border-radius: 4px; padding: 12px 20px; min-width: 120px; text-align: center;">
+        <div style="font-size: 22px; font-weight: bold;">{{ visit_counts.month }}</div>
+        <div style="color: #666; font-size: 12px;">Unique visitors, last 30 days</div>
+    </div>
+    <div style="border: 1px solid #ccc; border-radius: 4px; padding: 12px 20px; min-width: 120px; text-align: center;">
+        <div style="font-size: 22px; font-weight: bold;">{{ visit_counts.lifetime }}</div>
+        <div style="color: #666; font-size: 12px;">Unique visitors, all-time</div>
+    </div>
+</div>
+
 {% for division in division_blocks %}
 <h2>{{ division.name }}</h2>
 
