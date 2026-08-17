@@ -22,6 +22,7 @@ urlpatterns = [
     path('user-agreement/embed/', views.user_agreement_embed, name='user_agreement_embed'),
     path('contact-us/', views.contact_us, name='contact_us'),
     path('dashboard/', views.dashboard, name='dashboard'),
+    path('account/', views.account_settings, name='account_settings'),
     path('complete-profile/', views.complete_profile, name='complete_profile'),
     path('logout/', views.logout_view, name='logout'),
     path('password-reset/', auth_views.PasswordResetView.as_view(

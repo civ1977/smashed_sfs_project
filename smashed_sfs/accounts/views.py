@@ -7,8 +7,9 @@ from datetime import date, datetime
 
 import openpyxl
 from django.shortcuts import render, redirect
-from django.contrib.auth import login, authenticate, logout
+from django.contrib.auth import login, authenticate, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import PasswordChangeForm
 from django.utils import timezone
 from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
@@ -208,6 +209,56 @@ def logout_view(request):
     logout(request)
     messages.info(request, 'You have been logged out.')
     return redirect('login')
+
+
+@login_required
+def account_settings(request):
+    teacher = Teacher.objects.filter(username=request.user.username).first()
+    password_form = PasswordChangeForm(user=request.user)
+
+    if request.method == 'POST' and request.POST.get('form_type') == 'profile':
+        full_name = request.POST.get('full_name', '').strip()
+        email = request.POST.get('email', '').strip()
+
+        if not email:
+            messages.error(request, 'Email is required.')
+        elif User.objects.filter(email=email).exclude(pk=request.user.pk).exists():
+            messages.error(request, 'That email is already in use by another account.')
+        else:
+            request.user.email = email
+            request.user.save()
+            if teacher:
+                if full_name:
+                    teacher.full_name = full_name
+                teacher.email = email
+                teacher.save()
+            messages.success(request, 'Profile updated.')
+            return redirect('account_settings')
+
+    elif request.method == 'POST' and request.POST.get('form_type') == 'password':
+        password_form = PasswordChangeForm(user=request.user, data=request.POST)
+        if password_form.is_valid():
+            user = password_form.save()
+            # Keeps last_seen/re-login intact - otherwise Django would log
+            # the user out immediately, since changing the password
+            # invalidates the session hash it's checked against.
+            update_session_auth_hash(request, user)
+            if teacher:
+                # Mirrors accounts.register()'s Teacher.password = user.password
+                # convention - see CLAUDE.md's architecture notes. Not used
+                # for auth (that's always via the linked User), but kept in
+                # sync so it doesn't look stale to anyone inspecting the DB.
+                teacher.password = user.password
+                teacher.save()
+            messages.success(request, 'Password changed.')
+            return redirect('account_settings')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+
+    return render(request, 'accounts/account_settings.html', {
+        'teacher': teacher,
+        'password_form': password_form,
+    })
 
 
 @login_required
