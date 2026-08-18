@@ -27,6 +27,11 @@ class FinalAverageTests(TestCase):
     def test_rounds_to_nearest_int(self):
         self.assertEqual(_final_average([80, 81, 81]), round((80 + 81 + 81) / 3))
 
+    def test_rounds_half_up_at_exact_midpoint(self):
+        # DepEd rounds .5 up (88.5 -> 89); Python's own round() rounds
+        # half-to-even and would give 88 here since 88 is even.
+        self.assertEqual(_final_average([88, 89]), 89)
+
     def test_missing_terms_are_ignored(self):
         self.assertEqual(_final_average([80, None, None]), 80)
 

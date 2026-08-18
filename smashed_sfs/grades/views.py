@@ -13,10 +13,24 @@ import calendar
 import json
 import statistics
 from datetime import datetime, date as date_cls
+from decimal import Decimal, ROUND_HALF_UP
 from students.models import Student, Section, SchoolProfile
 from accounts.models import Teacher
 from smashed_sfs.upload_utils import read_upload_rows, UploadFileError
 from .models import Grade, SubjectMapping, SubjectTermExclusion, StudentTermRemark, Attendance, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment, SubjectTestMaxScore
+
+
+def round_half_up(value, ndigits=0):
+    """Round a grade average the way DepEd does: halves always round up
+    (88.5 -> 89), not Python's built-in round-half-to-even (88.5 -> 88,
+    89.5 -> 90). Only for official grade averages - not for statistics
+    like mean/stdev/MPS or attendance ratios, which aren't transmuted
+    grades and can keep normal rounding.
+    """
+    quantum = Decimal(1).scaleb(-ndigits)
+    quantized = Decimal(str(value)).quantize(quantum, rounding=ROUND_HALF_UP)
+    return int(quantized) if ndigits == 0 else float(quantized)
+
 
 MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -308,7 +322,7 @@ def build_student_grade_sheet(lrn):
             subject_grades[mapping_id][3]
         ]
         valid_grades = [g for g in grades_list if g is not None]
-        subject_grades[mapping_id]['final'] = round(sum(valid_grades) / len(valid_grades)) if valid_grades else None
+        subject_grades[mapping_id]['final'] = round_half_up(sum(valid_grades) / len(valid_grades)) if valid_grades else None
         subject_grades[mapping_id]['remarks'] = 'Passed' if subject_grades[mapping_id]['final'] and subject_grades[mapping_id]['final'] >= 75 else 'Failed'
 
     subject_names = {}
@@ -320,7 +334,7 @@ def build_student_grade_sheet(lrn):
             subject_names[mapping_id] = f'Subject {mapping_id}'
 
     finals = [data['final'] for data in subject_grades.values() if data['final'] is not None]
-    general_average = round(sum(finals) / len(finals)) if (all_complete and finals) else None
+    general_average = round_half_up(sum(finals) / len(finals)) if (all_complete and finals) else None
 
     return subject_grades, subject_names, general_average, grades
 
@@ -409,7 +423,7 @@ def _compute_term_rankings(teacher):
                 incomplete_students.append(student)
                 continue
 
-            general_average = round(sum(term_values.values()) / len(term_values))
+            general_average = round_half_up(sum(term_values.values()) / len(term_values))
             has_failing_grade = any(value < PASSING_GRADE for value in term_values.values())
             complete.append({
                 'student': student,

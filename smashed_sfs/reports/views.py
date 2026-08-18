@@ -14,7 +14,7 @@ from django.utils.html import format_html
 from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
 from grades.models import Grade, SubjectMapping, StudentTermRemark, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment, SubjectTestMaxScore
-from grades.views import MONTH_NAMES, _school_days_in_month, build_student_grade_sheet, _score_stats, WEEKDAYS
+from grades.views import MONTH_NAMES, _school_days_in_month, build_student_grade_sheet, _score_stats, WEEKDAYS, round_half_up
 
 
 def _get_teacher(request):
@@ -23,7 +23,7 @@ def _get_teacher(request):
 
 def _final_average(term_grades):
     valid = [g for g in term_grades if g is not None]
-    return round(sum(valid) / len(valid)) if valid else None
+    return round_half_up(sum(valid) / len(valid)) if valid else None
 
 
 def _remarks_for(final):
@@ -382,7 +382,7 @@ def _summary_of_ratings_data(teacher):
         subject_cells = [rows_by_mapping.get(subject.mapping_id, empty_cell) for subject in subjects]
 
         finals = [row['final'] for row in subject_rows if row['final'] is not None]
-        general_average = round(sum(finals) / len(finals)) if (all_finals_ready and finals) else None
+        general_average = round_half_up(sum(finals) / len(finals)) if (all_finals_ready and finals) else None
 
         student_rows.append({
             'student': student,
@@ -506,7 +506,7 @@ def view_sf9(request, student_lrn):
     core_rows, elective_rows = _split_core_elective(subject_rows)
 
     finals = [row['final'] for row in subject_rows if row['final'] is not None]
-    general_average = round(sum(finals) / len(finals)) if (all_finals_ready and finals) else None
+    general_average = round_half_up(sum(finals) / len(finals)) if (all_finals_ready and finals) else None
 
     school_profile_id = section.school_profile_id if section else teacher.school_profile_id
     attendance_rows = _attendance_rows(student_lrn, school_profile_id)
@@ -553,7 +553,7 @@ def view_sf10(request, student_lrn):
         subject_rows = _build_subject_rows(student_lrn, grade_level=grade_level)
         all_finals_ready = _gate_finals_pending_term3(subject_rows)
         finals = [row['final'] for row in subject_rows if row['final'] is not None]
-        general_average = round(sum(finals) / len(finals), 2) if (all_finals_ready and finals) else None
+        general_average = round_half_up(sum(finals) / len(finals), 2) if (all_finals_ready and finals) else None
         core_rows, elective_rows = _split_core_elective(subject_rows)
         grade_level_sections.append({
             'grade_level': grade_level,
