@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}MY ENROLLMENT QUEUE{% endblock %}
+
+{% block content %}
+<a href="{% url 'tools' %}" class="btn ghost">← Tools</a>
+
+<h1 style="margin-top: var(--space-4);">My Enrollment Queue</h1>
+<p>Applications assigned to you as processing personnel. Schedule the applicant's personal appearance, then
+    record Enrolled, Reject, or Other once they've reported.</p>
+
+{% if queue %}
+<div style="overflow-x: auto;">
+<table style="margin-top: var(--space-3);">
+    <thead>
+        <tr>
+            <th>Applicant</th>
+            <th>Grade Level</th>
+            <th>Status</th>
+            <th>Submitted</th>
+            <th>Schedule</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for app in queue %}
+        <tr>
+            <td>{{ app.full_name }}</td>
+            <td>{{ app.grade_level }}</td>
+            <td>
+                {% if app.status == 'pending' %}<span class="pill warn">Pending</span>
+                {% elif app.status == 'scheduled' %}<span class="pill">Scheduled</span>
+                {% elif app.status == 'enrolled' %}<span class="pill good">Enrolled</span>
+                {% elif app.status == 'rejected' %}<span class="pill risk">Rejected</span>
+                {% elif app.status == 'other' %}<span class="pill">Other</span>
+                {% endif %}
+            </td>
+            <td>{{ app.submitted_at|date:"M d, Y" }}</td>
+            <td>
+                {% if app.appearance_date %}{{ app.appearance_date|date:"M d, Y" }} · {{ app.appearance_time|time:"g:i A" }}
+                {% else %}—
+                {% endif %}
+            </td>
+            <td><a href="{% url 'school_enrollment_process' app.application_id %}" class="btn ghost">Process</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p style="margin-top: var(--space-3);">No applications are assigned to you right now.</p>
+{% endif %}
+{% endblock %}

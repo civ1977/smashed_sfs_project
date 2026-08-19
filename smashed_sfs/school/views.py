@@ -7,13 +7,17 @@ from collections import defaultdict
 
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.contrib import messages
+from django.core.mail import send_mail
+from django.conf import settings
 from django.db.models import Q, Count, Case, When, Value, IntegerField
 from django.db.models.functions import TruncMonth
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from datetime import date, datetime
 
@@ -25,7 +29,11 @@ from accounts.views import (
 from students.models import SchoolProfile, Section, Student
 from grades.models import Grade, SubjectMapping, TeacherSubjectAssignment, SchoolCalendarException, SubjectTestMaxScore, AncillaryTask, AncillaryTaskSchedule
 from grades.views import MONTH_NAMES, _score_stats, WEEKDAYS
-from .models import TeacherAccountAuditLog, SectionAuditLog, TimeSlot, ScheduleRequirement, ScheduleEntry
+from portal.models import StudentAccount
+from .models import (
+    TeacherAccountAuditLog, SectionAuditLog, TimeSlot, ScheduleRequirement, ScheduleEntry,
+    EnrollmentAssignment, EnrollmentApplication,
+)
 from . import scheduler
 
 
@@ -1154,6 +1162,269 @@ def school_ancillary_tasks(request):
             teacher_rows.append({'teacher': s, 'tasks': task_rows})
 
     return render(request, 'school/ancillary_tasks.html', {'teacher_rows': teacher_rows})
+
+
+# ---------------------------------------------------------------------------
+# Enrollment - real persistence: EnrollmentAssignment/EnrollmentApplication
+# (school/models.py) and SchoolProfile.enrollment_enabled (students/models.py).
+# An application deliberately holds the applicant's full submitted info
+# directly rather than a Student FK - Student.section_id/adviser_id are
+# required fields an enrollee doesn't have yet, so turning an application
+# into a real Student row (and picking their section) stays a separate,
+# manual step for a registrar via the existing Sections/Students pages.
+# ---------------------------------------------------------------------------
+
+def _scope_label(scope_code):
+    return 'Whole School' if scope_code == 'all' else f'Grade {scope_code}'
+
+
+def _assignees_for_grade(assignments, grade_level):
+    """Names of everyone assigned to process this grade level, from a list
+    of EnrollmentAssignment rows already annotated with `.teacher_name` (see
+    _assignments_with_names) - a Whole School (scope_code 'all') assignment
+    counts for every grade level. Order-preserving de-dupe so a name doesn't
+    repeat if assigned both ways."""
+    names = [a.teacher_name for a in assignments if a.scope_code in ('all', grade_level)]
+    seen = set()
+    result = []
+    for name in names:
+        if name not in seen:
+            seen.add(name)
+            result.append(name)
+    return result
+
+
+def _assignments_with_names(school_profile_id):
+    """EnrollmentAssignment has no FK to Teacher (no-FK convention across
+    this codebase), so stamp each row with .teacher_name/.scope_label here
+    rather than in the template, which can't do the lookup itself."""
+    assignments = list(EnrollmentAssignment.objects.filter(school_profile_id=school_profile_id))
+    names_by_id = {
+        t.teacher_id: t.full_name for t in Teacher.objects.filter(
+            teacher_id__in=[a.teacher_id for a in assignments]
+        )
+    }
+    for a in assignments:
+        a.teacher_name = names_by_id.get(a.teacher_id, 'Unknown')
+        a.scope_label = _scope_label(a.scope_code)
+    return assignments
+
+
+def _get_any_teacher(request):
+    """Resolve the requesting Teacher without a role restriction - used by
+    the enrollment-processing views, which any assigned personnel (adviser,
+    subject teacher, non-teaching staff) or school admin can reach."""
+    try:
+        teacher = Teacher.objects.get(username=request.user.username)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return None, redirect('dashboard')
+    return teacher, None
+
+
+def _send_enrollment_email(to_email, subject, message):
+    """Best-effort notification - fail_silently=True so a misconfigured
+    SMTP server never blocks the actual enrollment action (toggle, assign,
+    schedule, decide) that triggered it."""
+    if not to_email:
+        return
+    send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [to_email], fail_silently=True)
+
+
+@login_required
+def school_enrollment(request):
+    """Registrar/Principal/Non-Teaching Officer view: enable/disable, assign
+    personnel (whole school or per grade level), and the applicant queue."""
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    school_profile = SchoolProfile.objects.filter(profile_id=teacher.school_profile_id).first()
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'toggle_enrollment' and school_profile:
+            school_profile.enrollment_enabled = not school_profile.enrollment_enabled
+            school_profile.save(update_fields=['enrollment_enabled'])
+            messages.success(request, 'Enrollment is now {}.'.format(
+                'open' if school_profile.enrollment_enabled else 'closed'
+            ))
+        elif action == 'assign_personnel':
+            teacher_id = request.POST.get('teacher_id')
+            scope_code = request.POST.get('scope')
+            assigned_teacher = Teacher.objects.filter(
+                teacher_id=teacher_id, school_profile_id=teacher.school_profile_id
+            ).first()
+            if assigned_teacher and scope_code:
+                _assignment, created = EnrollmentAssignment.objects.get_or_create(
+                    school_profile_id=teacher.school_profile_id,
+                    teacher_id=assigned_teacher.teacher_id,
+                    scope_code=scope_code,
+                    defaults={'assigned_by': teacher.teacher_id},
+                )
+                scope_label = _scope_label(scope_code)
+                if created:
+                    messages.success(request, f'{assigned_teacher.full_name} added to {scope_label}.')
+                else:
+                    messages.info(request, f'{assigned_teacher.full_name} is already assigned to {scope_label}.')
+            else:
+                messages.error(request, 'Select both a personnel and a scope.')
+        elif action == 'unassign_personnel':
+            scope_code = request.POST.get('scope_code')
+            unassign_teacher_id = request.POST.get('teacher_id')
+            deleted, _ = EnrollmentAssignment.objects.filter(
+                school_profile_id=teacher.school_profile_id,
+                scope_code=scope_code,
+                teacher_id=unassign_teacher_id,
+            ).delete()
+            if deleted:
+                removed = Teacher.objects.filter(teacher_id=unassign_teacher_id).first()
+                messages.success(
+                    request,
+                    f'{removed.full_name if removed else "Personnel"} removed from {_scope_label(scope_code)}.',
+                )
+        return redirect('school_enrollment')
+
+    staff = Teacher.objects.filter(
+        school_profile_id=teacher.school_profile_id,
+        role__in=(Teacher.ROLE_NON_TEACHING, Teacher.ROLE_ADVISER, Teacher.ROLE_SUBJECT_TEACHER),
+    ).order_by('full_name')
+    grade_levels = sorted(set(
+        Section.objects.filter(school_profile_id=teacher.school_profile_id).values_list('grade_level', flat=True)
+    ))
+
+    applications = EnrollmentApplication.objects.filter(school_profile_id=teacher.school_profile_id)
+    queue_grade_levels = sorted(set(applications.values_list('grade_level', flat=True)))
+    grade_queues = [
+        {
+            'grade_level': gl,
+            'total': applications.filter(grade_level=gl).count(),
+            'pending': applications.filter(grade_level=gl, status=EnrollmentApplication.STATUS_PENDING).count(),
+        }
+        for gl in queue_grade_levels
+    ]
+
+    return render(request, 'school/enrollment.html', {
+        'enrollment_enabled': bool(school_profile and school_profile.enrollment_enabled),
+        'staff': staff,
+        'grade_levels': grade_levels,
+        'assignments': _assignments_with_names(teacher.school_profile_id),
+        'grade_queues': grade_queues,
+    })
+
+
+@login_required
+def school_enrollment_queue(request, grade_level):
+    """Applicant queue for a single grade level, reached via the per-grade
+    buttons on the main Enrollment page."""
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    assignments = _assignments_with_names(teacher.school_profile_id)
+    applications = EnrollmentApplication.objects.filter(
+        school_profile_id=teacher.school_profile_id, grade_level=grade_level
+    )
+    queue = [
+        {'application': app, 'assigned_display': ', '.join(_assignees_for_grade(assignments, grade_level)) or None}
+        for app in applications
+    ]
+
+    return render(request, 'school/enrollment_queue.html', {
+        'grade_level': grade_level,
+        'queue': queue,
+    })
+
+
+@login_required
+def school_enrollment_my_queue(request):
+    """Landing page for any assigned personnel (adviser/subject teacher/
+    non-teaching staff) reached from their Tools tab: applications for any
+    grade level (or the whole school) currently assigned to them - a grade
+    can have several assignees, so this isn't a 1:1 "owner" match."""
+    teacher, error = _get_any_teacher(request)
+    if error:
+        return error
+
+    my_scopes = set(EnrollmentAssignment.objects.filter(
+        school_profile_id=teacher.school_profile_id, teacher_id=teacher.teacher_id
+    ).values_list('scope_code', flat=True))
+
+    applications = EnrollmentApplication.objects.filter(school_profile_id=teacher.school_profile_id)
+    if 'all' not in my_scopes:
+        applications = applications.filter(grade_level__in=my_scopes)
+
+    return render(request, 'school/enrollment_my_queue.html', {
+        'teacher': teacher,
+        'queue': applications,
+    })
+
+
+@login_required
+def school_enrollment_process(request, application_id):
+    """Any assigned personnel (adviser/subject teacher/non-teaching staff)
+    or school admin can process an application: schedule a personal
+    appearance, then decide Enrolled / Reject / Other once they show up."""
+    teacher, error = _get_any_teacher(request)
+    if error:
+        return error
+
+    is_school_admin = bool(teacher and (
+        teacher.role in (Teacher.ROLE_REGISTRAR, Teacher.ROLE_PRINCIPAL)
+        or (teacher.role == Teacher.ROLE_NON_TEACHING and teacher.is_officer)
+    ))
+
+    application = EnrollmentApplication.objects.filter(
+        application_id=application_id, school_profile_id=teacher.school_profile_id
+    ).first()
+    if not application:
+        messages.error(request, 'Application not found.')
+        return redirect('school_enrollment' if is_school_admin else 'school_enrollment_my_queue')
+
+    applicant_email = User.objects.filter(
+        id__in=StudentAccount.objects.filter(lrn=application.lrn).values_list('user_id', flat=True)
+    ).values_list('email', flat=True).first()
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'schedule':
+            appearance_date = request.POST.get('appearance_date')
+            appearance_time = request.POST.get('appearance_time')
+            if appearance_date and appearance_time:
+                application.appearance_date = datetime.strptime(appearance_date, '%Y-%m-%d').date()
+                application.appearance_time = datetime.strptime(appearance_time, '%H:%M').time()
+                application.scheduled_by = teacher.teacher_id
+                application.scheduled_at = timezone.now()
+                if application.status == EnrollmentApplication.STATUS_PENDING:
+                    application.status = EnrollmentApplication.STATUS_SCHEDULED
+                application.save()
+                when = f"{application.appearance_date.strftime('%B %d, %Y')} at {application.appearance_time.strftime('%I:%M %p').lstrip('0')}"
+                _send_enrollment_email(
+                    applicant_email,
+                    'Enrollment: Personal Appearance Schedule',
+                    f'Hello {application.given_name},\n\n'
+                    f'Please report in person for your enrollment on {when} to complete your application.\n\n'
+                    'Thank you.',
+                )
+                messages.success(request, 'Personal appearance scheduled and the applicant has been notified by email.')
+            else:
+                messages.error(request, 'Select both a date and a time.')
+        elif action in ('enrolled', 'rejected', 'other'):
+            application.status = action
+            application.decided_by = teacher.teacher_id
+            application.decided_at = timezone.now()
+            application.save()
+            messages.success(request, f'Application marked as "{action}".')
+        return redirect('school_enrollment_process', application_id=application_id)
+
+    assignments = _assignments_with_names(teacher.school_profile_id)
+    assigned_names = _assignees_for_grade(assignments, application.grade_level)
+
+    return render(request, 'school/enrollment_process.html', {
+        'application': application,
+        'assigned_display': ', '.join(assigned_names) if assigned_names else None,
+        'is_school_admin': is_school_admin,
+    })
 
 
 @login_required

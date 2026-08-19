@@ -1,6 +1,101 @@
 from django.db import models
 
 
+class EnrollmentAssignment(models.Model):
+    """One (teacher, scope) pairing on the Enrollment page's Assign
+    Personnel form - who's allowed to process which applications.
+    scope_code is either 'all' (Whole School) or a grade_level string; more
+    than one teacher can be assigned to the same scope, and the same
+    teacher can hold several scope rows (e.g. Grade 11 and Grade 12
+    separately). unique_together is the same "already assigned" guard the
+    UI enforces, kept here too since this is the actual source of truth."""
+
+    assignment_id = models.AutoField(primary_key=True)
+    school_profile_id = models.IntegerField()
+    teacher_id = models.IntegerField()
+    scope_code = models.CharField(max_length=10)
+    assigned_by = models.IntegerField()
+    assigned_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'enrollment_assignment'
+        unique_together = ('school_profile_id', 'teacher_id', 'scope_code')
+
+    def __str__(self):
+        return f'teacher {self.teacher_id} -> {self.scope_code}'
+
+
+class EnrollmentApplication(models.Model):
+    """One learner's submission from /portal/enrollment/ - deliberately
+    holds the applicant's full submitted info directly (rather than a
+    Student FK) since Student.section_id/adviser_id are required fields an
+    enrollee doesn't have yet; a real Student row only gets created
+    separately (via the existing Sections/Students admin pages) once a
+    registrar decides where to place them. lrn links back to the Student
+    record the application was filed from (portal_register already
+    requires the LRN to exist), used only to prefill the form and is not
+    itself a foreign key, matching this codebase's no-FK convention."""
+
+    STATUS_PENDING = 'pending'
+    STATUS_SCHEDULED = 'scheduled'
+    STATUS_ENROLLED = 'enrolled'
+    STATUS_REJECTED = 'rejected'
+    STATUS_OTHER = 'other'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_SCHEDULED, 'Scheduled'),
+        (STATUS_ENROLLED, 'Enrolled'),
+        (STATUS_REJECTED, 'Rejected'),
+        (STATUS_OTHER, 'Other'),
+    ]
+
+    SEX_CHOICES = [
+        ('MALE', 'Male'),
+        ('FEMALE', 'Female'),
+    ]
+
+    application_id = models.AutoField(primary_key=True)
+    school_profile_id = models.IntegerField()
+    lrn = models.CharField(max_length=12)
+
+    surname = models.CharField(max_length=100)
+    given_name = models.CharField(max_length=100)
+    middle_name = models.CharField(max_length=100, blank=True, default='')
+    extension = models.CharField(max_length=10, blank=True, default='')
+    sex = models.CharField(max_length=10, choices=SEX_CHOICES)
+    birthday = models.DateField()
+    address = models.CharField(max_length=300)
+
+    grade_level = models.CharField(max_length=10)
+    track = models.CharField(max_length=50, blank=True, default='')
+    strand = models.CharField(max_length=50, blank=True, default='')
+    previous_school = models.CharField(max_length=200, blank=True, default='')
+
+    guardian_name = models.CharField(max_length=100)
+    guardian_relationship = models.CharField(max_length=50, blank=True, default='')
+    guardian_contact = models.CharField(max_length=50)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    appearance_date = models.DateField(blank=True, null=True)
+    appearance_time = models.TimeField(blank=True, null=True)
+    scheduled_by = models.IntegerField(blank=True, null=True)
+    scheduled_at = models.DateTimeField(blank=True, null=True)
+    decided_by = models.IntegerField(blank=True, null=True)
+    decided_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'enrollment_application'
+        ordering = ['-submitted_at']
+
+    @property
+    def full_name(self):
+        return f'{self.surname}, {self.given_name}'
+
+    def __str__(self):
+        return f'{self.full_name} ({self.get_status_display()})'
+
+
 class TimeSlot(models.Model):
     """One numbered period in a school's daily bell schedule (e.g. "1st,
     7:30-8:30"). is_break marks a Recess/Lunch row, which the scheduling

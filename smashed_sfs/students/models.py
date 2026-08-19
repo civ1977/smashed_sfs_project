@@ -26,6 +26,11 @@ class SchoolProfile(models.Model):
     # themselves still render either way; only the label row is affected.
     show_core_heading = models.BooleanField(default=True)
     show_elective_heading = models.BooleanField(default=True)
+    # Toggled from the Enrollment page (school/views.py's school_enrollment) -
+    # gates whether /portal/enrollment/ accepts submissions. Off by default
+    # so a newly-seeded school doesn't silently accept applications before
+    # a registrar/principal/officer has actually reviewed the process.
+    enrollment_enabled = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'school_profile'

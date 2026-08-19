@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}ENROLLMENT{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 480px; margin-top: var(--space-4); text-align: center;">
+    <h1 style="font-size: 22px;">Application Submitted</h1>
+    <p>Your enrollment application has been received and is now queued for processing by your school.</p>
+    <p><small>A confirmation email will be sent to your registered email address. You'll receive another email once a personal-appearance schedule is set.</small></p>
+    <a href="{% url 'portal_grades' %}" class="btn" style="margin-top: var(--space-3);">Back to My Grades</a>
+</div>
+{% endblock %}

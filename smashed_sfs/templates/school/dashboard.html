@@ -37,5 +37,15 @@
         <p>Auto-build and fine-tune the weekly teacher/section timetable</p>
         <a href="{% url 'school_scheduling' %}" class="btn">Open Scheduler</a>
     </div>
+    <div class="card">
+        <h3>School Form 7</h3>
+        <p>Every Adviser's and Subject Teacher's self-added ancillary duties and schedules, consolidated for SF7</p>
+        <a href="{% url 'school_ancillary_tasks' %}" class="btn">View Consolidated SF7</a>
+    </div>
+    <div class="card">
+        <h3>Enrollment</h3>
+        <p>Open/close enrollment, assign personnel, and process the applicant queue</p>
+        <a href="{% url 'school_enrollment' %}" class="btn">Manage Enrollment</a>
+    </div>
 </div>
 {% endblock %}

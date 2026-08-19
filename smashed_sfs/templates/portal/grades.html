@@ -9,6 +9,7 @@
         <div class="ratings-eyebrow">Learner's Academic Ratings</div>
         <h1 class="ratings-name">{{ student.surname }}, {{ student.name }}</h1>
         <p class="ratings-lrn">LRN: <span class="mono">{{ student.lrn|stringformat:"s" }}</span></p>
+        <a href="{% url 'portal_enrollment_form' %}" class="btn btn-success" style="margin-top: var(--space-2);">Enrollment</a>
     </div>
     {% if general_average %}
     <div class="ratings-avg-tile {% if general_average >= 75 %}ratings-avg-good{% else %}ratings-avg-risk{% endif %}">

@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}PROCESS ENROLLMENT{% endblock %}
+
+{% block content %}
+{% if is_school_admin %}
+<a href="{% url 'school_enrollment' %}" class="btn ghost">← Enrollment</a>
+{% else %}
+<a href="{% url 'school_enrollment_my_queue' %}" class="btn ghost">← My Enrollment Queue</a>
+{% endif %}
+
+<h1 style="margin-top: var(--space-4);">{{ application.full_name }}</h1>
+
+<div style="display: flex; gap: var(--space-2); align-items: center; margin: var(--space-3) 0;">
+    {% if application.status == 'pending' %}<span class="pill warn">Pending</span>
+    {% elif application.status == 'scheduled' %}<span class="pill">Scheduled</span>
+    {% elif application.status == 'enrolled' %}<span class="pill good">Enrolled</span>
+    {% elif application.status == 'rejected' %}<span class="pill risk">Rejected</span>
+    {% elif application.status == 'other' %}<span class="pill">Other</span>
+    {% endif %}
+    <span style="color: var(--ink-faint); font-size: 13px;">Submitted {{ application.submitted_at|date:"M d, Y" }}</span>
+</div>
+
+<div class="card" style="max-width: 640px;">
+    <h3>Submitted Information</h3>
+    <table>
+        <tr><td style="color: var(--ink-faint);">Grade Level</td><td>{{ application.grade_level }}</td></tr>
+        <tr><td style="color: var(--ink-faint);">Track/Strand</td><td>{{ application.track }}{% if application.track and application.strand %} / {% endif %}{{ application.strand }}</td></tr>
+        <tr><td style="color: var(--ink-faint);">Sex</td><td>{{ application.get_sex_display }}</td></tr>
+        <tr><td style="color: var(--ink-faint);">Birthday</td><td>{{ application.birthday|date:"F j, Y" }}</td></tr>
+        <tr><td style="color: var(--ink-faint);">Address</td><td>{{ application.address }}</td></tr>
+        <tr><td style="color: var(--ink-faint);">Previous School</td><td>{{ application.previous_school }}</td></tr>
+        <tr><td style="color: var(--ink-faint);">Guardian Name</td><td>{{ application.guardian_name }}</td></tr>
+        <tr><td style="color: var(--ink-faint);">Guardian Contact</td><td>{{ application.guardian_contact }}</td></tr>
+        <tr><td style="color: var(--ink-faint);">Assigned Personnel</td><td>{{ assigned_display|default:"— Unassigned —" }}</td></tr>
+    </table>
+</div>
+
+<div class="card" style="max-width: 480px; margin-top: var(--space-4);">
+    <h3>Personal Appearance</h3>
+    <p><small>Schedule when the applicant needs to report in person to verify their information. An email is sent to the applicant when this is saved.</small></p>
+    <form method="POST" style="display: flex; gap: var(--space-2); align-items: flex-end; flex-wrap: wrap;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="schedule">
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="id_appearance_date">Date</label>
+            <input type="date" id="id_appearance_date" name="appearance_date" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="id_appearance_time">Time</label>
+            <input type="time" id="id_appearance_time" name="appearance_time" required>
+        </div>
+        <button type="submit" class="btn">Save &amp; Notify Applicant</button>
+    </form>
+    {% if application.appearance_date %}
+    <p style="margin-top: var(--space-3);"><strong>Currently scheduled:</strong> {{ application.appearance_date|date:"M d, Y" }} · {{ application.appearance_time|time:"g:i A" }}</p>
+    {% endif %}
+</div>
+
+<div class="card" style="max-width: 480px; margin-top: var(--space-4);">
+    <h3>Decision</h3>
+    <p><small>Record the outcome once the applicant has appeared in person.</small></p>
+    <form method="POST" style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+        {% csrf_token %}
+        <button type="submit" name="action" value="enrolled" class="btn btn-success">Enrolled</button>
+        <button type="submit" name="action" value="rejected" class="btn risk">Reject</button>
+        <button type="submit" name="action" value="other" class="btn ghost">Other</button>
+    </form>
+</div>
+{% endblock %}

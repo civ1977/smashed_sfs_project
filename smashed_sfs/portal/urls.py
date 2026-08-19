@@ -6,4 +6,5 @@ urlpatterns = [
     path('pending/', views.portal_pending, name='portal_pending'),
     path('dashboard/', views.portal_dashboard, name='portal_dashboard'),
     path('grades/', views.portal_grades, name='portal_grades'),
+    path('enrollment/', views.portal_enrollment_form, name='portal_enrollment_form'),
 ]

@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}ENROLLMENT{% endblock %}
+
+{% block content %}
+<a href="{% url 'portal_grades' %}" class="btn ghost">← Back</a>
+
+<h1 style="margin-top: var(--space-4);">Enrollment Form</h1>
+<p>Fill in your complete information below. Once submitted, your application goes to your school for processing -
+    you'll be notified by email when a personal-appearance schedule is set.</p>
+
+<div class="card" style="max-width: 640px; margin-top: var(--space-4);">
+    <form method="POST">
+        {% csrf_token %}
+
+        <h3>Personal Information</h3>
+        <div class="form-group">
+            <label for="id_enroll_surname">Surname</label>
+            <input type="text" id="id_enroll_surname" name="surname" value="{{ student.surname|default:'' }}" required>
+        </div>
+        <div class="form-group">
+            <label for="id_enroll_given_name">Given Name</label>
+            <input type="text" id="id_enroll_given_name" name="given_name" value="{{ student.name|default:'' }}" required>
+        </div>
+        <div class="form-group">
+            <label for="id_enroll_middle_name">Middle Name</label>
+            <input type="text" id="id_enroll_middle_name" name="middle_name" value="{{ student.middle_name|default:'' }}">
+        </div>
+        <div class="form-group">
+            <label for="id_enroll_extension">Extension (Jr., III, etc.)</label>
+            <input type="text" id="id_enroll_extension" name="extension" value="{{ student.extension|default:'' }}">
+        </div>
+        <div class="form-group">
+            <label for="id_enroll_sex">Sex</label>
+            <select id="id_enroll_sex" name="sex" required>
+                <option value="MALE" {% if student.sex == 'MALE' %}selected{% endif %}>Male</option>
+                <option value="FEMALE" {% if student.sex == 'FEMALE' %}selected{% endif %}>Female</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="id_enroll_birthday">Birthday</label>
+            <input type="date" id="id_enroll_birthday" name="birthday" value="{{ student.birthday|date:'Y-m-d'|default:'' }}" required>
+        </div>
+        <div class="form-group">
+            <label for="id_enroll_address">Home Address</label>
+            <input type="text" id="id_enroll_address" name="address" required>
+        </div>
+
+        <h3 style="margin-top: var(--space-5);">Enrollment Details</h3>
+        <div class="form-group">
+            <label for="id_enroll_grade_level">Grade Level Enrolling Into</label>
+            <select id="id_enroll_grade_level" name="grade_level" required>
+                <option value="">— Select —</option>
+                <option value="11">Grade 11</option>
+                <option value="12">Grade 12</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="id_enroll_track">Track</label>
+            <input type="text" id="id_enroll_track" name="track" placeholder="e.g. Academic">
+        </div>
+        <div class="form-group">
+            <label for="id_enroll_strand">Strand</label>
+            <input type="text" id="id_enroll_strand" name="strand" placeholder="e.g. STEM">
+        </div>
+        <div class="form-group">
+            <label for="id_enroll_previous_school">Previous School</label>
+            <input type="text" id="id_enroll_previous_school" name="previous_school" value="{{ student.school_g10|default:'' }}">
+        </div>
+
+        <h3 style="margin-top: var(--space-5);">Parent/Guardian Information</h3>
+        <div class="form-group">
+            <label for="id_enroll_guardian_name">Guardian Name</label>
+            <input type="text" id="id_enroll_guardian_name" name="guardian_name" required>
+        </div>
+        <div class="form-group">
+            <label for="id_enroll_guardian_relationship">Relationship to Learner</label>
+            <input type="text" id="id_enroll_guardian_relationship" name="guardian_relationship" placeholder="e.g. Mother, Father, Guardian">
+        </div>
+        <div class="form-group">
+            <label for="id_enroll_guardian_contact">Guardian Contact Number</label>
+            <input type="text" id="id_enroll_guardian_contact" name="guardian_contact" required>
+        </div>
+
+        <button type="submit" class="btn btn-success" style="margin-top: var(--space-4);">Submit Application</button>
+    </form>
+</div>
+{% endblock %}

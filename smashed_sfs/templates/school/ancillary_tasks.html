@@ -1,10 +1,12 @@
 {% extends 'base.html' %}
 
-{% block breadcrumb %}ANCILLARY TASKS{% endblock %}
+{% block breadcrumb %}SCHOOL FORM 7{% endblock %}
 
 {% block content %}
-<h1>Ancillary Tasks</h1>
-<p><small>Every Adviser's and Subject Teacher's self-added ancillary duties (Class Adviser, IT Coordinator, GAD Focal Person, etc.) and schedules, consolidated for School Form 7. Each teacher manages their own list from their My Subject Teaching page.</small></p>
+<a href="{% url 'school_dashboard' %}" class="btn ghost">← Dashboard</a>
+
+<h1>School Form 7</h1>
+<p><small>Every Adviser's and Subject Teacher's self-added ancillary duties (Class Adviser, IT Coordinator, GAD Focal Person, etc.) and schedules, consolidated school-wide. Each teacher manages their own list from their My Subject Teaching page.</small></p>
 
 {% if teacher_rows %}
 <table style="margin-top: var(--space-4);">

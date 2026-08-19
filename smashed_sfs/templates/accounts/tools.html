@@ -5,31 +5,45 @@
 {% block content %}
 <h1>Tools</h1>
 
-<div class="card" style="max-width: 480px;">
-    <h3>Daily Time Record</h3>
-    <p><small>View a printable Civil Service Form No. 48 Daily Time Record, pre-filled with your name.</small></p>
-    <a href="{% url 'daily_time_record' %}" class="btn">Daily Time Record</a>
-</div>
-
 {% if is_adviser %}
-<div class="card" style="max-width: 480px; margin-top: var(--space-4);">
-    <h3>Classroom Details</h3>
-    <p><small>Update your section's grade level, track, strand, section name, and modality.</small></p>
-    <a href="{% url 'edit_my_section' %}" class="btn">Edit Classroom Details</a>
-</div>
+<h2>Classroom</h2>
+<div class="dashboard-grid">
+    <div class="card">
+        <h3>Classroom Details</h3>
+        <p><small>Update your section's grade level, track, strand, section name, and modality.</small></p>
+        <a href="{% url 'edit_my_section' %}" class="btn">Edit Classroom Details</a>
+    </div>
 
-<div class="card" style="max-width: 480px; margin-top: var(--space-4);">
-    <h3>Arrange Subjects</h3>
-    <p><small>Set the order your subjects appear in on the gradesheet, SF9, and SF10.</small></p>
-    <a href="{% url 'arrange_subjects' %}" class="btn">Arrange Subjects</a>
+    <div class="card">
+        <h3>Arrange Subjects</h3>
+        <p><small>Set the order your subjects appear in on the gradesheet, SF9, and SF10.</small></p>
+        <a href="{% url 'arrange_subjects' %}" class="btn">Arrange Subjects</a>
+    </div>
 </div>
 {% endif %}
 
-{% if is_school_admin %}
-<div class="card" style="max-width: 480px; margin-top: var(--space-4);">
-    <h3>School Data</h3>
-    <p><small>Update your school's name, location, and the registrar/principal/SDS names shown on report cards.</small></p>
-    <a href="{% url 'edit_school_profile' %}" class="btn">Edit School Data</a>
+<h2 style="margin-top: var(--space-5);">School</h2>
+<div class="dashboard-grid">
+    <div class="card">
+        <h3>Daily Time Record</h3>
+        <p><small>View a printable Civil Service Form No. 48 Daily Time Record, pre-filled with your name.</small></p>
+        <a href="{% url 'daily_time_record' %}" class="btn">Daily Time Record</a>
+    </div>
+
+    {% if is_adviser or is_subject_teacher or is_non_teaching_staff %}
+    <div class="card">
+        <h3>Enrollment</h3>
+        <p><small>If a registrar/principal/officer has assigned you to process enrollment applications, view and act on your queue here.</small></p>
+        <a href="{% url 'school_enrollment_my_queue' %}" class="btn">My Enrollment Queue</a>
+    </div>
+    {% endif %}
+
+    {% if is_school_admin %}
+    <div class="card">
+        <h3>School Data</h3>
+        <p><small>Update your school's name, location, and the registrar/principal/SDS names shown on report cards.</small></p>
+        <a href="{% url 'edit_school_profile' %}" class="btn">Edit School Data</a>
+    </div>
+    {% endif %}
 </div>
-{% endif %}
 {% endblock %}

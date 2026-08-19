@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}ENROLLMENT / GRADE {{ grade_level }}{% endblock %}
+
+{% block content %}
+<a href="{% url 'school_enrollment' %}" class="btn ghost">← Enrollment</a>
+
+<h1 style="margin-top: var(--space-4);">Grade {{ grade_level }} Applicants</h1>
+
+{% if queue %}
+<div style="overflow-x: auto;">
+<table style="margin-top: var(--space-3);">
+    <thead>
+        <tr>
+            <th>Applicant</th>
+            <th>Status</th>
+            <th>Assigned To</th>
+            <th>Submitted</th>
+            <th>Schedule</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in queue %}
+        {% with app=item.application %}
+        <tr>
+            <td>{{ app.full_name }}</td>
+            <td>
+                {% if app.status == 'pending' %}<span class="pill warn">Pending</span>
+                {% elif app.status == 'scheduled' %}<span class="pill">Scheduled</span>
+                {% elif app.status == 'enrolled' %}<span class="pill good">Enrolled</span>
+                {% elif app.status == 'rejected' %}<span class="pill risk">Rejected</span>
+                {% elif app.status == 'other' %}<span class="pill">Other</span>
+                {% endif %}
+            </td>
+            <td>{{ item.assigned_display|default:"—" }}</td>
+            <td>{{ app.submitted_at|date:"M d, Y" }}</td>
+            <td>
+                {% if app.appearance_date %}{{ app.appearance_date|date:"M d, Y" }} · {{ app.appearance_time|time:"g:i A" }}
+                {% else %}—
+                {% endif %}
+            </td>
+            <td><a href="{% url 'school_enrollment_process' app.application_id %}" class="btn ghost">Process</a></td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p style="margin-top: var(--space-3);">No applicants for this grade level yet.</p>
+{% endif %}
+{% endblock %}

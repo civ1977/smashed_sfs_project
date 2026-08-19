@@ -38,8 +38,8 @@
 {% endif %}
 
 {% if can_manage_tasks %}
-<h2 style="margin-top: var(--space-6);">Ancillary Tasks</h2>
-<p><small>Additional duties beyond subject teaching (Class Adviser, IT Coordinator, GAD Focal Person, etc.) - these feed School Form 7 alongside your subject-teaching schedule.</small></p>
+<h2 style="margin-top: var(--space-6);">School Form 7</h2>
+<p><small>Additional duties beyond subject teaching (Class Adviser, IT Coordinator, GAD Focal Person, etc.) - these feed your School Form 7 entry alongside your subject-teaching schedule.</small></p>
 
 <form method="POST" action="{% url 'add_ancillary_task' %}" style="display: flex; gap: var(--space-2); align-items: flex-end; margin-top: var(--space-3); max-width: 480px;">
     {% csrf_token %}
