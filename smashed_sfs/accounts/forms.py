@@ -36,13 +36,18 @@ class SchoolProfileForm(forms.ModelForm):
 
 class SchoolOfficialsForm(forms.ModelForm):
     """Subset of SchoolProfileForm's fields - lets a Class Adviser fill in
-    the principal/registrar/guidance counselor names from their own section
-    edit page, without granting them access to the rest of the school-wide
-    profile (which stays registrar/principal-only via SchoolProfileForm)."""
+    the principal/registrar/guidance counselor names, and correct the
+    school/division (e.g. after a transfer to a different station), from
+    their own section edit page - without granting them access to the rest
+    of the school-wide profile (school_id/school_year/region/district/
+    municipality etc. stay registrar/principal-only via SchoolProfileForm).
+    Note: school_name/division live on the shared SchoolProfile row, so an
+    edit here changes it for every teacher/student still linked to that
+    same school, not just the adviser editing it."""
 
     class Meta:
         model = SchoolProfile
-        fields = ['principal_name', 'registrar_name', 'guidance_counselor']
+        fields = ['school_name', 'division', 'principal_name', 'registrar_name', 'guidance_counselor']
 
 
 class SectionForm(forms.ModelForm):

@@ -13,7 +13,7 @@
         <h3>Your Section</h3>
 
         <div class="form-group">
-            <label>Section Name</label>
+            <label for="{{ section_form.section_name.id_for_label }}">Section Name</label>
             {{ section_form.section_name }}
             {% for error in section_form.section_name.errors %}
                 <small style="color: var(--risk);">{{ error }}</small>
@@ -21,7 +21,7 @@
         </div>
 
         <div class="form-group">
-            <label>{{ section_form.grade_level_choice.label }}</label>
+            <label for="{{ section_form.grade_level_choice.id_for_label }}">{{ section_form.grade_level_choice.label }}</label>
             {{ section_form.grade_level_choice }}
             {{ section_form.grade_level_new }}
             {% for error in section_form.grade_level_new.errors %}
@@ -30,7 +30,7 @@
         </div>
 
         <div class="form-group">
-            <label>{{ section_form.track_choice.label }}</label>
+            <label for="{{ section_form.track_choice.id_for_label }}">{{ section_form.track_choice.label }}</label>
             {{ section_form.track_choice }}
             {{ section_form.track_new }}
             {% for error in section_form.track_new.errors %}
@@ -39,7 +39,7 @@
         </div>
 
         <div class="form-group">
-            <label>{{ section_form.strand_choice.label }}</label>
+            <label for="{{ section_form.strand_choice.id_for_label }}">{{ section_form.strand_choice.label }}</label>
             {{ section_form.strand_choice }}
             {{ section_form.strand_new }}
             {% for error in section_form.strand_new.errors %}
@@ -48,7 +48,7 @@
         </div>
 
         <div class="form-group">
-            <label>{{ section_form.modality_choice.label }}</label>
+            <label for="{{ section_form.modality_choice.id_for_label }}">{{ section_form.modality_choice.label }}</label>
             {{ section_form.modality_choice }}
             {{ section_form.modality_new }}
             {% for error in section_form.modality_new.errors %}
@@ -60,9 +60,26 @@
     {% if officials_form %}
     <div class="card" style="margin-bottom: var(--space-5); max-width: 480px;">
         <h3>School Officials</h3>
+        <p><small>Includes your school's name and division - update these if you've transferred to a different station. Changing them updates the record for everyone at this school, not just you.</small></p>
 
         <div class="form-group">
-            <label>{{ officials_form.principal_name.label }}</label>
+            <label for="{{ officials_form.school_name.id_for_label }}">{{ officials_form.school_name.label }}</label>
+            {{ officials_form.school_name }}
+            {% for error in officials_form.school_name.errors %}
+                <small style="color: var(--risk);">{{ error }}</small>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ officials_form.division.id_for_label }}">{{ officials_form.division.label }}</label>
+            {{ officials_form.division }}
+            {% for error in officials_form.division.errors %}
+                <small style="color: var(--risk);">{{ error }}</small>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ officials_form.principal_name.id_for_label }}">{{ officials_form.principal_name.label }}</label>
             {{ officials_form.principal_name }}
             {% for error in officials_form.principal_name.errors %}
                 <small style="color: var(--risk);">{{ error }}</small>
@@ -70,7 +87,7 @@
         </div>
 
         <div class="form-group">
-            <label>{{ officials_form.registrar_name.label }}</label>
+            <label for="{{ officials_form.registrar_name.id_for_label }}">{{ officials_form.registrar_name.label }}</label>
             {{ officials_form.registrar_name }}
             {% for error in officials_form.registrar_name.errors %}
                 <small style="color: var(--risk);">{{ error }}</small>
@@ -78,7 +95,7 @@
         </div>
 
         <div class="form-group">
-            <label>{{ officials_form.guidance_counselor.label }}</label>
+            <label for="{{ officials_form.guidance_counselor.id_for_label }}">{{ officials_form.guidance_counselor.label }}</label>
             {{ officials_form.guidance_counselor }}
             {% for error in officials_form.guidance_counselor.errors %}
                 <small style="color: var(--risk);">{{ error }}</small>
