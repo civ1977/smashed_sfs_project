@@ -12,73 +12,289 @@
     {% if needs_school %}
     <div class="card" style="margin-bottom: var(--space-5);">
         <h3>School</h3>
+        <p><small>Once submitted, this creates a new school record - fill in your school's details below.</small></p>
 
-        <div class="form-group">
-            <label>{{ school_select_form.school_profile.label }}</label>
-            {{ school_select_form.school_profile }}
-            {% for error in school_select_form.school_profile.errors %}
-                <small style="color: var(--risk);">{{ error }}</small>
-            {% endfor %}
-            <small>Pick your school and its details fill in automatically. Only choose "+ Add a new school" if yours isn't listed.</small>
-        </div>
-
-        <div id="new-school-details">
-            <h4 id="new-school-details-heading">New school details</h4>
-            {% for field in school_create_form %}
+        <div>
             <div class="form-group">
-                <label>{{ field.label }}</label>
-                {{ field }}
-                {% for error in field.errors %}
+                <label for="{{ school_create_form.region.id_for_label }}">{{ school_create_form.region.label }}</label>
+                {{ school_create_form.region }}
+                {% for error in school_create_form.region.errors %}
                     <small style="color: var(--risk);">{{ error }}</small>
                 {% endfor %}
             </div>
-            {% endfor %}
+
+            <div class="form-group">
+                <label for="{{ school_create_form.division_choice.id_for_label }}">{{ school_create_form.division_choice.label }}</label>
+                {{ school_create_form.division_choice }}
+                {{ school_create_form.division_new }}
+                {% for error in school_create_form.division_new.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ school_create_form.municipality.id_for_label }}">{{ school_create_form.municipality.label }}</label>
+                {{ school_create_form.municipality }}
+                {% for error in school_create_form.municipality.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ school_create_form.district_choice.id_for_label }}">{{ school_create_form.district_choice.label }}</label>
+                {{ school_create_form.district_choice }}
+                {{ school_create_form.district_new }}
+                {% for error in school_create_form.district_new.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ school_create_form.school_choice.id_for_label }}">{{ school_create_form.school_choice.label }}</label>
+                {{ school_create_form.school_choice }}
+                {{ school_create_form.school_new }}
+                {% for error in school_create_form.school_new.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ school_create_form.school_id.id_for_label }}">{{ school_create_form.school_id.label }}</label>
+                {{ school_create_form.school_id }}
+                {% for error in school_create_form.school_id.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+                <small>Filled in automatically when you pick a School above - change it if needed.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="{{ school_create_form.school_year.id_for_label }}">{{ school_create_form.school_year.label }}</label>
+                {{ school_create_form.school_year }}
+                {% for error in school_create_form.school_year.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ school_create_form.registrar_name.id_for_label }}">{{ school_create_form.registrar_name.label }}</label>
+                {{ school_create_form.registrar_name }}
+                {% for error in school_create_form.registrar_name.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ school_create_form.registrar_designation.id_for_label }}">{{ school_create_form.registrar_designation.label }}</label>
+                {{ school_create_form.registrar_designation }}
+                {% for error in school_create_form.registrar_designation.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ school_create_form.guidance_counselor.id_for_label }}">{{ school_create_form.guidance_counselor.label }}</label>
+                {{ school_create_form.guidance_counselor }}
+                {% for error in school_create_form.guidance_counselor.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ school_create_form.principal_name.id_for_label }}">{{ school_create_form.principal_name.label }}</label>
+                {{ school_create_form.principal_name }}
+                {% for error in school_create_form.principal_name.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ school_create_form.principal_designation.id_for_label }}">{{ school_create_form.principal_designation.label }}</label>
+                {{ school_create_form.principal_designation }}
+                {% for error in school_create_form.principal_designation.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ school_create_form.sds_name.id_for_label }}">{{ school_create_form.sds_name.label }}</label>
+                {{ school_create_form.sds_name }}
+                {% for error in school_create_form.sds_name.errors %}
+                    <small style="color: var(--risk);">{{ error }}</small>
+                {% endfor %}
+            </div>
         </div>
 
-        {{ school_profiles_data|json_script:"school-profiles-data" }}
         <script>
             (function () {
-                var select = document.getElementById('id_school-school_profile');
-                var details = document.getElementById('new-school-details');
-                var heading = document.getElementById('new-school-details-heading');
-                var dataEl = document.getElementById('school-profiles-data');
-                if (!select || !details || !dataEl) return;
+                var regionSelect = document.getElementById('{{ school_create_form.region.id_for_label }}');
+                var divisionSelect = document.getElementById('{{ school_create_form.division_choice.id_for_label }}');
+                var municipalitySelect = document.getElementById('{{ school_create_form.municipality.id_for_label }}');
+                var districtSelect = document.getElementById('{{ school_create_form.district_choice.id_for_label }}');
+                var schoolSelect = document.getElementById('{{ school_create_form.school_choice.id_for_label }}');
+                var schoolIdInput = document.getElementById('{{ school_create_form.school_id.id_for_label }}');
 
-                var profiles = JSON.parse(dataEl.textContent);
+                function setOptions(select, values, placeholder) {
+                    var current = select.value;
+                    select.innerHTML = '';
+                    var opt0 = document.createElement('option');
+                    opt0.value = '';
+                    opt0.textContent = placeholder;
+                    select.appendChild(opt0);
+                    values.forEach(function (v) {
+                        var opt = document.createElement('option');
+                        opt.value = v;
+                        opt.textContent = v;
+                        select.appendChild(opt);
+                    });
+                    if (current && values.indexOf(current) !== -1) {
+                        select.value = current;
+                    }
+                }
 
-                function sync() {
-                    var value = select.value;
-                    var profile = profiles[value];
+                function fetchJSON(url) {
+                    return fetch(url).then(function (r) { return r.json(); }).catch(function () { return {}; });
+                }
 
-                    if (value === 'new') {
-                        heading.textContent = 'New school details';
-                        details.style.display = '';
-                        details.querySelectorAll('input, select, textarea').forEach(function (el) {
-                            el.readOnly = false;
-                            el.disabled = false;
-                            if (el.tagName !== 'SELECT') el.value = '';
+                // `generation` guards against out-of-order responses: changing a
+                // <select> bumps it, and every in-flight fetch's .then() checks its
+                // own captured `gen` against the current value before touching the
+                // DOM - a response for a selection the user has since moved on from
+                // just gets dropped instead of clobbering what's now on screen. This
+                // matters because loadDivisions()/loadMunicipalities()/loadDistricts()
+                // each cascade into the next level automatically, so two full chains
+                // can genuinely be in flight at once (e.g. picking Municipality
+                // starts one that ends at Schools, then picking District right after
+                // starts another before the first has resolved).
+                var generation = 0;
+
+                function loadDivisions(gen, selected) {
+                    if (!regionSelect.value) {
+                        setOptions(divisionSelect, [], '-- Select --');
+                        return loadMunicipalities(gen);
+                    }
+                    return fetchJSON('{% url "masterlist_divisions" %}?region=' + encodeURIComponent(regionSelect.value))
+                        .then(function (data) {
+                            if (gen !== generation) return;
+                            setOptions(divisionSelect, data.divisions || [], '-- Select --');
+                            if (selected) divisionSelect.value = selected;
+                            return loadMunicipalities(gen);
                         });
-                        return;
-                    }
+                }
 
-                    if (!profile) {
-                        details.style.display = 'none';
-                        return;
+                function loadMunicipalities(gen, selected) {
+                    if (!regionSelect.value || !divisionSelect.value) {
+                        setOptions(municipalitySelect, [], '-- Select --');
+                        return loadDistricts(gen);
                     }
-
-                    heading.textContent = 'School details (already on file)';
-                    details.style.display = '';
-                    Object.keys(profile).forEach(function (fieldName) {
-                        var el = document.getElementById('id_newschool-' + fieldName);
-                        if (!el) return;
-                        el.value = profile[fieldName] != null ? profile[fieldName] : '';
-                        el.readOnly = true;
-                        el.disabled = true;
+                    var url = '{% url "masterlist_municipalities" %}?region=' + encodeURIComponent(regionSelect.value)
+                        + '&division=' + encodeURIComponent(divisionSelect.value);
+                    return fetchJSON(url).then(function (data) {
+                        if (gen !== generation) return;
+                        setOptions(municipalitySelect, data.municipalities || [], '-- Select --');
+                        if (selected) municipalitySelect.value = selected;
+                        return loadDistricts(gen);
                     });
                 }
 
-                select.addEventListener('change', sync);
-                sync();
+                function loadDistricts(gen, selected) {
+                    if (!regionSelect.value || !divisionSelect.value || !municipalitySelect.value) {
+                        setOptions(districtSelect, [], '-- Select --');
+                        return loadSchools(gen);
+                    }
+                    var url = '{% url "masterlist_districts" %}?region=' + encodeURIComponent(regionSelect.value)
+                        + '&division=' + encodeURIComponent(divisionSelect.value)
+                        + '&municipality=' + encodeURIComponent(municipalitySelect.value);
+                    return fetchJSON(url).then(function (data) {
+                        if (gen !== generation) return;
+                        setOptions(districtSelect, data.districts || [], '-- Select --');
+                        if (selected) districtSelect.value = selected;
+                        return loadSchools(gen);
+                    });
+                }
+
+                function loadSchools(gen, selected) {
+                    if (!regionSelect.value || !divisionSelect.value || !municipalitySelect.value || !districtSelect.value) {
+                        schoolSelect.innerHTML = '';
+                        var placeholder = document.createElement('option');
+                        placeholder.value = '';
+                        placeholder.textContent = '-- Select --';
+                        schoolSelect.appendChild(placeholder);
+                        return Promise.resolve();
+                    }
+                    var url = '{% url "masterlist_schools" %}?region=' + encodeURIComponent(regionSelect.value)
+                        + '&division=' + encodeURIComponent(divisionSelect.value)
+                        + '&municipality=' + encodeURIComponent(municipalitySelect.value)
+                        + '&district=' + encodeURIComponent(districtSelect.value);
+                    return fetchJSON(url).then(function (data) {
+                        if (gen !== generation) return;
+                        var current = schoolSelect.value;
+                        schoolSelect.innerHTML = '';
+                        var opt0 = document.createElement('option');
+                        opt0.value = '';
+                        opt0.textContent = '-- Select --';
+                        schoolSelect.appendChild(opt0);
+                        (data.schools || []).forEach(function (s) {
+                            var opt = document.createElement('option');
+                            opt.value = s.school_name;
+                            opt.textContent = s.school_name;
+                            opt.dataset.schoolId = s.school_id;
+                            schoolSelect.appendChild(opt);
+                        });
+                        var target = selected || current;
+                        if (target) {
+                            schoolSelect.value = target;
+                            var match = schoolSelect.selectedOptions[0];
+                            if (match && match.dataset.schoolId) schoolIdInput.value = match.dataset.schoolId;
+                        }
+                    });
+                }
+
+                regionSelect.addEventListener('change', function () { loadDivisions(++generation); });
+                divisionSelect.addEventListener('change', function () { loadMunicipalities(++generation); });
+                municipalitySelect.addEventListener('change', function () { loadDistricts(++generation); });
+                districtSelect.addEventListener('change', function () { loadSchools(++generation); });
+                schoolSelect.addEventListener('change', function () {
+                    var match = schoolSelect.selectedOptions[0];
+                    schoolIdInput.value = (match && match.dataset.schoolId) || '';
+                });
+
+                // Restore the cascade after a server-side validation error re-renders
+                // this page with previously-submitted values - chained the same way
+                // loadDivisions() etc. already cascade downward, just seeded with
+                // what was actually submitted instead of nothing.
+                var bound = {
+                    division: '{{ school_create_form.division_choice.value|default:""|escapejs }}',
+                    municipality: '{{ school_create_form.municipality.value|default:""|escapejs }}',
+                    district: '{{ school_create_form.district_choice.value|default:""|escapejs }}',
+                    school: '{{ school_create_form.school_choice.value|default:""|escapejs }}',
+                };
+                if (regionSelect.value) {
+                    var restoreGen = ++generation;
+                    fetchJSON('{% url "masterlist_divisions" %}?region=' + encodeURIComponent(regionSelect.value))
+                        .then(function (data) {
+                            if (restoreGen !== generation) return;
+                            setOptions(divisionSelect, data.divisions || [], '-- Select --');
+                            if (bound.division) divisionSelect.value = bound.division;
+                            if (!divisionSelect.value) return;
+                            return fetchJSON('{% url "masterlist_municipalities" %}?region=' + encodeURIComponent(regionSelect.value)
+                                + '&division=' + encodeURIComponent(divisionSelect.value));
+                        })
+                        .then(function (data) {
+                            if (restoreGen !== generation || !data) return;
+                            setOptions(municipalitySelect, data.municipalities || [], '-- Select --');
+                            if (bound.municipality) municipalitySelect.value = bound.municipality;
+                            if (!municipalitySelect.value) return;
+                            return fetchJSON('{% url "masterlist_districts" %}?region=' + encodeURIComponent(regionSelect.value)
+                                + '&division=' + encodeURIComponent(divisionSelect.value)
+                                + '&municipality=' + encodeURIComponent(municipalitySelect.value));
+                        })
+                        .then(function (data) {
+                            if (restoreGen !== generation || !data) return;
+                            setOptions(districtSelect, data.districts || [], '-- Select --');
+                            if (bound.district) districtSelect.value = bound.district;
+                            if (districtSelect.value) loadSchools(restoreGen, bound.school);
+                        });
+                }
             })();
         </script>
     </div>

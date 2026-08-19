@@ -17,16 +17,16 @@
 
         <div class="form-group">
             <label for="id_full_name">Full Name:</label>
-            <input type="text" id="id_full_name" name="full_name" required>
-            <small>Your complete name as it appears on school records</small>
+            <input type="text" id="id_full_name" name="full_name" style="text-transform: uppercase;" required>
+            <small>Your complete name as it appears on school records - saved in capital letters</small>
         </div>
 
         <div class="form-group">
             <label for="id_position">Position:</label>
             {% if account_type == 'non_teaching' %}
-            <input type="text" id="id_position" name="position" placeholder="Registrar, Librarian, Guidance Counselor, Admin Aide, etc." required>
+            <input type="text" id="id_position" name="position" placeholder="Registrar, Librarian, Guidance Counselor, Admin Aide, etc." style="text-transform: uppercase;" required>
             {% else %}
-            <input type="text" id="id_position" name="position" placeholder="Teacher I, Teacher II, etc." required>
+            <input type="text" id="id_position" name="position" placeholder="Teacher I, Teacher II, etc." style="text-transform: uppercase;" required>
             {% endif %}
         </div>
 

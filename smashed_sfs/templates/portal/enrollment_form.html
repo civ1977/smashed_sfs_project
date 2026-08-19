@@ -14,21 +14,22 @@
         {% csrf_token %}
 
         <h3>Personal Information</h3>
+        <p><small>Names and addresses are saved in capital letters, matching how they're printed on official forms.</small></p>
         <div class="form-group">
             <label for="id_enroll_surname">Surname</label>
-            <input type="text" id="id_enroll_surname" name="surname" value="{{ student.surname|default:'' }}" required>
+            <input type="text" id="id_enroll_surname" name="surname" value="{{ student.surname|default:'' }}" style="text-transform: uppercase;" required>
         </div>
         <div class="form-group">
             <label for="id_enroll_given_name">Given Name</label>
-            <input type="text" id="id_enroll_given_name" name="given_name" value="{{ student.name|default:'' }}" required>
+            <input type="text" id="id_enroll_given_name" name="given_name" value="{{ student.name|default:'' }}" style="text-transform: uppercase;" required>
         </div>
         <div class="form-group">
             <label for="id_enroll_middle_name">Middle Name</label>
-            <input type="text" id="id_enroll_middle_name" name="middle_name" value="{{ student.middle_name|default:'' }}">
+            <input type="text" id="id_enroll_middle_name" name="middle_name" value="{{ student.middle_name|default:'' }}" style="text-transform: uppercase;">
         </div>
         <div class="form-group">
             <label for="id_enroll_extension">Extension (Jr., III, etc.)</label>
-            <input type="text" id="id_enroll_extension" name="extension" value="{{ student.extension|default:'' }}">
+            <input type="text" id="id_enroll_extension" name="extension" value="{{ student.extension|default:'' }}" style="text-transform: uppercase;">
         </div>
         <div class="form-group">
             <label for="id_enroll_sex">Sex</label>
@@ -43,7 +44,7 @@
         </div>
         <div class="form-group">
             <label for="id_enroll_address">Home Address</label>
-            <input type="text" id="id_enroll_address" name="address" required>
+            <input type="text" id="id_enroll_address" name="address" style="text-transform: uppercase;" required>
         </div>
 
         <h3 style="margin-top: var(--space-5);">Enrollment Details</h3>
@@ -57,25 +58,25 @@
         </div>
         <div class="form-group">
             <label for="id_enroll_track">Track</label>
-            <input type="text" id="id_enroll_track" name="track" placeholder="e.g. Academic">
+            <input type="text" id="id_enroll_track" name="track" placeholder="e.g. Academic" style="text-transform: uppercase;">
         </div>
         <div class="form-group">
             <label for="id_enroll_strand">Strand</label>
-            <input type="text" id="id_enroll_strand" name="strand" placeholder="e.g. STEM">
+            <input type="text" id="id_enroll_strand" name="strand" placeholder="e.g. STEM" style="text-transform: uppercase;">
         </div>
         <div class="form-group">
             <label for="id_enroll_previous_school">Previous School</label>
-            <input type="text" id="id_enroll_previous_school" name="previous_school" value="{{ student.school_g10|default:'' }}">
+            <input type="text" id="id_enroll_previous_school" name="previous_school" value="{{ student.school_g10|default:'' }}" style="text-transform: uppercase;">
         </div>
 
         <h3 style="margin-top: var(--space-5);">Parent/Guardian Information</h3>
         <div class="form-group">
             <label for="id_enroll_guardian_name">Guardian Name</label>
-            <input type="text" id="id_enroll_guardian_name" name="guardian_name" required>
+            <input type="text" id="id_enroll_guardian_name" name="guardian_name" style="text-transform: uppercase;" required>
         </div>
         <div class="form-group">
             <label for="id_enroll_guardian_relationship">Relationship to Learner</label>
-            <input type="text" id="id_enroll_guardian_relationship" name="guardian_relationship" placeholder="e.g. Mother, Father, Guardian">
+            <input type="text" id="id_enroll_guardian_relationship" name="guardian_relationship" placeholder="e.g. Mother, Father, Guardian" style="text-transform: uppercase;">
         </div>
         <div class="form-group">
             <label for="id_enroll_guardian_contact">Guardian Contact Number</label>

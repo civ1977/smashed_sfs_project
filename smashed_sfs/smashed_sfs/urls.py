@@ -24,6 +24,10 @@ urlpatterns = [
     path('dashboard/', views.dashboard, name='dashboard'),
     path('account/', views.account_settings, name='account_settings'),
     path('complete-profile/', views.complete_profile, name='complete_profile'),
+    path('masterlist/divisions/', views.masterlist_divisions, name='masterlist_divisions'),
+    path('masterlist/municipalities/', views.masterlist_municipalities, name='masterlist_municipalities'),
+    path('masterlist/districts/', views.masterlist_districts, name='masterlist_districts'),
+    path('masterlist/schools/', views.masterlist_schools, name='masterlist_schools'),
     path('logout/', views.logout_view, name='logout'),
     path('password-reset/', auth_views.PasswordResetView.as_view(
         template_name='accounts/password_reset.html',

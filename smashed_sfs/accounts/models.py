@@ -142,3 +142,33 @@ class DTRCalendarException(models.Model):
 
     def __str__(self):
         return f'{self.school_profile_id} {self.date} {self.get_reason_display()}'
+
+
+class SchoolMasterlistEntry(models.Model):
+    """Reference data only - DepEd's SY 2020-2021 Masterlist of Schools,
+    imported once via manage.py load_school_masterlist. Powers the cascading
+    Region -> Division -> City/Municipality -> District -> School picker on
+    the Complete Your Profile page (accounts/views.py complete_profile) when
+    adding a brand-new school - not a live/editable part of the app's own
+    school data (that's students.models.SchoolProfile), so nothing here is
+    ever created/edited through the app's UI."""
+
+    entry_id = models.AutoField(primary_key=True)
+    region = models.CharField(max_length=100)
+    division = models.CharField(max_length=100)
+    municipality = models.CharField(max_length=100)
+    district = models.CharField(max_length=150)
+    school_id = models.CharField(max_length=20)
+    school_name = models.CharField(max_length=200)
+
+    class Meta:
+        db_table = 'school_masterlist_entry'
+        indexes = [
+            models.Index(fields=['region']),
+            models.Index(fields=['region', 'division']),
+            models.Index(fields=['region', 'division', 'municipality']),
+            models.Index(fields=['region', 'division', 'municipality', 'district']),
+        ]
+
+    def __str__(self):
+        return f'{self.school_name} ({self.school_id})'

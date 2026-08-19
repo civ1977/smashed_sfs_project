@@ -19,12 +19,12 @@ from django.core.cache import cache
 from django.db import transaction
 from django.http import JsonResponse
 
-from students.models import Section, Student, SchoolProfile
+from students.models import Section, Student
 from portal.models import StudentAccount
 from grades.models import Grade, SubjectMapping, SchoolCalendarException
 from smashed_sfs import upload_utils
-from .models import Teacher, TeacherTimeRecord, DTRCalendarException
-from .forms import SchoolProfileSelectForm, SchoolProfileForm, SectionForm
+from .models import Teacher, TeacherTimeRecord, DTRCalendarException, SchoolMasterlistEntry
+from .forms import NewSchoolProfileForm, SectionForm
 
 # Score bands for the dashboard's Term Ratings chart - DepEd-style grade
 # brackets, widest-to-narrowest. A student lands in a term's band by their
@@ -77,8 +77,10 @@ def register(request):
 
     if request.method == 'POST':
         username = request.POST.get('username')
-        full_name = request.POST.get('full_name')
-        position = request.POST.get('position')
+        # Upper case, matching how DepEd forms render names/positions
+        # everywhere else in the app.
+        full_name = (request.POST.get('full_name') or '').strip().upper()
+        position = (request.POST.get('position') or '').strip().upper()
         email = request.POST.get('email')
         password = request.POST.get('password')
         password_confirm = request.POST.get('password_confirm')
@@ -386,6 +388,53 @@ def dashboard(request):
     })
 
 
+# ---------------------------------------------------------------------------
+# Masterlist lookups - AJAX endpoints backing the cascading Region/Division/
+# Municipality/District/School picker on Complete Your Profile's "New school
+# details" section (NewSchoolProfileForm, below, and its use in
+# complete_profile). Each level is queried live rather than shipping the
+# whole ~60k-row masterlist to the browser up front.
+# ---------------------------------------------------------------------------
+
+@login_required
+def masterlist_divisions(request):
+    region = request.GET.get('region', '')
+    divisions = SchoolMasterlistEntry.objects.filter(region=region) \
+        .order_by('division').values_list('division', flat=True).distinct()
+    return JsonResponse({'divisions': list(divisions)})
+
+
+@login_required
+def masterlist_municipalities(request):
+    region = request.GET.get('region', '')
+    division = request.GET.get('division', '')
+    municipalities = SchoolMasterlistEntry.objects.filter(region=region, division=division) \
+        .order_by('municipality').values_list('municipality', flat=True).distinct()
+    return JsonResponse({'municipalities': list(municipalities)})
+
+
+@login_required
+def masterlist_districts(request):
+    region = request.GET.get('region', '')
+    division = request.GET.get('division', '')
+    municipality = request.GET.get('municipality', '')
+    districts = SchoolMasterlistEntry.objects.filter(region=region, division=division, municipality=municipality) \
+        .order_by('district').values_list('district', flat=True).distinct()
+    return JsonResponse({'districts': list(districts)})
+
+
+@login_required
+def masterlist_schools(request):
+    region = request.GET.get('region', '')
+    division = request.GET.get('division', '')
+    municipality = request.GET.get('municipality', '')
+    district = request.GET.get('district', '')
+    schools = SchoolMasterlistEntry.objects.filter(
+        region=region, division=division, municipality=municipality, district=district,
+    ).order_by('school_name').values('school_id', 'school_name')
+    return JsonResponse({'schools': list(schools)})
+
+
 @login_required
 def complete_profile(request):
     try:
@@ -406,39 +455,25 @@ def complete_profile(request):
 
     data = request.POST if request.method == 'POST' else None
 
-    school_select_form = SchoolProfileSelectForm(data, prefix='school') if needs_school else None
-    school_create_form = SchoolProfileForm(data, prefix='newschool') if needs_school else None
+    # Always goes through the Region/Division/.../School masterlist picker -
+    # there's no "attach to a school someone else already created" option
+    # here, so two teachers at the same physical school each get their own
+    # SchoolProfile row rather than sharing one. That's a deliberate
+    # tradeoff, not an oversight.
+    school_create_form = NewSchoolProfileForm(data, prefix='newschool') if needs_school else None
     section_form = SectionForm(data, prefix='section') if needs_section else None
 
-    school_profiles_data = {}
-    if needs_school:
-        school_profiles_data = {
-            str(p.profile_id): {field: getattr(p, field) for field in SchoolProfileForm.Meta.fields}
-            for p in SchoolProfile.objects.filter(is_active=True)
-        }
-
     if request.method == 'POST':
-        new_school_needed = False
-        school_valid = True
-        if needs_school:
-            school_valid = school_select_form.is_valid()
-            new_school_needed = school_valid and school_select_form.is_new_school()
-            if new_school_needed:
-                school_valid = school_create_form.is_valid()
-
+        school_valid = school_create_form.is_valid() if needs_school else True
         section_valid = section_form.is_valid() if needs_section else True
 
         if school_valid and section_valid:
             with transaction.atomic():
                 if needs_school:
-                    if new_school_needed:
-                        school_profile = school_create_form.save(commit=False)
-                        school_profile.created_by = teacher.teacher_id
-                        school_profile.save()
-                        profile_id = school_profile.profile_id
-                    else:
-                        profile_id = int(school_select_form.cleaned_data['school_profile'])
-                    teacher.school_profile_id = profile_id
+                    school_profile = school_create_form.save(commit=False)
+                    school_profile.created_by = teacher.teacher_id
+                    school_profile.save()
+                    teacher.school_profile_id = school_profile.profile_id
                     teacher.save()
 
                 if needs_section:
@@ -455,9 +490,7 @@ def complete_profile(request):
     return render(request, 'accounts/complete_profile.html', {
         'needs_school': needs_school,
         'needs_section': needs_section,
-        'school_select_form': school_select_form,
         'school_create_form': school_create_form,
-        'school_profiles_data': school_profiles_data,
         'section_form': section_form,
     })
 

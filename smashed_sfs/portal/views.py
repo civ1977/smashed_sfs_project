@@ -182,13 +182,17 @@ def portal_enrollment_form(request):
 
     if request.method == 'POST':
         birthday = request.POST.get('birthday')
+        # Names/places go in upper case, matching how DepEd forms (SF9/SF10,
+        # etc.) render learner data everywhere else in the app - sex/grade
+        # level are select-driven and guardian_contact is a phone number, so
+        # neither needs it.
         required = {
-            'surname': request.POST.get('surname', '').strip(),
-            'given_name': request.POST.get('given_name', '').strip(),
+            'surname': request.POST.get('surname', '').strip().upper(),
+            'given_name': request.POST.get('given_name', '').strip().upper(),
             'sex': request.POST.get('sex', ''),
-            'address': request.POST.get('address', '').strip(),
+            'address': request.POST.get('address', '').strip().upper(),
             'grade_level': request.POST.get('grade_level', ''),
-            'guardian_name': request.POST.get('guardian_name', '').strip(),
+            'guardian_name': request.POST.get('guardian_name', '').strip().upper(),
             'guardian_contact': request.POST.get('guardian_contact', '').strip(),
         }
         if not birthday or not all(required.values()):
@@ -200,17 +204,17 @@ def portal_enrollment_form(request):
             lrn=account.lrn,
             surname=required['surname'],
             given_name=required['given_name'],
-            middle_name=request.POST.get('middle_name', '').strip(),
-            extension=request.POST.get('extension', '').strip(),
+            middle_name=request.POST.get('middle_name', '').strip().upper(),
+            extension=request.POST.get('extension', '').strip().upper(),
             sex=required['sex'],
             birthday=datetime.strptime(birthday, '%Y-%m-%d').date(),
             address=required['address'],
             grade_level=required['grade_level'],
-            track=request.POST.get('track', '').strip(),
-            strand=request.POST.get('strand', '').strip(),
-            previous_school=request.POST.get('previous_school', '').strip(),
+            track=request.POST.get('track', '').strip().upper(),
+            strand=request.POST.get('strand', '').strip().upper(),
+            previous_school=request.POST.get('previous_school', '').strip().upper(),
             guardian_name=required['guardian_name'],
-            guardian_relationship=request.POST.get('guardian_relationship', '').strip(),
+            guardian_relationship=request.POST.get('guardian_relationship', '').strip().upper(),
             guardian_contact=required['guardian_contact'],
         )
         send_mail(
