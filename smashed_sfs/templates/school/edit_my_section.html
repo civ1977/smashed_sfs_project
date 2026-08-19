@@ -63,17 +63,19 @@
         <p><small>Includes your school's name and division - update these if you've transferred to a different station. Changing them updates the record for everyone at this school, not just you.</small></p>
 
         <div class="form-group">
-            <label for="{{ officials_form.school_name.id_for_label }}">{{ officials_form.school_name.label }}</label>
-            {{ officials_form.school_name }}
-            {% for error in officials_form.school_name.errors %}
+            <label for="{{ officials_form.division_choice.id_for_label }}">{{ officials_form.division_choice.label }}</label>
+            {{ officials_form.division_choice }}
+            {{ officials_form.division_new }}
+            {% for error in officials_form.division_new.errors %}
                 <small style="color: var(--risk);">{{ error }}</small>
             {% endfor %}
         </div>
 
         <div class="form-group">
-            <label for="{{ officials_form.division.id_for_label }}">{{ officials_form.division.label }}</label>
-            {{ officials_form.division }}
-            {% for error in officials_form.division.errors %}
+            <label for="{{ officials_form.school_name_choice.id_for_label }}">{{ officials_form.school_name_choice.label }}</label>
+            {{ officials_form.school_name_choice }}
+            {{ officials_form.school_name_new }}
+            {% for error in officials_form.school_name_new.errors %}
                 <small style="color: var(--risk);">{{ error }}</small>
             {% endfor %}
         </div>
@@ -102,6 +104,42 @@
             {% endfor %}
         </div>
     </div>
+
+    {{ officials_form.schools_by_division|json_script:"schools-by-division-data" }}
+    <script>
+        (function () {
+            var divisionSelect = document.getElementById('{{ officials_form.division_choice.id_for_label }}');
+            var schoolSelect = document.getElementById('{{ officials_form.school_name_choice.id_for_label }}');
+            var dataEl = document.getElementById('schools-by-division-data');
+            if (!divisionSelect || !schoolSelect || !dataEl) return;
+
+            var schoolsByDivision = JSON.parse(dataEl.textContent);
+            var currentSchool = schoolSelect.value;
+
+            function sync() {
+                var schools = schoolsByDivision[divisionSelect.value] || [];
+
+                Array.prototype.slice.call(schoolSelect.options).forEach(function (option) {
+                    var matches = !option.value || !schools.length || schools.indexOf(option.value) !== -1;
+                    option.style.display = matches ? '' : 'none';
+                });
+
+                if (schools.length === 1) {
+                    schoolSelect.value = schools[0];
+                } else if (schools.length && schools.indexOf(currentSchool) === -1) {
+                    schoolSelect.value = '';
+                } else if (currentSchool) {
+                    schoolSelect.value = currentSchool;
+                }
+            }
+
+            divisionSelect.addEventListener('change', function () {
+                currentSchool = '';
+                sync();
+            });
+            sync();
+        })();
+    </script>
     {% endif %}
 
     <button type="submit" class="btn good">Save Changes</button>

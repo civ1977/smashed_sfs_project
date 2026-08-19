@@ -37,17 +37,71 @@ class SchoolProfileForm(forms.ModelForm):
 class SchoolOfficialsForm(forms.ModelForm):
     """Subset of SchoolProfileForm's fields - lets a Class Adviser fill in
     the principal/registrar/guidance counselor names, and correct the
-    school/division (e.g. after a transfer to a different station), from
+    division/school (e.g. after a transfer to a different station), from
     their own section edit page - without granting them access to the rest
     of the school-wide profile (school_id/school_year/region/district/
     municipality etc. stay registrar/principal-only via SchoolProfileForm).
-    Note: school_name/division live on the shared SchoolProfile row, so an
+    Note: division/school_name live on the shared SchoolProfile row, so an
     edit here changes it for every teacher/student still linked to that
-    same school, not just the adviser editing it."""
+    same school, not just the adviser editing it.
+
+    division/school_name reuse the same choice-or-free-text pattern as
+    SectionForm's grade_level/track/strand/modality: existing values across
+    every SchoolProfile become dropdown options (so picking a division
+    filters the school dropdown down to schools already on file in it,
+    via JS in the template - self.schools_by_division carries that mapping),
+    but typing a new value is always allowed for a school that isn't listed
+    yet."""
+
+    division_choice = forms.ChoiceField(label='Division', required=False)
+    division_new = forms.CharField(label='Or enter a new division', required=False, max_length=200)
+    school_name_choice = forms.ChoiceField(label='School', required=False)
+    school_name_new = forms.CharField(label='Or enter a new school name', required=False, max_length=200)
 
     class Meta:
         model = SchoolProfile
-        fields = ['school_name', 'division', 'principal_name', 'registrar_name', 'guidance_counselor']
+        fields = ['principal_name', 'registrar_name', 'guidance_counselor']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        profiles = list(
+            SchoolProfile.objects.exclude(division='').order_by('division', 'school_name')
+        )
+        divisions = sorted(set(p.division for p in profiles))
+        self.fields['division_choice'].choices = [('', '-- Select --')] + [(d, d) for d in divisions]
+
+        school_names = sorted(set(p.school_name for p in profiles if p.school_name))
+        self.fields['school_name_choice'].choices = [('', '-- Select --')] + [(s, s) for s in school_names]
+
+        self.schools_by_division = {}
+        for p in profiles:
+            self.schools_by_division.setdefault(p.division, []).append(p.school_name)
+
+        if self.instance and self.instance.pk:
+            if self.instance.division:
+                self.fields['division_choice'].initial = self.instance.division
+            if self.instance.school_name:
+                self.fields['school_name_choice'].initial = self.instance.school_name
+
+    def clean(self):
+        cleaned = super().clean()
+        division = (cleaned.get('division_new') or '').strip() or cleaned.get('division_choice') or ''
+        school_name = (cleaned.get('school_name_new') or '').strip() or cleaned.get('school_name_choice') or ''
+        if not division:
+            self.add_error('division_new', 'Select an existing division or enter a new one.')
+        if not school_name:
+            self.add_error('school_name_new', 'Select an existing school or enter a new one.')
+        cleaned['division'] = division
+        cleaned['school_name'] = school_name
+        return cleaned
+
+    def save(self, commit=True):
+        profile = super().save(commit=False)
+        profile.division = self.cleaned_data['division']
+        profile.school_name = self.cleaned_data['school_name']
+        if commit:
+            profile.save()
+        return profile
 
 
 class SectionForm(forms.ModelForm):
