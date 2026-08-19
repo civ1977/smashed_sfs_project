@@ -140,17 +140,26 @@ def portal_grades(request):
 
 @login_required
 def portal_enrollment_form(request):
-    """Enrollment application form for an approved student. Doesn't touch
-    Student/Section at all - the applicant's info is held directly on
-    EnrollmentApplication (school/models.py) since a Student row requires a
-    section/adviser an enrollee doesn't have yet; a registrar places them
-    into an actual section separately, from the existing Sections/Students
-    pages, once a decision is made."""
+    """Enrollment application form - open to pending accounts too, not just
+    approved ones. Adviser approval verifies "this account is this LRN" for
+    viewing ratings; enrollment is a separate school-wide process that
+    doesn't need that verification to have happened yet, so a still-pending
+    account isn't blocked from applying. A rejected account (adviser said
+    the LRN link itself is wrong) is excluded, since that's an identity
+    problem enrollment shouldn't route around.
+
+    Doesn't touch Student/Section at all - the applicant's info is held
+    directly on EnrollmentApplication (school/models.py) since a Student
+    row requires a section/adviser an enrollee doesn't have yet; a
+    registrar places them into an actual section separately, from the
+    existing Sections/Students pages, once a decision is made."""
     blocked = _reject_if_inactive(request)
     if blocked:
         return blocked
 
-    account = StudentAccount.objects.filter(user=request.user, status=StudentAccount.STATUS_APPROVED).first()
+    account = StudentAccount.objects.filter(user=request.user).exclude(
+        status=StudentAccount.STATUS_REJECTED
+    ).first()
     if not account:
         return redirect('portal_pending')
 

@@ -24,15 +24,18 @@ def shell_context(request):
     if not request.user.is_authenticated:
         return {}
 
-    student_account = StudentAccount.objects.filter(
-        user=request.user, status=StudentAccount.STATUS_APPROVED
-    ).first()
+    # Not filtered to approved-only: a pending/rejected account should still
+    # see the same two tabs (portal_grades/portal_enrollment_form already
+    # redirect back to portal_pending on their own if not yet approved), so
+    # the sidebar isn't just blank while an account is waiting on a decision.
+    student_account = StudentAccount.objects.filter(user=request.user).first()
     if student_account:
         return {
             'shell_role': 'student',
             'shell_breadcrumb_context': 'MY ACCOUNT',
             'shell_nav_items': [
                 _nav_item(request, "Learner's Academic Ratings", 'portal_grades'),
+                _nav_item(request, 'Enrollment', 'portal_enrollment_form'),
             ],
         }
 
