@@ -2,7 +2,7 @@
     <div class="terms-modal" role="dialog" aria-modal="true" aria-labelledby="termsModalTitle">
         <div class="terms-modal-header">
             <span id="termsModalTitle">User's Agreement</span>
-            <button type="button" class="terms-modal-close" onclick="closeTermsModal()" aria-label="Close">&times;</button>
+            <button type="button" id="termsModalCloseBtn" class="terms-modal-close" onclick="closeTermsModal()" aria-label="Close">&times;</button>
         </div>
         <iframe id="termsModalFrame" class="terms-modal-frame" title="User's Agreement"></iframe>
     </div>
@@ -71,12 +71,32 @@
         }
         document.getElementById('termsModalOverlay').classList.add('is-open');
         document.addEventListener('keydown', _termsModalEscHandler);
+        document.addEventListener('focusin', _termsModalFocusTrap);
+        document.getElementById('termsModalCloseBtn').focus();
     }
     function closeTermsModal() {
         document.getElementById('termsModalOverlay').classList.remove('is-open');
         document.removeEventListener('keydown', _termsModalEscHandler);
+        document.removeEventListener('focusin', _termsModalFocusTrap);
     }
     function _termsModalEscHandler(e) {
         if (e.key === 'Escape') closeTermsModal();
+    }
+    function _termsModalFocusTrap(e) {
+        // Shift+Tab off the close button (the first focusable element)
+        // lands here fine - the browser wraps within the modal since the
+        // iframe is the only other focusable thing in it. But once focus
+        // is inside the iframe's own embedded document, its Tab presses
+        // never reach this page's keydown listener at all, so a Tab that
+        // exhausts the iframe's content silently escapes to the next
+        // element in the *parent* page's tab order (behind the overlay) -
+        // this only catches that: focusin bubbles even for that jump, so
+        // redirect back to the close button whenever focus lands outside
+        // the modal while it's open.
+        var modal = document.getElementById('termsModalOverlay');
+        if (!modal.classList.contains('is-open')) return;
+        if (!modal.contains(e.target)) {
+            document.getElementById('termsModalCloseBtn').focus();
+        }
     }
 </script>

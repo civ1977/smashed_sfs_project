@@ -13,7 +13,8 @@ from django.utils.html import format_html
 
 from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
-from grades.models import Grade, SubjectMapping, StudentTermRemark, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment, SubjectTestMaxScore
+from students.utils import split_by_sex, male_then_female
+from grades.models import Grade, SubjectMapping, StudentTermRemark, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment, SubjectTestMaxScore, AncillaryTask, AncillaryTaskSchedule
 from grades.views import MONTH_NAMES, _school_days_in_month, build_student_grade_sheet, _score_stats, WEEKDAYS, round_half_up
 
 
@@ -42,24 +43,21 @@ def _student_display_name(student):
     return name
 
 
-def _build_subject_rows(lrn, grade_level=None, term=None):
-    """Build per-subject grade rows for a student, optionally scoped to one
-    subject grade_level (a student's Grade table can hold both Grade 11 and
-    Grade 12 rows once they've been promoted) and/or one term (for a
-    single-quarter SF9 export)."""
-    grades = Grade.objects.filter(lrn=lrn)
-    if term is not None:
-        grades = grades.filter(term=term)
-
-    mapping_ids = {g.mapping_id for g in grades}
-    mappings = {m.mapping_id: m for m in SubjectMapping.objects.filter(mapping_id__in=mapping_ids)}
-
+def _shape_subject_rows(grades, mappings, grade_level=None):
+    """Core row-building logic factored out of _build_subject_rows so a
+    caller that already has grades/mappings loaded in bulk (e.g. an entire
+    section's worth, for the Summary of Ratings) can shape each student's
+    rows from in-memory data instead of this issuing its own two queries
+    per student."""
     grouped = {}
+    incomplete_by_subject = {}
     for grade in grades:
         mapping = mappings.get(grade.mapping_id)
         if grade_level is not None and (mapping is None or mapping.grade_level != grade_level):
             continue
         grouped.setdefault(grade.mapping_id, {1: None, 2: None, 3: None})[grade.term] = grade.grade
+        if grade.is_incomplete:
+            incomplete_by_subject[grade.mapping_id] = True
 
     subject_rows = []
     for mapping_id, terms in grouped.items():
@@ -67,6 +65,10 @@ def _build_subject_rows(lrn, grade_level=None, term=None):
         subject_name = mapping.subject_name if mapping else f'Subject {mapping_id}'
         term_grades = [terms[1], terms[2], terms[3]]
         final = _final_average(term_grades)
+        # A subject marked Incomplete in any term reports as INC overall -
+        # a numeric final average would be misleading when the student
+        # hasn't actually completed the subject's requirements.
+        is_incomplete = incomplete_by_subject.get(mapping_id, False)
         subject_rows.append({
             'subject_name': subject_name,
             'mapping_id': mapping_id,
@@ -79,11 +81,28 @@ def _build_subject_rows(lrn, grade_level=None, term=None):
             'term_1': terms[1],
             'term_2': terms[2],
             'term_3': terms[3],
-            'final': final,
-            'remarks': _remarks_for(final),
+            'final': None if is_incomplete else final,
+            'remarks': 'INC' if is_incomplete else _remarks_for(final),
+            'is_incomplete': is_incomplete,
         })
     subject_rows.sort(key=lambda row: (row['subject_number'], row['subject_name']))
     return subject_rows
+
+
+def _build_subject_rows(lrn, grade_level=None, term=None):
+    """Build per-subject grade rows for a student, optionally scoped to one
+    subject grade_level (a student's Grade table can hold both Grade 11 and
+    Grade 12 rows once they've been promoted) and/or one term (for a
+    single-quarter SF9 export)."""
+    grades = Grade.objects.filter(lrn=lrn)
+    if term is not None:
+        grades = grades.filter(term=term)
+    grades = list(grades)
+
+    mapping_ids = {g.mapping_id for g in grades}
+    mappings = {m.mapping_id: m for m in SubjectMapping.objects.filter(mapping_id__in=mapping_ids)}
+
+    return _shape_subject_rows(grades, mappings, grade_level=grade_level)
 
 
 def _grade_levels_for_student(lrn):
@@ -199,12 +218,15 @@ def _gate_finals_pending_term3(subject_rows):
     """A subject's Final Grade/Remarks only show once Term 3 data has
     actually been uploaded for it. Returns True if every subject on this
     report has a displayable final, which gates whether the General
-    Average shows."""
+    Average shows. An INC remark is left alone either way - it's a
+    deliberate status, not a blank waiting on data."""
     all_complete = True
     for row in subject_rows:
-        if row['term_3'] is None:
+        if row['term_3'] is None and not row.get('is_incomplete'):
             row['final'] = None
             row['remarks'] = None
+            all_complete = False
+        elif row.get('is_incomplete'):
             all_complete = False
     return all_complete
 
@@ -340,9 +362,7 @@ def report_cards(request):
         return redirect('dashboard')
 
     students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
-    males = [s for s in students if s.sex in ('MALE', 'M')]
-    females = [s for s in students if s.sex in ('FEMALE', 'F')]
-    students = males + females
+    students = male_then_female(students)
 
     return render(request, 'reports/report_cards.html', {'students': students})
 
@@ -358,9 +378,7 @@ def _summary_of_ratings_data(teacher):
         return None, [], []
 
     students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
-    males = [s for s in students if s.sex in ('MALE', 'M')]
-    females = [s for s in students if s.sex in ('FEMALE', 'F')]
-    students = males + females
+    students = male_then_female(students)
 
     # Master subject list/order for the section's grade level - every
     # student's row is aligned to these same columns (via mapping_id) below,
@@ -372,9 +390,21 @@ def _summary_of_ratings_data(teacher):
         grade_level=section.grade_level,
     ).order_by('subject_number', 'subject_name'))
 
+    # Batch-fetch every student's grades and every referenced subject
+    # mapping once, instead of _build_subject_rows issuing its own two
+    # queries per student below - the same fix as _compute_term_rankings.
+    all_grades = list(Grade.objects.filter(lrn__in=[s.lrn for s in students]))
+    grades_by_lrn = {}
+    for grade in all_grades:
+        grades_by_lrn.setdefault(grade.lrn, []).append(grade)
+    mapping_ids = {g.mapping_id for g in all_grades}
+    mappings = {m.mapping_id: m for m in SubjectMapping.objects.filter(mapping_id__in=mapping_ids)}
+
     student_rows = []
     for student in students:
-        subject_rows = _build_subject_rows(student.lrn, grade_level=section.grade_level)
+        subject_rows = _shape_subject_rows(
+            grades_by_lrn.get(student.lrn, []), mappings, grade_level=section.grade_level
+        )
         all_finals_ready = _gate_finals_pending_term3(subject_rows)
         rows_by_mapping = {row['mapping_id']: row for row in subject_rows}
 
@@ -639,6 +669,15 @@ def view_sf7(request):
     sections_by_id = {s.section_id: s for s in Section.objects.filter(section_id__in=section_ids)}
     mappings_by_id = {m.mapping_id: m for m in SubjectMapping.objects.filter(mapping_id__in=mapping_ids)}
 
+    tasks_by_teacher = {}
+    for t in AncillaryTask.objects.filter(teacher_id__in=personnel_ids):
+        tasks_by_teacher.setdefault(t.teacher_id, []).append(t)
+
+    task_ids = [t.task_id for tasks in tasks_by_teacher.values() for t in tasks]
+    schedules_by_task = {}
+    for sched in AncillaryTaskSchedule.objects.filter(task_id__in=task_ids):
+        schedules_by_task.setdefault(sched.task_id, {})[sched.term] = sched.schedule
+
     rows = []
     for person in personnel:
         assignment_rows = []
@@ -651,10 +690,22 @@ def view_sf7(request):
                 'schedule': _format_schedule_all_terms(a.assignment_id),
             })
 
+        task_rows = []
+        for t in tasks_by_teacher.get(person.teacher_id, []):
+            term_schedules = schedules_by_task.get(t.task_id, {})
+            task_rows.append({
+                'task_name': t.task_name,
+                'schedule': ' | '.join(
+                    f'T{term}: {_format_schedule(term_schedules.get(term))}'
+                    for term in (1, 2, 3)
+                ),
+            })
+
         rows.append({
             'teacher': person,
             'advisory_section': advisory_sections.get(person.teacher_id),
             'assignments': assignment_rows,
+            'ancillary_tasks': task_rows,
         })
 
     return render(request, 'reports/sf7.html', {
@@ -916,8 +967,7 @@ def _build_sf2_workbook(teacher, section, school_profile, year, month, reanchor_
         ws[f'{col}18'] = WEEKDAY_ABBR[day.weekday()] if day else None
 
     students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
-    males = [s for s in students if s.sex in ('MALE', 'M')]
-    females = [s for s in students if s.sex in ('FEMALE', 'F')]
+    males, females = split_by_sex(students)
 
     male_stats = _fill_sf2_gender_block(ws, males, MALE_ROW_START, day_slot_map, holiday_columns, warnings, 'male')
     female_stats = _fill_sf2_gender_block(ws, females, FEMALE_ROW_START, day_slot_map, holiday_columns, warnings, 'female')

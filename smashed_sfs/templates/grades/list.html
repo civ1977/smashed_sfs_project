@@ -23,10 +23,10 @@
         <table class="grades-list-table" id="grades-list-table">
             <thead>
                 <tr>
-                    <th class="freeze-col freeze-col-1" style="min-width: 120px;">LRN</th>
-                    <th class="freeze-col freeze-col-2" style="min-width: 160px;">Name</th>
+                    <th scope="col" class="freeze-col freeze-col-1" style="min-width: 120px;">LRN</th>
+                    <th scope="col" class="freeze-col freeze-col-2" style="min-width: 160px;">Name</th>
                     {% for subject in subjects %}
-                    <th style="min-width: 80px;">
+                    <th scope="col" style="min-width: 80px;">
                         {{ subject.subject_name }}
                         <form method="POST" action="{% url 'exclude_subject_term' subject.mapping_id %}"
                               onsubmit="return confirm('Remove {{ subject.subject_name|escapejs }} from Term {{ term }}? Students will no longer need a grade for it to rank this term.');">
@@ -50,8 +50,9 @@
                             {% with student_grades|get:subject.mapping_id as subject_grade %}
                                 {% with subject_grade|get:term as grade_value %}
                                     {% if grade_value %}
-                                        <span style="font-weight: 700; color: {% if grade_value >= 75 %}var(--good){% else %}var(--risk){% endif %};">
-                                            {{ grade_value }}
+                                        <span style="font-weight: 700; color: {% if grade_value >= 75 %}var(--good){% else %}var(--risk){% endif %};"
+                                              aria-label="{{ grade_value }}, {% if grade_value >= 75 %}Passing{% else %}Failing{% endif %}">
+                                            {{ grade_value }}{% if grade_value >= 75 %} ✓{% else %} ✗{% endif %}
                                         </span>
                                     {% else %}
                                         <span style="color: var(--ink-faint);">—</span>

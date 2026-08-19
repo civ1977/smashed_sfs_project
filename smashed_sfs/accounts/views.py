@@ -15,12 +15,14 @@ from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.contrib.auth.models import User
 from django.contrib import messages
+from django.core.cache import cache
 from django.db import transaction
 from django.http import JsonResponse
 
 from students.models import Section, Student, SchoolProfile
 from portal.models import StudentAccount
 from grades.models import Grade, SubjectMapping, SchoolCalendarException
+from smashed_sfs import upload_utils
 from .models import Teacher, TeacherTimeRecord, DTRCalendarException
 from .forms import SchoolProfileSelectForm, SchoolProfileForm, SectionForm
 
@@ -189,19 +191,37 @@ def contact_us(request):
     return render(request, 'accounts/public_contact_us.html')
 
 
+LOGIN_ATTEMPT_LIMIT = 5
+LOGIN_LOCKOUT_SECONDS = 300
+
+
 def login_view(request):
+    """Cache-based throttle on repeated failed logins, keyed per username -
+    not a full django-axes-style setup (no per-IP tracking, and with
+    Django's default LocMemCache this is per-worker-process rather than
+    shared across gunicorn's workers), but enough to stop a naive scripted
+    brute-force against a single account, which is the gap this closes."""
     if request.method == 'POST':
-        username = request.POST.get('username')
+        username = request.POST.get('username', '').strip()
         password = request.POST.get('password')
+
+        cache_key = f'login_attempts:{username.lower()}'
+        attempts = cache.get(cache_key, 0)
+        if attempts >= LOGIN_ATTEMPT_LIMIT:
+            messages.error(request, 'Too many failed login attempts. Please try again in a few minutes.')
+            return render(request, 'accounts/login.html')
+
         user = authenticate(request, username=username, password=password)
-        
+
         if user is not None:
+            cache.delete(cache_key)
             login(request, user)
             messages.success(request, f'Welcome back, {username}!')
             return redirect('dashboard')
         else:
+            cache.set(cache_key, attempts + 1, LOGIN_LOCKOUT_SECONDS)
             messages.error(request, 'Invalid username or password.')
-    
+
     return render(request, 'accounts/login.html')
 
 
@@ -475,44 +495,58 @@ def build_dtr_days(year, month, exceptions, records_by_date, dtr_exceptions=None
     Shared by the single-employee DTR view and the school-wide PDF export so
     both agree on what a day looks like.
 
-    `dtr_exceptions` (a {date: 'Holiday'/'Class Suspension'} mapping from
+    `dtr_exceptions` (a {date: (label, session)} mapping from
     DTRCalendarException, DTR-only and separate from `exceptions`/
     SchoolCalendarException which SF2/attendance also reads) takes priority
-    over `exceptions` when both cover the same date - a registrar marking a
-    day here always makes it a non-school day on the DTR with that specific
-    label, without touching SF2's own calendar."""
+    over `exceptions` when both cover the same date. A whole-day exception
+    (Holiday, or a Class Suspension left as Whole Day) makes the entire row
+    a single label, same as before. A half-day Class Suspension only
+    blanks its own session's two columns (am_label/pm_label) - the other
+    session's time fields stay real and editable, since work still
+    happened that half of the day."""
     dtr_exceptions = dtr_exceptions or {}
     num_days = calendar.monthrange(year, month)[1]
     days = []
     for day in range(1, num_days + 1):
         d = date(year, month, day)
-        dtr_label = dtr_exceptions.get(d)
-        if dtr_label:
-            is_school_day = False
-            label = dtr_label
+        dtr_exception = dtr_exceptions.get(d)
+        label = am_label = pm_label = None
+        if dtr_exception:
+            exc_label, exc_session = dtr_exception
+            if exc_session == DTRCalendarException.SESSION_AM:
+                is_school_day = True
+                am_label = exc_label
+            elif exc_session == DTRCalendarException.SESSION_PM:
+                is_school_day = True
+                pm_label = exc_label
+            else:
+                is_school_day = False
+                label = exc_label
         else:
             is_school_day = exceptions.get(d, d.weekday() < 5)
             if not is_school_day:
                 label = 'Saturday' if d.weekday() == 5 else 'Sunday' if d.weekday() == 6 else 'Holiday'
-            else:
-                label = None
         record = records_by_date.get(d)
-        entry = {'day': day, 'date': d.isoformat(), 'label': label}
+        entry = {'day': day, 'date': d.isoformat(), 'label': label, 'am_label': am_label, 'pm_label': pm_label}
         for field in DTR_EDITABLE_FIELDS:
             entry[field] = getattr(record, field, '') or '' if record else ''
+        if am_label:
+            entry['am_arrival'] = entry['am_departure'] = ''
+        if pm_label:
+            entry['pm_arrival'] = entry['pm_departure'] = ''
         days.append(entry)
     return days
 
 
 def _dtr_calendar_exceptions(school_profile_id, year, month):
-    """{date: 'Holiday'/'Class Suspension'} for this school/month, from the
-    DTR-only calendar (school.views.add_dtr_calendar_exception) - shared by
-    the single-employee DTR view and the school-wide PDF export, same as
+    """{date: (label, session)} for this school/month, from the DTR-only
+    calendar (school.views.add_dtr_calendar_exception) - shared by the
+    single-employee DTR view and the school-wide PDF export, same as
     `exceptions`/SchoolCalendarException is."""
     if not school_profile_id:
         return {}
     return {
-        e.date: e.get_reason_display()
+        e.date: (e.get_reason_display(), e.session)
         for e in DTRCalendarException.objects.filter(
             school_profile_id=school_profile_id, date__year=year, date__month=month
         )
@@ -739,6 +773,12 @@ def _dtr_parse_upload_bulk(uploaded_file):
       break recorded; 3 -> AM Arrival, AM Departure, PM Departure; 4 -> all
       four slots).
     """
+    if uploaded_file.size > upload_utils.MAX_UPLOAD_BYTES:
+        return None, (
+            f'That file is too large ({uploaded_file.size // (1024 * 1024)} MB) - '
+            f'the limit is {upload_utils.MAX_UPLOAD_BYTES // (1024 * 1024)} MB.'
+        )
+
     filename = uploaded_file.name.lower()
     if filename.endswith('.csv'):
         text = uploaded_file.read().decode('utf-8-sig', errors='ignore')

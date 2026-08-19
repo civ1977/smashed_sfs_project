@@ -17,6 +17,13 @@ class UploadFileError(Exception):
     message safe to show directly to the teacher."""
 
 
+# Class lists/gradesheets are at most a few hundred rows - genuinely that
+# size in .xlsx/.csv is well under 1 MB, so this is a generous cap against
+# an oversized file tying up openpyxl.load_workbook, not a realistic limit
+# for the actual use case.
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
 def _normalize_cell(value):
     if value is None:
         return ''
@@ -36,6 +43,12 @@ def read_upload_rows(uploaded_file):
     regardless of which format was actually uploaded. Blank rows are
     dropped from both formats the same way a blank CSV line already was.
     """
+    if uploaded_file.size > MAX_UPLOAD_BYTES:
+        raise UploadFileError(
+            f'That file is too large ({uploaded_file.size // (1024 * 1024)} MB) - '
+            f'the limit is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.'
+        )
+
     name = (uploaded_file.name or '').lower()
 
     if name.endswith('.xlsx') or name.endswith('.xlsm'):

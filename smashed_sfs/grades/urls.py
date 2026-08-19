@@ -17,6 +17,11 @@ urlpatterns = [
     path('my-subject-teaching/', views.my_subject_teaching, name='my_subject_teaching'),
     path('my-subject-teaching/<int:assignment_id>/<int:term>/', views.subject_teaching_grades, name='subject_teaching_grades'),
 
+    path('ancillary-task/add/', views.add_ancillary_task, name='add_ancillary_task'),
+    path('ancillary-task/<int:task_id>/edit/', views.edit_ancillary_task, name='edit_ancillary_task'),
+    path('ancillary-task/<int:task_id>/delete/', views.delete_ancillary_task, name='delete_ancillary_task'),
+    path('ancillary-task/<int:task_id>/<int:term>/', views.ancillary_task_schedule, name='ancillary_task_schedule'),
+
     path('attendance/grid/', views.attendance_grid, name='attendance_grid'),
     path('attendance/grid/save/', views.attendance_grid_save, name='attendance_grid_save'),
     path('attendance/holiday/add/', views.add_holiday, name='add_holiday'),

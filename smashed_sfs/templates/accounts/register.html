@@ -10,30 +10,30 @@
         <input type="hidden" name="account_type" value="{{ account_type }}">
 
         <div class="form-group">
-            <label>Username:</label>
-            <input type="text" name="username" required>
+            <label for="id_username">Username:</label>
+            <input type="text" id="id_username" name="username" required>
             <small>Choose a unique username</small>
         </div>
 
         <div class="form-group">
-            <label>Full Name:</label>
-            <input type="text" name="full_name" required>
+            <label for="id_full_name">Full Name:</label>
+            <input type="text" id="id_full_name" name="full_name" required>
             <small>Your complete name as it appears on school records</small>
         </div>
 
         <div class="form-group">
-            <label>Position:</label>
+            <label for="id_position">Position:</label>
             {% if account_type == 'non_teaching' %}
-            <input type="text" name="position" placeholder="Registrar, Librarian, Guidance Counselor, Admin Aide, etc." required>
+            <input type="text" id="id_position" name="position" placeholder="Registrar, Librarian, Guidance Counselor, Admin Aide, etc." required>
             {% else %}
-            <input type="text" name="position" placeholder="Teacher I, Teacher II, etc." required>
+            <input type="text" id="id_position" name="position" placeholder="Teacher I, Teacher II, etc." required>
             {% endif %}
         </div>
 
         {% if account_type == 'teaching' %}
         <div class="form-group">
-            <label>Role:</label>
-            <select name="role" required>
+            <label for="id_role">Role:</label>
+            <select id="id_role" name="role" required>
                 <option value="adviser" {% if selected_role == 'adviser' %}selected{% endif %}>Class Adviser</option>
                 <option value="subject_teacher" {% if selected_role == 'subject_teacher' %}selected{% endif %}>Subject Teacher</option>
             </select>
@@ -42,8 +42,8 @@
 
         {% if account_type == 'non_teaching' %}
         <div class="form-group">
-            <label>Role:</label>
-            <select name="non_teaching_role" required>
+            <label for="id_non_teaching_role">Role:</label>
+            <select id="id_non_teaching_role" name="non_teaching_role" required>
                 <option value="officer">Officer &mdash; full school dashboard access</option>
                 <option value="non_officer">Non-Officer &mdash; Tools/Daily Time Record only</option>
             </select>
@@ -51,19 +51,19 @@
         {% endif %}
 
         <div class="form-group">
-            <label>Email Address:</label>
-            <input type="email" name="email" required>
+            <label for="id_email">Email Address:</label>
+            <input type="email" id="id_email" name="email" required>
         </div>
 
         <div class="form-group">
-            <label>Password:</label>
-            <input type="password" name="password" required>
+            <label for="id_password">Password:</label>
+            <input type="password" id="id_password" name="password" required>
             <small>Must be at least 8 characters</small>
         </div>
 
         <div class="form-group">
-            <label>Confirm Password:</label>
-            <input type="password" name="password_confirm" required>
+            <label for="id_password_confirm">Confirm Password:</label>
+            <input type="password" id="id_password_confirm" name="password_confirm" required>
         </div>
 
         <div class="form-group">

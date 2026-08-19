@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}ANCILLARY TASKS{% endblock %}
+
+{% block content %}
+<h1>Ancillary Tasks</h1>
+<p><small>Every Adviser's and Subject Teacher's self-added ancillary duties (Class Adviser, IT Coordinator, GAD Focal Person, etc.) and schedules, consolidated for School Form 7. Each teacher manages their own list from their My Subject Teaching page.</small></p>
+
+{% if teacher_rows %}
+<table style="margin-top: var(--space-4);">
+    <thead>
+        <tr>
+            <th>Teacher</th>
+            <th>Task</th>
+            <th>Schedule (Term 1 | Term 2 | Term 3)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in teacher_rows %}
+            {% for task in row.tasks %}
+            <tr>
+                {% if forloop.first %}
+                <td rowspan="{{ row.tasks|length }}">{{ row.teacher.full_name }}</td>
+                {% endif %}
+                <td>{{ task.task_name }}</td>
+                <td class="mono" style="font-size: 12px;">{{ task.schedule }}</td>
+            </tr>
+            {% endfor %}
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card" style="margin-top: var(--space-4);">
+    <p>No ancillary tasks have been added yet.</p>
+    <p><small>Advisers and Subject Teachers add their own from their My Subject Teaching page.</small></p>
+</div>
+{% endif %}
+{% endblock %}

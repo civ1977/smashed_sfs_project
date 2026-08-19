@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="no-print">
-    <h2>📘 SF10 - Learner's Permanent Academic Record</h2>
+    <h2>SF10 (Form 137) &mdash; Learner's Permanent Academic Record</h2>
 
     <a href="{% url 'select_student_report' %}" class="btn">← Back to Students</a>
     <a href="{% url 'view_sf9' student.lrn %}" class="btn">📄 View SF9</a>
@@ -47,12 +47,12 @@
     <table class="sf9-grades">
         <thead>
             <tr>
-                <th style="text-align: left;">Subject</th>
-                <th>Term 1</th>
-                <th>Term 2</th>
-                <th>Term 3</th>
-                <th>Final Grade</th>
-                <th>Remarks</th>
+                <th scope="col" style="text-align: left;">Subject</th>
+                <th scope="col">Term 1</th>
+                <th scope="col">Term 2</th>
+                <th scope="col">Term 3</th>
+                <th scope="col">Final Grade</th>
+                <th scope="col">Remarks</th>
             </tr>
         </thead>
         <tbody>
@@ -71,9 +71,11 @@
                 </td>
                 <td style="text-align: center;">
                     {% if row.remarks == 'Passed' %}
-                        <span style="color: green;">✅ Passed</span>
+                        <span style="color: green;">Passed</span>
                     {% elif row.remarks == 'Failed' %}
-                        <span style="color: red;">❌ Failed</span>
+                        <span style="color: red;">Failed</span>
+                    {% elif row.remarks == 'INC' %}
+                        <span style="color: #b45309;">INC</span>
                     {% else %}
                         <span style="color: #999;">—</span>
                     {% endif %}
@@ -96,9 +98,11 @@
                 </td>
                 <td style="text-align: center;">
                     {% if row.remarks == 'Passed' %}
-                        <span style="color: green;">✅ Passed</span>
+                        <span style="color: green;">Passed</span>
                     {% elif row.remarks == 'Failed' %}
-                        <span style="color: red;">❌ Failed</span>
+                        <span style="color: red;">Failed</span>
+                    {% elif row.remarks == 'INC' %}
+                        <span style="color: #b45309;">INC</span>
                     {% else %}
                         <span style="color: #999;">—</span>
                     {% endif %}
@@ -125,9 +129,9 @@
     <table class="sf9-attendance">
         <thead>
             <tr>
-                <th>Month</th>
-                <th>Days Present</th>
-                <th>Days Absent</th>
+                <th scope="col">Month</th>
+                <th scope="col">Days Present</th>
+                <th scope="col">Days Absent</th>
             </tr>
         </thead>
         <tbody>

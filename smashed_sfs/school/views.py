@@ -23,8 +23,8 @@ from accounts.views import (
     build_dtr_days, DTR_TIME_FIELDS, _strip_am_pm, _dtr_calendar_exceptions, _dtr_names_match,
 )
 from students.models import SchoolProfile, Section, Student
-from grades.models import Grade, SubjectMapping, TeacherSubjectAssignment, SchoolCalendarException, SubjectTestMaxScore
-from grades.views import MONTH_NAMES, _score_stats
+from grades.models import Grade, SubjectMapping, TeacherSubjectAssignment, SchoolCalendarException, SubjectTestMaxScore, AncillaryTask, AncillaryTaskSchedule
+from grades.views import MONTH_NAMES, _score_stats, WEEKDAYS
 from .models import TeacherAccountAuditLog, SectionAuditLog, TimeSlot, ScheduleRequirement, ScheduleEntry
 from . import scheduler
 
@@ -50,6 +50,17 @@ def _get_school_admin_teacher(request):
 
 def _section_label(section):
     return f"Grade {section.grade_level}-{section.strand}-{section.section_name}"
+
+
+def _mapping_matches_section(mapping, section):
+    """A subject only makes sense against a section studying the same
+    grade level (and, when the subject specifies one, the same strand) -
+    otherwise a Grade 11 STEM subject could end up assigned against a
+    Grade 12 ABM section. Shared safety-net check for every subject
+    assignment entry point (the dropdowns are already narrowed to match,
+    but a stale form submit could still send a mismatched mapping_id)."""
+    strand_mismatch = section.strand and mapping.strand and mapping.strand != section.strand
+    return mapping.grade_level == section.grade_level and not strand_mismatch
 
 
 def _reassign_section_adviser(school_profile_id, section, new_adviser):
@@ -233,6 +244,7 @@ def school_dtr_upload(request):
         'uploaded_month_rows': uploaded_month_rows,
         'calendar_exceptions': calendar_exceptions,
         'dtr_reason_choices': DTRCalendarException.REASON_CHOICES,
+        'dtr_session_choices': DTRCalendarException.SESSION_CHOICES,
     })
 
 
@@ -255,6 +267,14 @@ def add_dtr_calendar_exception(request):
         messages.error(request, 'Select a valid reason.')
         return redirect('school_dtr_upload')
 
+    # A Holiday is always a whole day - only a Class Suspension can be
+    # scoped to just one session (a suspension announced mid-morning is
+    # common; a "half holiday" isn't a real DepEd concept).
+    session = request.POST.get('session', '').strip()
+    valid_sessions = {value for value, _ in DTRCalendarException.SESSION_CHOICES}
+    if reason != DTRCalendarException.REASON_SUSPENSION or session not in valid_sessions:
+        session = DTRCalendarException.SESSION_WHOLE_DAY
+
     try:
         exception_date = datetime.strptime(date_str, '%Y-%m-%d').date()
     except ValueError:
@@ -264,9 +284,11 @@ def add_dtr_calendar_exception(request):
     exception, created = DTRCalendarException.objects.update_or_create(
         school_profile_id=teacher.school_profile_id,
         date=exception_date,
-        defaults={'reason': reason, 'created_by': teacher.teacher_id},
+        defaults={'reason': reason, 'session': session, 'created_by': teacher.teacher_id},
     )
     label = exception.get_reason_display()
+    if session != DTRCalendarException.SESSION_WHOLE_DAY:
+        label = f'{label} ({exception.get_session_display()})'
     verb = 'Added' if created else 'Updated'
     messages.success(request, f'{verb} {label} for {exception_date.strftime("%B %d, %Y")}.')
     return redirect('school_dtr_upload')
@@ -1010,12 +1032,7 @@ def school_assignments(request):
             messages.error(request, 'Selected teacher, section, or subject not found in this school.')
             return redirect('school_assignments')
 
-        # A subject only makes sense against a section studying the same
-        # grade level (and, when the subject specifies one, the same
-        # strand) - otherwise a Grade 11 STEM subject could end up
-        # assigned against a Grade 12 ABM section.
-        strand_mismatch = section.strand and mapping.strand and mapping.strand != section.strand
-        if mapping.grade_level != section.grade_level or strand_mismatch:
+        if not _mapping_matches_section(mapping, section):
             messages.error(
                 request,
                 f'{mapping.subject_name} (Grade {mapping.grade_level} {mapping.strand}) '
@@ -1073,6 +1090,70 @@ def school_assignments(request):
         'sections': sections,
         'mappings': mappings,
     })
+
+
+def _format_ancillary_schedule(schedule):
+    """Same rendering as reports/views.py's _format_schedule, kept as its
+    own small copy here rather than importing a module-private helper
+    across apps for a single 6-line formatter."""
+    if not schedule:
+        return '—'
+    parts = []
+    for day in WEEKDAYS:
+        entry = schedule.get(day)
+        if not entry:
+            continue
+        start = entry.get('start') or '?'
+        end = entry.get('end') or '?'
+        parts.append(f'{day} {start}-{end}')
+    return ', '.join(parts) if parts else '—'
+
+
+@login_required
+def school_ancillary_tasks(request):
+    """School-wide, read-only view of every Adviser/Subject Teacher's
+    ancillary tasks (Class Adviser, IT Coordinator, etc.) and their
+    schedules, consolidated in one place for SF7 preparation - the tasks
+    themselves are self-added by each teacher on their own My Subject
+    Teaching page (grades/views.py's my_subject_teaching)."""
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    if not teacher.school_profile_id:
+        messages.warning(request, 'Your account has no school assigned yet.')
+        return render(request, 'school/ancillary_tasks.html', {'teacher_rows': []})
+
+    staff = Teacher.objects.filter(
+        school_profile_id=teacher.school_profile_id,
+        role__in=(Teacher.ROLE_ADVISER, Teacher.ROLE_SUBJECT_TEACHER),
+    ).order_by('full_name')
+
+    tasks_by_teacher = {}
+    for t in AncillaryTask.objects.filter(teacher_id__in=[s.teacher_id for s in staff]):
+        tasks_by_teacher.setdefault(t.teacher_id, []).append(t)
+
+    task_ids = [t.task_id for tasks in tasks_by_teacher.values() for t in tasks]
+    schedules_by_task = {}
+    for sched in AncillaryTaskSchedule.objects.filter(task_id__in=task_ids):
+        schedules_by_task.setdefault(sched.task_id, {})[sched.term] = sched.schedule
+
+    teacher_rows = []
+    for s in staff:
+        task_rows = []
+        for t in tasks_by_teacher.get(s.teacher_id, []):
+            term_schedules = schedules_by_task.get(t.task_id, {})
+            task_rows.append({
+                'task_name': t.task_name,
+                'schedule': ' | '.join(
+                    f'T{term}: {_format_ancillary_schedule(term_schedules.get(term))}'
+                    for term in (1, 2, 3)
+                ),
+            })
+        if task_rows:
+            teacher_rows.append({'teacher': s, 'tasks': task_rows})
+
+    return render(request, 'school/ancillary_tasks.html', {'teacher_rows': teacher_rows})
 
 
 @login_required
@@ -1218,11 +1299,7 @@ def adviser_subject_assignments(request):
             messages.error(request, 'Selected teacher or subject not found in this school.')
             return redirect('adviser_subject_assignments')
 
-        # The subject dropdown is already scoped to this section's grade
-        # level/strand, but keep the mismatch check as a safety net anyway
-        # (mirrors school_assignments above).
-        strand_mismatch = section.strand and mapping.strand and mapping.strand != section.strand
-        if mapping.grade_level != section.grade_level or strand_mismatch:
+        if not _mapping_matches_section(mapping, section):
             messages.error(
                 request,
                 f'{mapping.subject_name} (Grade {mapping.grade_level} {mapping.strand}) '
@@ -1260,6 +1337,36 @@ def adviser_subject_assignments(request):
     if section.strand:
         mappings = mappings.filter(Q(strand='') | Q(strand=section.strand))
     mappings = mappings.order_by('subject_name')
+
+    # Narrow the teacher dropdown to whoever's actually relevant to this
+    # section's grade level - an adviser's own section grade level, or a
+    # subject teacher's existing assignments' grade level(s). A teacher
+    # with neither yet (a brand new account) has no established grade
+    # level to filter on, so they stay offered everywhere - otherwise
+    # they could never receive a first assignment at all.
+    candidate_ids = [t.teacher_id for t in subject_teachers]
+    adviser_grade_level_by_teacher = {
+        s.adviser_id: s.grade_level
+        for s in Section.objects.filter(school_profile_id=teacher.school_profile_id, adviser_id__in=candidate_ids)
+    }
+    candidate_assignments = TeacherSubjectAssignment.objects.filter(teacher_id__in=candidate_ids)
+    assignment_mapping_ids = {a.mapping_id for a in candidate_assignments}
+    grade_level_by_mapping = dict(
+        SubjectMapping.objects.filter(mapping_id__in=assignment_mapping_ids).values_list('mapping_id', 'grade_level')
+    )
+    assignment_grade_levels_by_teacher = {}
+    for a in candidate_assignments:
+        grade_level = grade_level_by_mapping.get(a.mapping_id)
+        if grade_level:
+            assignment_grade_levels_by_teacher.setdefault(a.teacher_id, set()).add(grade_level)
+
+    def _relevant_to_section(t):
+        known_levels = assignment_grade_levels_by_teacher.get(t.teacher_id, set())
+        if t.teacher_id in adviser_grade_level_by_teacher:
+            known_levels = known_levels | {adviser_grade_level_by_teacher[t.teacher_id]}
+        return not known_levels or section.grade_level in known_levels
+
+    subject_teachers = [t for t in subject_teachers if _relevant_to_section(t)]
 
     teachers_by_id = {t.teacher_id: t for t in subject_teachers}
     mappings_by_id = {m.mapping_id: m for m in mappings}
@@ -1568,12 +1675,7 @@ def add_schedule_roster(request):
         messages.error(request, 'Section, teacher, or subject not found in this school.')
         return redirect(redirect_url)
 
-    # Same grade/strand match school_assignments enforces - the "+ Add to
-    # Roster" subject dropdown is already narrowed to this section, but a
-    # stale form submit (e.g. after switching sections) could still send a
-    # mismatched mapping_id, so this is checked again here.
-    strand_mismatch = section.strand and mapping.strand and mapping.strand != section.strand
-    if mapping.grade_level != section.grade_level or strand_mismatch:
+    if not _mapping_matches_section(mapping, section):
         messages.error(
             request,
             f"{mapping.subject_name} (Grade {mapping.grade_level} {mapping.strand}) doesn't match "

@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% load grade_filters %}
+
+{% block breadcrumb %}ANCILLARY TASK SCHEDULE{% endblock %}
+
+{% block content %}
+<h1>{{ task.task_name }} &middot; Term {{ term }}</h1>
+
+<a href="{% url 'my_subject_teaching' %}" class="btn ghost">← Back to My Subject Teaching</a>
+
+<form method="POST" action="{% url 'ancillary_task_schedule' task.task_id term %}" style="margin-top: var(--space-4); max-width: 640px;">
+    {% csrf_token %}
+    <div class="form-group">
+        <strong>Schedule:</strong>
+        <span style="font-size: 12px; color: var(--ink-faint);">(times use 24-hour / military time, e.g. 14:30 for 2:30 PM)</span>
+        <div style="display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: 4px;">
+            {% for day, day_label in day_choices %}
+            <label style="display: flex; flex: none; align-items: center; gap: 4px; white-space: nowrap;" title="{{ day_label }}">
+                <input type="checkbox" name="days" value="{{ day }}" {% if day in schedule_dict %}checked{% endif %}>
+                {{ day }}
+                <input type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" placeholder="HH:MM"
+                       title="24-hour time, e.g. 14:30" maxlength="5" style="width: 60px;"
+                       name="time_start_{{ day }}" value="{{ schedule_dict|get:day|get:'start'|default_if_none:'' }}">
+                <span>–</span>
+                <input type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" placeholder="HH:MM"
+                       title="24-hour time, e.g. 14:30" maxlength="5" style="width: 60px;"
+                       name="time_end_{{ day }}" value="{{ schedule_dict|get:day|get:'end'|default_if_none:'' }}">
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="alert alert-info" style="margin: var(--space-4) 0; font-size: 12px; border-radius: 0;">
+        <strong>Important note:</strong> <em>Providing an accurate schedule here will help make an accurate
+        School Form 7.</em>
+    </div>
+
+    <button type="submit" class="btn">Save Schedule</button>
+</form>
+{% endblock %}

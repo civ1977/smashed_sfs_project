@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="no-print">
-    <h2>📄 SF9 - Learner's Performance Report</h2>
+    <h2>SF9 (Form 138) &mdash; Learner's Performance Report</h2>
 
     <a href="{% url 'select_student_report' %}" class="btn">← Back to Students</a>
     <a href="{% url 'view_sf10' student.lrn %}" class="btn">📘 View SF10</a>
@@ -99,15 +99,15 @@
                 </colgroup>
                 <thead>
                     <tr>
-                        <th rowspan="2">Learning Areas</th>
-                        <th colspan="3">TERM</th>
-                        <th rowspan="2">Final<br>Grade</th>
-                        <th rowspan="2">Remarks</th>
+                        <th scope="col" rowspan="2">Learning Areas</th>
+                        <th scope="colgroup" colspan="3">TERM</th>
+                        <th scope="col" rowspan="2">Final<br>Grade</th>
+                        <th scope="col" rowspan="2">Remarks</th>
                     </tr>
                     <tr>
-                        <th>1</th>
-                        <th>2</th>
-                        <th>3</th>
+                        <th scope="col">1</th>
+                        <th scope="col">2</th>
+                        <th scope="col">3</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -157,9 +157,9 @@
             <table class="sf9-descriptors">
                 <thead>
                     <tr>
-                        <th>Grading Scale</th>
-                        <th>Description</th>
-                        <th>Remarks</th>
+                        <th scope="col">Grading Scale</th>
+                        <th scope="col">Description</th>
+                        <th scope="col">Remarks</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -177,9 +177,9 @@
             <table class="sf9-attendance">
                 <thead>
                     <tr>
-                        <th class="month-label">Month</th>
-                        {% for m in attendance_months %}<th>{{ m }}</th>{% endfor %}
-                        <th>Total</th>
+                        <th class="month-label" scope="col">Month</th>
+                        {% for m in attendance_months %}<th scope="col">{{ m }}</th>{% endfor %}
+                        <th scope="col">Total</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -268,6 +268,20 @@
         margin: 0 auto;
         box-sizing: border-box;
     }
+    /* tokens.css sets global sans-serif font-family rules for both `th`
+       and `h1, h2, h3, h4` (the app's own UI tables/headings), plus a
+       global `p { color: var(--ink-soft) }` (a dark gray, not black) -
+       each beats this form's own Times New Roman/black by element-
+       specificity for any <th>/<h1-4>/<p> inside it (TERM, Learning
+       Areas, Final Grade, "LEARNER'S PERFORMANCE REPORT", every
+       .sf9-section-heading like "LEARNING PROGRESS AND ACHIEVEMENT" and
+       "PERFORMANCE DESCRIPTORS", etc.) unless explicitly overridden
+       back, since an inherited value always loses to any rule that
+       targets the element directly. */
+    .sf9-form th, .sf9-form h1, .sf9-form h2, .sf9-form h3, .sf9-form h4 {
+        font-family: 'Times New Roman', Times, serif;
+    }
+    .sf9-form p { color: #000; }
     .sf9-header { display: flex; justify-content: center; align-items: flex-start; }
     .sf9-header-text { text-align: center; padding: 0 8px; }
     .sf9-header-text p { margin: 0; }
@@ -326,10 +340,9 @@
     table.sf9-attendance .month-label { text-align: left; white-space: nowrap; width: 1%; }
     table.sf9-attendance th:last-child, table.sf9-attendance td:last-child { font-weight: bold; }
     table.sf9-descriptors { width: 100%; border-collapse: collapse; table-layout: fixed; }
-    table.sf9-descriptors th, table.sf9-descriptors td { padding: 1px 6px; text-align: left; }
-    table.sf9-descriptors th:first-child, table.sf9-descriptors td:first-child { width: 32%; text-align: right; }
+    table.sf9-descriptors th, table.sf9-descriptors td { padding: 1px 6px; text-align: center; }
+    table.sf9-descriptors th:first-child, table.sf9-descriptors td:first-child { width: 32%; }
     table.sf9-descriptors th:last-child, table.sf9-descriptors td:last-child { width: 18%; }
-    table.sf9-descriptors th:nth-child(2), table.sf9-descriptors td:nth-child(2) { text-align: center; }
     table.sf9-descriptors th { border-bottom: none; font-weight: bold; }
     /* Cancel the app-wide table-row divider (tokens.css: td { border-bottom:
        1px solid var(--line); }) that otherwise leaks a grey line under every

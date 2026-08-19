@@ -22,6 +22,7 @@
                 <th>Role</th>
                 <th>Advisory Section</th>
                 <th>Subjects Taught (Section, Schedule)</th>
+                <th>Ancillary Tasks (Schedule)</th>
             </tr>
         </thead>
         <tbody>
@@ -43,6 +44,17 @@
                         <ul class="sf7-assignment-list">
                         {% for a in row.assignments %}
                             <li>{{ a.subject_name }} — {{ a.section_label }}<br><small>{{ a.schedule }}</small></li>
+                        {% endfor %}
+                        </ul>
+                    {% else %}
+                        <span style="color: var(--ink-faint);">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if row.ancillary_tasks %}
+                        <ul class="sf7-assignment-list">
+                        {% for t in row.ancillary_tasks %}
+                            <li>{{ t.task_name }}<br><small>{{ t.schedule }}</small></li>
                         {% endfor %}
                         </ul>
                     {% else %}

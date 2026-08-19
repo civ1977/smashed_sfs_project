@@ -45,23 +45,40 @@
 <div class="card" style="max-width: 480px;">
     <form method="POST" action="{% url 'add_dtr_calendar_exception' %}">
         {% csrf_token %}
-        <div class="form-group" style="display: flex; gap: var(--space-2); align-items: flex-end;">
+        <div class="form-group" style="display: flex; gap: var(--space-2); align-items: flex-end; flex-wrap: wrap;">
             <div>
                 <label>Date</label>
                 <input type="date" name="date" required>
             </div>
             <div>
                 <label>Reason</label>
-                <select name="reason" required>
+                <select name="reason" id="id_dtr_reason" required onchange="dtrToggleSessionField()">
                     {% for value, label in dtr_reason_choices %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="dtr-session-field" style="display: none;">
+                <label>Session</label>
+                <select name="session">
+                    {% for value, label in dtr_session_choices %}
                     <option value="{{ value }}">{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
             <button type="submit" class="btn btn-success">Add</button>
         </div>
+        <small style="color: var(--ink-faint);">A Holiday is always a whole day. A Class Suspension can be scoped to just one session - the other session's time fields stay editable on the DTR.</small>
     </form>
 </div>
+
+<script>
+    function dtrToggleSessionField() {
+        var reason = document.getElementById('id_dtr_reason').value;
+        document.getElementById('dtr-session-field').style.display = reason === 'suspension' ? '' : 'none';
+    }
+    dtrToggleSessionField();
+</script>
 
 {% if calendar_exceptions %}
 <table style="max-width: 480px; margin-top: var(--space-3);">
@@ -76,7 +93,7 @@
         {% for exc in calendar_exceptions %}
         <tr>
             <td>{{ exc.date|date:"F j, Y" }}</td>
-            <td>{{ exc.get_reason_display }}</td>
+            <td>{{ exc.get_reason_display }}{% if exc.session != 'whole_day' %} <span class="pill">{{ exc.get_session_display }}</span>{% endif %}</td>
             <td>
                 <form method="POST" action="{% url 'remove_dtr_calendar_exception' exc.exception_id %}"
                       onsubmit="return confirm('Remove {{ exc.get_reason_display }} for {{ exc.date|date:"F j, Y" }}?');">

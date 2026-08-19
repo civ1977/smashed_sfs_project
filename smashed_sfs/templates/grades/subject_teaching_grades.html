@@ -42,6 +42,7 @@
                 <th>LRN</th>
                 <th>Name</th>
                 <th>Final Ratings</th>
+                <th>INC</th>
                 <th>
                     Pre-Test Score
                     <span style="font-weight: normal; white-space: nowrap;">
@@ -68,6 +69,9 @@
                     <input type="hidden" name="lrn_{{ forloop.counter0 }}" value="{{ student.lrn }}">
                     <input type="number" min="60" max="100" name="grade_{{ forloop.counter0 }}"
                            value="{{ g.grade|default_if_none:'' }}" style="width: 70px;">
+                </td>
+                <td style="text-align: center;">
+                    <input type="checkbox" name="incomplete_{{ forloop.counter0 }}" {% if g.is_incomplete %}checked{% endif %}>
                 </td>
                 <td>
                     <input type="number" min="0"{% if max_score.pretest_max %} max="{{ max_score.pretest_max }}"{% endif %} name="pretest_{{ forloop.counter0 }}"

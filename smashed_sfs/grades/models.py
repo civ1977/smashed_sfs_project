@@ -85,12 +85,25 @@ class Grade(models.Model):
     pretest_score = models.IntegerField(blank=True, null=True)
     final_exam_score = models.IntegerField(blank=True, null=True)
     comment = models.TextField(blank=True, null=True)
+    # A deliberate "Incomplete" mark for this subject/term - distinct from
+    # grade being blank because it simply hasn't been uploaded yet. SF9/
+    # SF10 need to tell the two apart: one is "not entered", the other is
+    # an actual academic status the student earned.
+    is_incomplete = models.BooleanField(default=False)
     uploaded_by = models.IntegerField()
     uploaded_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'grades'
+        indexes = [
+            # The dominant query shape across grades/views.py and
+            # reports/views.py is exactly this combination (a student's
+            # grade for one subject in one term) - the per-column indexes
+            # InnoDB adds for the (undeclared, integer-ID) FK-like columns
+            # don't cover a 3-column lookup the way this does.
+            models.Index(fields=['lrn', 'mapping_id', 'term'], name='grades_lrn_mapping_term_idx'),
+        ]
 
     def __str__(self):
         return f"{self.lrn} - Term {self.term}: {self.grade}"
@@ -120,6 +133,48 @@ class SubjectTestMaxScore(models.Model):
 
     def __str__(self):
         return f"assignment {self.assignment_id} term {self.term}"
+
+    @property
+    def schedule_dict(self):
+        return self.schedule or {}
+
+
+class AncillaryTask(models.Model):
+    """A teacher's non-subject-teaching duty (Class Adviser, IT Coordinator,
+    GAD Focal Person, etc.) - free text so any DepEd designation fits, not
+    just the fixed set Teacher.role/position already cover. Self-service:
+    an Adviser or Subject Teacher adds their own (see grades/views.py's
+    my_subject_teaching), and it feeds both their own SF7 row and the
+    school-wide consolidated view Non-Teaching Officers use."""
+    task_id = models.AutoField(primary_key=True)
+    teacher_id = models.IntegerField()
+    task_name = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ancillary_task'
+        ordering = ['task_name']
+
+    def __str__(self):
+        return self.task_name
+
+
+class AncillaryTaskSchedule(models.Model):
+    """Per-term schedule for an AncillaryTask - same shape and purpose as
+    SubjectTestMaxScore.schedule, just keyed by task_id instead of
+    assignment_id, since an ancillary task has no exam-score fields to
+    carry alongside it."""
+    schedule_id = models.AutoField(primary_key=True)
+    task_id = models.IntegerField()
+    term = models.IntegerField()
+    schedule = models.JSONField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'ancillary_task_schedule'
+        unique_together = ('task_id', 'term')
+
+    def __str__(self):
+        return f"task {self.task_id} term {self.term}"
 
     @property
     def schedule_dict(self):

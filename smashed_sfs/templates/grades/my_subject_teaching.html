@@ -22,9 +22,9 @@
             <td>{% if row.mapping %}Grade {{ row.mapping.grade_level }} · {{ row.mapping.strand }}{% else %}—{% endif %}</td>
             <td>{% if row.section %}{{ row.section.grade_level }}-{{ row.section.strand }}-{{ row.section.section_name }}{% else %}<span class="pill risk">Unknown section</span>{% endif %}</td>
             <td>
-                <a href="{% url 'subject_teaching_grades' row.assignment.assignment_id 1 %}" class="btn">Term 1</a>
-                <a href="{% url 'subject_teaching_grades' row.assignment.assignment_id 2 %}" class="btn">Term 2</a>
-                <a href="{% url 'subject_teaching_grades' row.assignment.assignment_id 3 %}" class="btn">Term 3</a>
+                <a href="{% url 'subject_teaching_grades' row.assignment.assignment_id 1 %}" class="btn">1st Term</a>
+                <a href="{% url 'subject_teaching_grades' row.assignment.assignment_id 2 %}" class="btn">2nd Term</a>
+                <a href="{% url 'subject_teaching_grades' row.assignment.assignment_id 3 %}" class="btn">3rd Term</a>
             </td>
         </tr>
         {% endfor %}
@@ -35,5 +35,71 @@
     <p>You have no subject-teaching assignments yet.</p>
     <p><small>Ask your Class Adviser or school registrar to assign you to a subject and section.</small></p>
 </div>
+{% endif %}
+
+{% if can_manage_tasks %}
+<h2 style="margin-top: var(--space-6);">Ancillary Tasks</h2>
+<p><small>Additional duties beyond subject teaching (Class Adviser, IT Coordinator, GAD Focal Person, etc.) - these feed School Form 7 alongside your subject-teaching schedule.</small></p>
+
+<form method="POST" action="{% url 'add_ancillary_task' %}" style="display: flex; gap: var(--space-2); align-items: flex-end; margin-top: var(--space-3); max-width: 480px;">
+    {% csrf_token %}
+    <div class="form-group" style="flex: 1; margin-bottom: 0;">
+        <label for="id_task_name">Task name</label>
+        <input type="text" id="id_task_name" name="task_name" placeholder="e.g. IT Coordinator" required>
+    </div>
+    <button type="submit" class="btn good">+ Add Task</button>
+</form>
+
+{% if tasks %}
+<div style="margin-top: var(--space-4);">
+    <div style="display:none;">
+        {% for task in tasks %}
+        <form id="edit-task-form-{{ task.task_id }}" method="POST" action="{% url 'edit_ancillary_task' task.task_id %}">{% csrf_token %}</form>
+        {% endfor %}
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Task</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr id="task-row-{{ task.task_id }}">
+                <td>
+                    <span class="view-val">{{ task.task_name }}</span>
+                    <input class="edit-val" type="text" name="task_name" value="{{ task.task_name }}" form="edit-task-form-{{ task.task_id }}" style="display:none;">
+                </td>
+                <td style="white-space: nowrap;">
+                    <a href="{% url 'ancillary_task_schedule' task.task_id 1 %}" class="btn ghost">1st Term</a>
+                    <a href="{% url 'ancillary_task_schedule' task.task_id 2 %}" class="btn ghost">2nd Term</a>
+                    <a href="{% url 'ancillary_task_schedule' task.task_id 3 %}" class="btn ghost">3rd Term</a>
+                    <button type="button" class="btn ghost edit-btn" onclick="toggleTaskEdit('{{ task.task_id }}')">Edit</button>
+                    <button type="submit" class="btn good save-btn" form="edit-task-form-{{ task.task_id }}" style="display:none;">Save</button>
+                    <button type="button" class="btn ghost cancel-btn" onclick="toggleTaskEdit('{{ task.task_id }}')" style="display:none;">Cancel</button>
+                    <form method="POST" action="{% url 'delete_ancillary_task' task.task_id %}" style="display:inline;" onsubmit="return confirm('Delete &quot;{{ task.task_name|escapejs }}&quot;? This also removes its schedule for all terms.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn risk">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    function toggleTaskEdit(taskId) {
+        var row = document.getElementById('task-row-' + taskId);
+        var editing = row.querySelector('.edit-val').style.display !== 'none';
+        row.querySelectorAll('.view-val').forEach(function (el) { el.style.display = editing ? '' : 'none'; });
+        row.querySelectorAll('.edit-val').forEach(function (el) { el.style.display = editing ? 'none' : ''; });
+        row.querySelector('.edit-btn').style.display = editing ? '' : 'none';
+        row.querySelector('.save-btn').style.display = editing ? 'none' : '';
+        row.querySelector('.cancel-btn').style.display = editing ? 'none' : '';
+    }
+</script>
+{% endif %}
 {% endif %}
 {% endblock %}

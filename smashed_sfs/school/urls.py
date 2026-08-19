@@ -23,6 +23,7 @@ urlpatterns = [
     path('accounts/<int:teacher_id>/reassign-section/', views.reassign_teacher_section, name='reassign_teacher_section'),
     path('assignments/', views.school_assignments, name='school_assignments'),
     path('assignments/<int:assignment_id>/remove/', views.remove_teacher_subject_assignment, name='remove_teacher_subject_assignment'),
+    path('ancillary-tasks/', views.school_ancillary_tasks, name='school_ancillary_tasks'),
     path('my-assignments/', views.adviser_subject_assignments, name='adviser_subject_assignments'),
     path('my-assignments/<int:assignment_id>/remove/', views.remove_adviser_subject_assignment, name='remove_adviser_subject_assignment'),
     path('my-section/edit/', views.edit_my_section, name='edit_my_section'),

@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.utils import timezone
 from datetime import datetime
-from .models import Student, Section
+from .models import Student, Section, log_student_record_change
 from accounts.models import Teacher
 from portal.models import StudentAccount
 from smashed_sfs.upload_utils import read_upload_rows, UploadFileError
@@ -143,11 +143,12 @@ def save_students(request):
                     adviser_id=teacher.teacher_id
                 )
                 student.save()
+                log_student_record_change('student', student.lrn, student.lrn, 'created', teacher.teacher_id)
                 saved_count += 1
                 
-            except Exception as e:
+            except Exception:
                 error_count += 1
-                error_msg = f'Error saving student {i+1}: {str(e)}'
+                error_msg = f"Row {i+1} couldn't be saved - please check its values and try again."
                 errors.append(error_msg)
                 messages.error(request, error_msg)
         
@@ -156,7 +157,7 @@ def save_students(request):
         if saved_count > 0:
             messages.success(request, f'✅ {saved_count} students saved successfully!')
         if error_count > 0:
-            messages.warning(request, f'⚠️ {error_count} students had errors.')
+            messages.warning(request, f'{error_count} students had errors.')
         
         return redirect('student_list')
     
@@ -226,7 +227,11 @@ def update_student(request, lrn):
     student.middle_name = request.POST.get('middle_name', '').strip() or None
     student.sex = request.POST.get('sex', student.sex)
     student.birthday = convert_date(request.POST.get('birthday', ''))
+    status = request.POST.get('status', student.status)
+    if status in dict(Student.STATUS_CHOICES):
+        student.status = status
     student.save()
+    log_student_record_change('student', student.lrn, student.lrn, 'updated', teacher.teacher_id)
 
     messages.success(request, f'✅ Updated {student.surname}, {student.name}.')
     return redirect('student_list')

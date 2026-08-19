@@ -28,6 +28,7 @@
                 <th>Sex</th>
                 <th>Birthday</th>
                 <th>Section</th>
+                <th>Status</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -59,6 +60,14 @@
                     <input class="edit-val" type="date" name="birthday" value="{{ student.birthday|date:'Y-m-d' }}" form="edit-form-{{ student.lrn }}" style="display:none;">
                 </td>
                 <td>{{ student.section_id }}</td>
+                <td>
+                    <span class="view-val">{{ student.get_status_display }}</span>
+                    <select class="edit-val" name="status" form="edit-form-{{ student.lrn }}" style="display:none;">
+                        <option value="active" {% if student.status == 'active' %}selected{% endif %}>Active</option>
+                        <option value="dropped" {% if student.status == 'dropped' %}selected{% endif %}>Dropped</option>
+                        <option value="transferred" {% if student.status == 'transferred' %}selected{% endif %}>Transferred</option>
+                    </select>
+                </td>
                 <td style="white-space: nowrap;">
                     <button type="button" class="btn ghost edit-btn" onclick="toggleEdit('{{ student.lrn }}')">Edit</button>
                     <button type="submit" class="btn good save-btn" form="edit-form-{{ student.lrn }}" style="display:none;">Save</button>

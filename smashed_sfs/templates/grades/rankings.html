@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load grade_filters %}
 
 {% block breadcrumb %}RANKINGS{% endblock %}
 
@@ -19,13 +20,13 @@
 
 <div class="rankings-tabs" style="margin-top: var(--space-5); display: flex; gap: var(--space-2);">
     {% for term_data in terms %}
-    <button type="button" class="btn ghost rankings-tab-btn" data-term="term-{{ term_data.term }}">Term {{ term_data.term }}</button>
+    <button type="button" class="btn ghost rankings-tab-btn" data-term="term-{{ term_data.term }}">{{ term_data.term|ordinal_term }} Term</button>
     {% endfor %}
 </div>
 
 {% for term_data in terms %}
 <div class="rankings-term-panel" id="term-{{ term_data.term }}-panel" style="margin-top: var(--space-6);">
-    <h2 id="term-{{ term_data.term }}">Term {{ term_data.term }}</h2>
+    <h2 id="term-{{ term_data.term }}">{{ term_data.term|ordinal_term }} Term</h2>
 
     <div class="card" style="margin-top: var(--space-3);">
         <h3 style="margin-top: 0;">Summary of Academic Awards</h3>
@@ -46,12 +47,12 @@
             <table>
                 <thead>
                     <tr>
-                        <th>No.</th>
-                        <th>Name of Learner</th>
-                        <th>Average</th>
-                        <th>Rank</th>
-                        <th>Award</th>
-                        <th>Teacher's Comments/Remarks</th>
+                        <th scope="col">No.</th>
+                        <th scope="col">Name of Learner</th>
+                        <th scope="col">Average</th>
+                        <th scope="col">Rank</th>
+                        <th scope="col">Award</th>
+                        <th scope="col">Teacher's Comments/Remarks</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -79,14 +80,14 @@
             </table>
         </div>
     {% else %}
-        <p style="margin-top: var(--space-4);">No students have a complete Term {{ term_data.term }} gradesheet yet.</p>
+        <p style="margin-top: var(--space-4);">No students have a complete {{ term_data.term|ordinal_term }} Term gradesheet yet.</p>
     {% endif %}
 
     {% if term_data.incomplete_students %}
     <div class="card" style="margin-top: var(--space-4);">
-        <h3 style="margin-top: 0;">Incomplete Term {{ term_data.term }} Gradesheets</h3>
+        <h3 style="margin-top: 0;">Incomplete {{ term_data.term|ordinal_term }} Term Gradesheets</h3>
         <p style="color: var(--ink-soft); font-size: 13px;">
-            These students are missing a Term {{ term_data.term }} grade in at least one subject, so
+            These students are missing a {{ term_data.term|ordinal_term }} Term grade in at least one subject, so
             they're left out of this term's ranking and awards rather than being ranked on a
             partial average.
         </p>

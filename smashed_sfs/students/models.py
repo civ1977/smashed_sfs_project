@@ -57,6 +57,15 @@ class Student(models.Model):
         ('F', 'Female'),
     ]
 
+    STATUS_ACTIVE = 'active'
+    STATUS_DROPPED = 'dropped'
+    STATUS_TRANSFERRED = 'transferred'
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_DROPPED, 'Dropped'),
+        (STATUS_TRANSFERRED, 'Transferred'),
+    ]
+
     lrn = models.CharField(max_length=12, primary_key=True)
     surname = models.CharField(max_length=100)
     name = models.CharField(max_length=100)
@@ -74,9 +83,77 @@ class Student(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
+    # Enrollment status shown on SF9/SF10, distinct from is_active (which
+    # gates whether the student appears in the adviser's day-to-day roster
+    # queries throughout the app) - a Dropped/Transferred student's
+    # historical grades still need to render correctly on their official
+    # forms, which is what this field feeds.
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
 
     class Meta:
         db_table = 'student'
+
+
+class StudentRecordAuditLog(models.Model):
+    """DPA accountability trail: who touched an actual Student, Grade, or
+    Attendance row, when, and which one. Separate from
+    TeacherAccountAuditLog/SectionAuditLog (school/models.py), which only
+    cover account and section administration - not the student data itself
+    that DPA breach-notification and accountability obligations center on.
+
+    record_id is stored as text since it spans different PK types across
+    the three record types (Student.lrn is a CharField; Grade.grade_id and
+    AttendanceMark.mark_id are AutoFields). lrn is always the affected
+    student's LRN regardless of record_type, so "which students were
+    touched" is answerable with one filter no matter which table changed.
+    """
+
+    RECORD_STUDENT = 'student'
+    RECORD_GRADE = 'grade'
+    RECORD_ATTENDANCE = 'attendance'
+    RECORD_TYPE_CHOICES = [
+        (RECORD_STUDENT, 'Student'),
+        (RECORD_GRADE, 'Grade'),
+        (RECORD_ATTENDANCE, 'Attendance'),
+    ]
+
+    ACTION_CREATED = 'created'
+    ACTION_UPDATED = 'updated'
+    ACTION_DELETED = 'deleted'
+    ACTION_CHOICES = [
+        (ACTION_CREATED, 'Created'),
+        (ACTION_UPDATED, 'Updated'),
+        (ACTION_DELETED, 'Deleted'),
+    ]
+
+    log_id = models.AutoField(primary_key=True)
+    record_type = models.CharField(max_length=20, choices=RECORD_TYPE_CHOICES)
+    record_id = models.CharField(max_length=50)
+    lrn = models.CharField(max_length=12)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    performed_by = models.IntegerField()
+    performed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'student_record_audit_log'
+        ordering = ['-performed_at']
+
+    def __str__(self):
+        return f'{self.record_type} {self.record_id} {self.action} by {self.performed_by}'
+
+
+def log_student_record_change(record_type, record_id, lrn, action, performed_by):
+    """Shared helper for the create/update/delete call sites touching
+    Student, Grade, or AttendanceMark rows - keeps the one-line-per-call
+    convention consistent instead of constructing StudentRecordAuditLog
+    directly at each site."""
+    StudentRecordAuditLog.objects.create(
+        record_type=record_type,
+        record_id=str(record_id),
+        lrn=lrn,
+        action=action,
+        performed_by=performed_by,
+    )
 
     def __str__(self):
         return f"{self.surname}, {self.name} ({self.lrn})"

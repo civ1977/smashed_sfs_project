@@ -41,8 +41,9 @@ human-facing setup instructions (this file is written for an AI assistant's use,
 ## Database
 
 MySQL via PyMySQL, patched in as MySQLdb (`smashed_sfs/settings.py`: `pymysql.install_as_MySQLdb()`).
-Connection settings (host/user/password/db name `smashed_sfs`) are hardcoded in
-`smashed_sfs/settings.py` and duplicated in `db_check.py` — there is no `.env`/secrets layer.
+Connection settings (host/user/password) come from `DB_USER`/`DB_PASSWORD` env vars via `.env`
+(`python-dotenv`) — both `settings.py` and the standalone `db_check.py` raise/exit loudly if they're
+unset rather than falling back to a default credential.
 
 `models_auto.py` at the repo root is a stray `inspectdb` dump (all `managed = False`) — it is not
 imported anywhere and does not reflect the real app models. Don't edit it; the real models live in

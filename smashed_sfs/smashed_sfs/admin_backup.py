@@ -13,11 +13,13 @@ import json
 from datetime import date
 
 from django.contrib import admin, messages
+from django.contrib.admin.models import LogEntry, DELETION
+from django.contrib.contenttypes.models import ContentType
 from django.core import serializers
 from django.core.serializers.base import DeserializationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
-from django.http import HttpResponse, HttpResponseNotFound
+from django.http import HttpResponse, HttpResponseForbidden, HttpResponseNotFound
 from django.shortcuts import redirect, render
 from django.urls import path
 
@@ -158,7 +160,28 @@ def restore_group_view(request, slug):
     return render(request, 'admin/restore_backup.html', context)
 
 
+def _log_bulk_deletion(request, model, count, detail):
+    """Bulk deletes bypass Django's normal per-object admin logging (which
+    only fires on individual ModelAdmin.delete_model calls), so this tool -
+    capable of wiping an entire model's data in one click - would otherwise
+    leave no trace of who did it. One LogEntry per affected model, so it
+    shows up in the admin's own 'Recent actions' like any other edit."""
+    LogEntry.objects.log_action(
+        user_id=request.user.pk,
+        content_type_id=ContentType.objects.get_for_model(model).pk,
+        object_id='',
+        object_repr=f'{count} {model._meta.verbose_name_plural}',
+        action_flag=DELETION,
+        change_message=detail,
+    )
+
+
 def delete_group_view(request, slug):
+    # This can wipe an entire model's data in one confirmed click, so it
+    # needs the highest privilege tier, not just staff access to the admin.
+    if not request.user.is_superuser:
+        return HttpResponseForbidden('Only a superuser can delete a whole record group.')
+
     keys = admin_grouping.resolve_group_keys(slug)
     group_name = admin_grouping.group_name_for_slug(slug)
     if keys is None:
@@ -186,8 +209,11 @@ def delete_group_view(request, slug):
                 if model is None:
                     continue
                 queryset = model.objects.all()
-                total += queryset.count()
-                queryset.delete()
+                model_count = queryset.count()
+                if model_count:
+                    queryset.delete()
+                    _log_bulk_deletion(request, model, model_count, f'Deleted all records from group "{group_name}".')
+                total += model_count
 
         messages.success(request, f'Deleted all {total} record(s) from {group_name}.')
         return redirect('admin:index')
@@ -195,6 +221,7 @@ def delete_group_view(request, slug):
     if request.method == 'POST' and request.POST.get('action') == 'delete_selected':
         selected = request.POST.getlist('record')
         deleted = 0
+        deleted_by_model = {}
         with transaction.atomic():
             for item in selected:
                 try:
@@ -207,7 +234,13 @@ def delete_group_view(request, slug):
                 model = lookup.get((app_label, object_name))
                 if model is None:
                     continue
-                deleted += model.objects.filter(pk=pk).delete()[0]
+                row_deleted = model.objects.filter(pk=pk).delete()[0]
+                if row_deleted:
+                    deleted += row_deleted
+                    deleted_by_model[model] = deleted_by_model.get(model, 0) + row_deleted
+
+            for model, model_count in deleted_by_model.items():
+                _log_bulk_deletion(request, model, model_count, f'Deleted selected records from group "{group_name}".')
 
         messages.success(request, f'Deleted {deleted} selected record(s) from {group_name}.')
         return redirect('admin:group_delete', slug=slug)

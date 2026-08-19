@@ -114,10 +114,25 @@ class DTRCalendarException(models.Model):
         (REASON_SUSPENSION, 'Class Suspension'),
     ]
 
+    # Only meaningful for REASON_SUSPENSION - a Holiday is always a whole
+    # day. A suspension is often announced for just one session (e.g.
+    # "morning classes suspended, afternoon classes push through"), so the
+    # DTR needs to keep the other session's time fields real/editable
+    # rather than blanking the whole row.
+    SESSION_WHOLE_DAY = 'whole_day'
+    SESSION_AM = 'am'
+    SESSION_PM = 'pm'
+    SESSION_CHOICES = [
+        (SESSION_WHOLE_DAY, 'Whole Day'),
+        (SESSION_AM, 'Morning Only'),
+        (SESSION_PM, 'Afternoon Only'),
+    ]
+
     exception_id = models.AutoField(primary_key=True)
     school_profile_id = models.IntegerField()
     date = models.DateField()
     reason = models.CharField(max_length=20, choices=REASON_CHOICES, default=REASON_HOLIDAY)
+    session = models.CharField(max_length=20, choices=SESSION_CHOICES, default=SESSION_WHOLE_DAY)
     created_by = models.IntegerField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

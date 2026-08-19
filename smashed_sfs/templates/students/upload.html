@@ -9,8 +9,8 @@
     <form method="POST" enctype="multipart/form-data">
         {% csrf_token %}
         <div class="form-group">
-            <label>Select CSV or Excel File:</label>
-            <input type="file" name="csv_file" accept=".csv,.xlsx" required>
+            <label for="id_csv_file">Select CSV or Excel File:</label>
+            <input type="file" id="id_csv_file" name="csv_file" accept=".csv,.xlsx" required>
             <small>Accepts .csv or .xlsx (Excel). Older .xls files are not supported - save as .xlsx instead.</small>
         </div>
         <div class="form-group">

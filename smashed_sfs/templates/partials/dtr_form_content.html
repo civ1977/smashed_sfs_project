@@ -44,26 +44,33 @@
         <tr{% if entry.label %} class="dtr-label-row"{% endif %}>
             <td class="dtr-day dtr-thick-r">{{ entry.day }}</td>
             {% if entry.label %}
-            <td class="dtr-day-label-cell"><span class="dtr-day-label-text">{{ entry.label }}</span></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            {% elif readonly %}
-            <td>{{ entry.am_arrival }}</td>
-            <td class="dtr-thick-r">{{ entry.am_departure }}</td>
-            <td>{{ entry.pm_arrival }}</td>
-            <td class="dtr-thick-r">{{ entry.pm_departure }}</td>
-            <td>{{ entry.undertime_hours }}</td>
-            <td>{{ entry.undertime_minutes }}</td>
+            <td class="dtr-day-label-cell" colspan="6"><span class="dtr-day-label-text">{{ entry.label }}</span></td>
             {% else %}
-            <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="am_arrival">{{ entry.am_arrival }}</td>
-            <td class="dtr-editable dtr-thick-r" contenteditable="true" data-date="{{ entry.date }}" data-field="am_departure">{{ entry.am_departure }}</td>
-            <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="pm_arrival">{{ entry.pm_arrival }}</td>
-            <td class="dtr-editable dtr-thick-r" contenteditable="true" data-date="{{ entry.date }}" data-field="pm_departure">{{ entry.pm_departure }}</td>
-            <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="undertime_hours">{{ entry.undertime_hours }}</td>
-            <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="undertime_minutes">{{ entry.undertime_minutes }}</td>
+                {% if entry.am_label %}
+                <td class="dtr-day-label-cell dtr-thick-r" colspan="2"><span class="dtr-day-label-text">{{ entry.am_label }}</span></td>
+                {% elif readonly %}
+                <td>{{ entry.am_arrival }}</td>
+                <td class="dtr-thick-r">{{ entry.am_departure }}</td>
+                {% else %}
+                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="am_arrival">{{ entry.am_arrival }}</td>
+                <td class="dtr-editable dtr-thick-r" contenteditable="true" data-date="{{ entry.date }}" data-field="am_departure">{{ entry.am_departure }}</td>
+                {% endif %}
+                {% if entry.pm_label %}
+                <td class="dtr-day-label-cell dtr-thick-r" colspan="2"><span class="dtr-day-label-text">{{ entry.pm_label }}</span></td>
+                {% elif readonly %}
+                <td>{{ entry.pm_arrival }}</td>
+                <td class="dtr-thick-r">{{ entry.pm_departure }}</td>
+                {% else %}
+                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="pm_arrival">{{ entry.pm_arrival }}</td>
+                <td class="dtr-editable dtr-thick-r" contenteditable="true" data-date="{{ entry.date }}" data-field="pm_departure">{{ entry.pm_departure }}</td>
+                {% endif %}
+                {% if readonly %}
+                <td>{{ entry.undertime_hours }}</td>
+                <td>{{ entry.undertime_minutes }}</td>
+                {% else %}
+                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="undertime_hours">{{ entry.undertime_hours }}</td>
+                <td class="dtr-editable" contenteditable="true" data-date="{{ entry.date }}" data-field="undertime_minutes">{{ entry.undertime_minutes }}</td>
+                {% endif %}
             {% endif %}
         </tr>
         {% endfor %}

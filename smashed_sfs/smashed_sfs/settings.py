@@ -48,6 +48,21 @@ CSRF_TRUSTED_ORIGINS = [
     o.strip() for o in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()
 ]
 
+# These all assume the site is actually served over HTTPS - SESSION/CSRF
+# cookies marked Secure won't be sent back over plain HTTP, and
+# SECURE_SSL_REDIRECT would redirect-loop a site with no TLS cert. So this
+# is its own opt-in flag rather than tied to DEBUG=False: the current VPS
+# deployment serves plain HTTP (no domain/cert yet), and flipping these on
+# unconditionally the moment DEBUG=False would break it immediately. Set
+# DJANGO_HTTPS_ENABLED=True once a real domain + TLS cert are in place.
+if os.environ.get('DJANGO_HTTPS_ENABLED', 'False') == 'True':
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
