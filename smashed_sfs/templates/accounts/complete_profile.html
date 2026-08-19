@@ -51,11 +51,20 @@
 
             <div class="form-group">
                 <label for="{{ school_create_form.school_choice.id_for_label }}">{{ school_create_form.school_choice.label }}</label>
-                {{ school_create_form.school_choice }}
-                {{ school_create_form.school_new }}
+                <div id="school-name-display">
+                    {{ school_create_form.school_choice }}
+                </div>
+                <div id="school-name-edit" style="display: none;">
+                    {{ school_create_form.school_new }}
+                </div>
+                <div style="margin-top: var(--space-2);">
+                    <button type="button" id="school-name-edit-btn" class="btn ghost" style="padding: 2px 10px; font-size: 12px;">Edit</button>
+                    <button type="button" id="school-name-save-btn" class="btn" style="padding: 2px 10px; font-size: 12px; display: none;">Save</button>
+                </div>
                 {% for error in school_create_form.school_new.errors %}
                     <small style="color: var(--risk);">{{ error }}</small>
                 {% endfor %}
+                <small>Pick from the list, then click Edit if the official name is abbreviated and needs correcting - e.g. "Atimonan NCHS" to "Atimonan National Comprehensive High School".</small>
             </div>
 
             <div class="form-group">
@@ -132,6 +141,46 @@
                 var districtSelect = document.getElementById('{{ school_create_form.district_choice.id_for_label }}');
                 var schoolSelect = document.getElementById('{{ school_create_form.school_choice.id_for_label }}');
                 var schoolIdInput = document.getElementById('{{ school_create_form.school_id.id_for_label }}');
+                var schoolNewInput = document.getElementById('{{ school_create_form.school_new.id_for_label }}');
+                var schoolNameDisplay = document.getElementById('school-name-display');
+                var schoolNameEdit = document.getElementById('school-name-edit');
+                var schoolNameEditBtn = document.getElementById('school-name-edit-btn');
+                var schoolNameSaveBtn = document.getElementById('school-name-save-btn');
+
+                // Edit/Save toggle for correcting an abbreviated masterlist name (e.g.
+                // "Atimonan NCHS") into the school's full official name. Editing writes
+                // into school_new, which NewSchoolProfileForm.clean() already prefers
+                // over school_choice - the <select> stays untouched underneath so
+                // switching back to it (by re-picking a school) is still possible.
+                function enterSchoolNameEdit() {
+                    if (!schoolNewInput.value) {
+                        var match = schoolSelect.selectedOptions[0];
+                        schoolNewInput.value = (match && match.value) ? match.value : '';
+                    }
+                    schoolNameDisplay.style.display = 'none';
+                    schoolNameEdit.style.display = '';
+                    schoolNameEditBtn.style.display = 'none';
+                    schoolNameSaveBtn.style.display = '';
+                    schoolNewInput.focus();
+                }
+
+                function saveSchoolNameEdit() {
+                    schoolNameEdit.style.display = 'none';
+                    schoolNameDisplay.style.display = '';
+                    schoolNameSaveBtn.style.display = 'none';
+                    schoolNameEditBtn.style.display = '';
+                    schoolNameEditBtn.textContent = schoolNewInput.value ? 'Edit "' + schoolNewInput.value + '"' : 'Edit';
+                }
+
+                schoolNameEditBtn.addEventListener('click', enterSchoolNameEdit);
+                schoolNameSaveBtn.addEventListener('click', saveSchoolNameEdit);
+
+                // A validation error re-render can bring back a correction the user
+                // already typed - start already in edit mode so it's visible instead
+                // of silently overridden by whatever the <select> shows.
+                if (schoolNewInput.value) {
+                    enterSchoolNameEdit();
+                }
 
                 function setOptions(select, values, placeholder) {
                     var current = select.value;
