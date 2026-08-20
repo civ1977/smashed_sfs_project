@@ -872,6 +872,13 @@ def _fill_sf2_header(ws, teacher, section, school_profile, year, month):
     ws['BN11'] = MONTH_NAMES[month - 1].upper()
     ws['BR168'] = teacher.full_name
     ws['BR171'] = school_profile.principal_name if school_profile else ''
+    # The template vertically anchors these two printed names to the top of
+    # their (taller-than-text) row, leaving a visible gap between the name
+    # and the signature line/caption sitting just underneath - bottom-anchor
+    # them instead so each name sits right against what's below it.
+    for cell_ref in ('BR168', 'BR171'):
+        cell = ws[cell_ref]
+        cell.alignment = Alignment(horizontal=cell.alignment.horizontal, vertical='bottom')
 
 
 def _fill_sf2_gender_block(ws, students, row_start, day_slot_map, holiday_columns, warnings, gender_label):
@@ -959,18 +966,25 @@ def _build_sf2_workbook(teacher, section, school_profile, year, month, reanchor_
     # survives in the saved file for Excel to prompt about on open.
     wb._external_links = []
 
-    # Most of the day-grid's cells only have a top/bottom border, not a
-    # left/right one - visually complete on screen only because Excel's own
-    # gridlines (unset here, so left at their default) fill in the missing
-    # vertical lines. Those gridlines are a *screen* default that Excel does
-    # NOT print/export by default, so without this the day grid's columns
-    # have no visible separator at all once printed or saved to PDF.
-    # Forcing gridlines on for both display and print is the reliable fix
-    # across this whole template - a few thousand merged ranges make
-    # auditing every cell's own border individually impractical.
-    ws.sheet_view.showGridLines = True
-    ws.print_options.gridLines = True
-    ws.print_options.gridLinesSet = True
+    # Deliberately NOT forcing sheet/print gridlines ON: every merged cell
+    # in the day grid already carries its own explicit top/bottom/left/right
+    # border on whichever cell sits at that edge of the merge (verified by
+    # walking every merged range's four corner cells) - a cell that looks
+    # borderless is an interior cell of a merge, which never renders a line
+    # through it in Excel regardless of the gridlines setting, not a gap.
+    # Turning gridlines on paints Excel's own default line across every
+    # cell on the sheet, including ones that were never meant to show one
+    # (the surrounding blank margins, etc.) - it would "fix" nothing here
+    # and add unwanted lines everywhere else, since this template's real
+    # borders are already complete and print/export on their own.
+    #
+    # But the template leaves showGridLines unset, and OOXML's default for
+    # an unset showGridLines is `true` - so Excel shows its default screen
+    # gridline through every borderless cell (e.g. under the adviser/
+    # principal printed-name cells at BR168/BR171, which carry no border of
+    # their own) unless this is explicitly turned off. This only affects
+    # on-screen display, not the explicit borders elsewhere on the sheet.
+    ws.sheet_view.showGridLines = False
 
     # Row heights, measured against the template's default - any row not
     # listed here keeps whatever height the template itself already sets.
