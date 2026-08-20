@@ -1031,7 +1031,7 @@ def _build_sf2_workbook(teacher, section, school_profile, year, month, reanchor_
         155: 8, 156: 8, 157: 8,
         158: 8, 159: 8,
         160: 15,
-        165: 8, 166: 8,
+        161: 8, 162: 8, 163: 8, 164: 8, 165: 8, 166: 8, 167: 8,
     }
     for row, height in SF2_ROW_HEIGHTS.items():
         if height == 0:
