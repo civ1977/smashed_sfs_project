@@ -38,13 +38,13 @@
                         <p class="bold">{{ school_profile.division }}</p>
                         <p>{{ school_profile.district }}</p>
                         <p>{{ school_profile.municipality }}</p>
-                        <p>School: <span class="bold">{{ school_profile.school_name }}</span></p>
+                        <p class="sf9-school-line">School: <span class="bold">{{ school_profile.school_name }}</span></p>
                     {% else %}
                         <p>&nbsp;</p>
                         <p class="bold">&nbsp;</p>
                         <p>&nbsp;</p>
                         <p>&nbsp;</p>
-                        <p>School: <span class="bold">&mdash;</span></p>
+                        <p class="sf9-school-line">School: <span class="bold">&mdash;</span></p>
                     {% endif %}
                 </div>
                 <div class="sf9-logo sf9-school-logo">
@@ -57,6 +57,14 @@
             <p class="sf9-subtitle">School Year {{ school_profile.school_year|default:"—" }}</p>
 
             <table class="sf9-info-table">
+                <colgroup>
+                    <col style="width: 15%;">
+                    <col style="width: 44%;">
+                    <col style="width: 5%;">
+                    <col style="width: 5%;">
+                    <col style="width: 6%;">
+                    <col style="width: 25%;">
+                </colgroup>
                 <tr>
                     <td class="label">Name:</td>
                     <td class="fill fill-short"><span class="short-line">{{ student.surname }}, {{ student.name }} {{ student.middle_name }}</span></td>
@@ -285,6 +293,7 @@
     .sf9-header { display: flex; justify-content: center; align-items: flex-start; }
     .sf9-header-text { text-align: center; padding: 0 8px; }
     .sf9-header-text p { margin: 0; }
+    .sf9-header-text p.sf9-school-line { margin-top: 14px; }
     .sf9-logo {
         width: 60px; height: 60px; border-radius: 50%; border: 1px dashed #999;
         display: flex; align-items: center; justify-content: center; text-align: center;
@@ -296,30 +305,36 @@
     .sf9-logo.has-image .sf9-logo-img { display: block; }
     .sf9-logo.sf9-seal.has-image { border: none; }
     .bold { font-weight: bold; }
-    .sf9-title { text-align: center; margin: 2px 0 0 0; font-size: 15px; }
-    .sf9-subtitle { text-align: center; margin: 1px 0 4px 0; }
+    .sf9-title { text-align: center; margin: 14px 0 0 0; font-size: 15px; }
+    .sf9-subtitle { text-align: center; margin: 1px 0 14px 0; }
     .sf9-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; align-items: start; }
-    .sf9-info-table { width: 100%; border-collapse: collapse; margin-bottom: 4px; font-size: 10.5px; }
-    .sf9-info-table td { padding: 1px 4px; border-bottom: none; text-align: left; }
+    /* table-layout: fixed - paired with the <colgroup> on the table itself -
+       makes every column's width the same fixed percentage in every row,
+       set once and not dependent on any row's content (e.g. "Track (SHS
+       only):" no longer pulls the Name/LRN column wider than it should be).
+       That's what makes the insets below safe: since a column's rendered
+       width no longer varies by browser/context (screen vs. print, print
+       page size, etc.), a plain percentage/pixel inset can never overshoot
+       into the next column the way the old fixed `ch` offsets could when
+       print measured the columns differently than screen. */
+    .sf9-info-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 4px; font-size: 10.5px; }
+    .sf9-info-table td { padding: 1px 4px; border-bottom: none; text-align: left; overflow: hidden; white-space: nowrap; }
     .sf9-info-table .label { white-space: nowrap; }
     .sf9-info-table .fill { border-bottom: 1px solid #000; }
-    /* Name/LRN's line stops 2ch short of the cell's right edge (instead of
+    /* Name/LRN/Track's line stops short of the cell's right edge (instead of
        spanning it via the td's own border-bottom) so there's a visible gap
-       before "Age:"/"Grade:" - the columns themselves aren't resized, since
-       this table has no colgroup and auto-layout shares each column's width
-       across every row (a padding tweak on just the label cell wouldn't
-       survive that). */
+       before the next label. */
     .sf9-info-table td.fill-short { border-bottom: none; }
-    /* Name/LRN's own td is a shared, wide auto-layout column (sized to fit
-       "Track (SHS only):" in the row below), so the colon sits far short of
-       the td's left edge - pulled 10ch left (measured: ~1ch past each
-       label's own colon) with width stretched by the same 10ch so the
-       line's right end stays anchored where it was. */
-    .sf9-info-table td.fill-short .short-line { display: inline-block; width: calc(100% + 8ch); margin-left: -10ch; border-bottom: 1px solid #000; }
-    /* Sex/Section/Track's line starts ~1ch past its own colon - same
-       inline-block technique as fill-short, mirrored to inset the other end. */
+    .sf9-info-table td.fill-short .short-line { display: inline-block; width: calc(100% - 6px); border-bottom: 1px solid #000; }
+    /* Sex/Section/Track's line just uses the td's own padding-left as its
+       inset from the colon before it - no extra span-level offset needed
+       now that each column has a fixed width. */
     .sf9-info-table td.fill-inset-left { border-bottom: none; }
-    .sf9-info-table td.fill-inset-left .short-line-left { display: inline-block; width: calc(100% - 2.5ch); margin-left: -0.5ch; border-bottom: 1px solid #000; }
+    .sf9-info-table td.fill-inset-left .short-line-left { display: inline-block; width: 100%; border-bottom: 1px solid #000; }
+    /* Both lines stay on one row (td already forces white-space: nowrap) -
+       if a name is ever too long to fit even the widened Name column, show
+       "…" rather than silently cutting a name off with no indication. */
+    .sf9-info-table .short-line, .sf9-info-table .short-line-left { overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
     .sf9-dear-parents { margin: 4px 0; text-align: left; }
     .sf9-section-heading { font-weight: bold; text-decoration: none; font-size: 11px; margin: 6px 0 2px 0; }
     .sf9-section-heading.center { text-align: center; }
@@ -356,7 +371,8 @@
     table.sf9-descriptors .range-hi { display: inline-block; width: 3ch; text-align: left; font-variant-numeric: tabular-nums; }
     .sf9-comment-box { border: 1px solid #000; padding: 3px; margin-bottom: 4px; min-height: 52px; font-weight: normal; font-style: italic; }
     .sf9-comment-term { font-weight: bold; font-style: normal; }
-    table.sf9-signature-lines td { padding: 6px 4px; border-bottom: none; }
+    table.sf9-signature-lines { margin-bottom: 14px; }
+    table.sf9-signature-lines td { padding: 2px 4px; border-bottom: none; }
     table.sf9-signature-lines td.line { border-bottom: 1px solid #000; }
     .sf9-small { font-size: 11px; margin: 4px 0; }
     .dotted { display: inline-block; min-width: 140px; border-bottom: 1px dotted #000; }
