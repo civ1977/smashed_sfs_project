@@ -43,6 +43,15 @@ class Teacher(models.Model):
     # school/views.py's _get_school_admin_teacher); a Non-Officer only gets
     # Tools (their own DTR). Ignored for every other role.
     is_officer = models.BooleanField(default=False)
+    # Null until the registrant clicks their confirmation email link
+    # (accounts/views.py verify_email) - deliberately separate from
+    # is_active above, which is this app's own admin-controlled "standing"
+    # toggle (see school/views.py toggle_teacher_status): an unverified
+    # account should still show as Active to a registrar, it just can't
+    # log in yet (blocked via the linked auth.User's own is_active, set
+    # False at registration and flipped True on verification) - it isn't
+    # something a registrar deactivated.
+    email_verified_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         db_table = 'teacher_adviser'

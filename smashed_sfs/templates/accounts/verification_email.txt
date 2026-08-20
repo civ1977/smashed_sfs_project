@@ -1,0 +1,8 @@
+{% autoescape off %}
+Welcome to SMASHED - SFs, {{ user.username }}!
+
+Confirm your email address to activate your account by visiting:
+{{ link }}
+
+If you didn't create this account, you can ignore this email.
+{% endautoescape %}

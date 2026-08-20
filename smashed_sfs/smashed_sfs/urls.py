@@ -13,6 +13,22 @@ urlpatterns = [
     path('', views.landing_page, name='landing'),
     path('login/', views.login_view, name='login'),
     path('register/', views.register, name='register'),
+    path('register/pending/', views.registration_pending, name='registration_pending'),
+    path('register/verify/<uidb64>/<token>/', views.verify_email, name='verify_email'),
+    path('register/resend-verification/', views.resend_verification, name='resend_verification'),
+    path('register/finish-social-signup/', views.finish_social_signup, name='finish_social_signup'),
+    # Only the provider connect/callback endpoints (e.g.
+    # /accounts/google/login/, /accounts/facebook/login/callback/) -
+    # deliberately not the full allauth.urls, which would also add a
+    # second, competing set of login/signup/password pages on top of this
+    # app's own (see settings.py's comment above AUTHENTICATION_BACKENDS).
+    # allauth.socialaccount.urls alone only has the cancelled/error/signup/
+    # connections views, not the actual per-provider login/callback ones -
+    # those live in each provider's own urls module (mirroring what
+    # allauth.urls itself does internally via build_provider_urlpatterns).
+    path('accounts/', include('allauth.socialaccount.urls')),
+    path('accounts/', include('allauth.socialaccount.providers.google.urls')),
+    path('accounts/', include('allauth.socialaccount.providers.facebook.urls')),
     path('about/', views.about, name='about'),
     path('how-it-works/', views.how_it_works, name='how_it_works'),
     path('tutorials/', views.tutorials, name='tutorials'),

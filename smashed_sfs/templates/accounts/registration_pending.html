@@ -1,0 +1,14 @@
+{% extends 'base_public.html' %}
+
+{% block content %}
+<h1>Check your email</h1>
+
+<div class="card">
+    <p>We've sent a confirmation link to the email address you registered with.
+       Click it to activate your account and finish setting up your profile.</p>
+    <p>Didn't get it? <a href="{% url 'resend_verification' %}">Resend the confirmation email</a>.</p>
+    <p style="margin-top: var(--space-4);">
+        <a href="{% url 'login' %}">Back to sign in</a>
+    </p>
+</div>
+{% endblock %}

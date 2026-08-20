@@ -6,16 +6,22 @@ import re
 from datetime import date, datetime
 
 import openpyxl
+from django.conf import settings
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, authenticate, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth.tokens import default_token_generator
 from django.utils import timezone
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.core.cache import cache
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
 from django.db import transaction
 from django.http import JsonResponse
 
@@ -68,6 +74,26 @@ def _nice_axis_ticks(max_value, target_ticks=4):
 
 
 TEACHING_ROLE_CHOICES = (Teacher.ROLE_ADVISER, Teacher.ROLE_SUBJECT_TEACHER)
+
+# Same rate-limit shape as LOGIN_ATTEMPT_LIMIT below - keyed per email
+# rather than username, so a resend-verification form can't be used to
+# spam an arbitrary inbox with confirmation emails.
+RESEND_VERIFICATION_LIMIT = 3
+RESEND_VERIFICATION_LOCKOUT_SECONDS = 300
+
+
+def _send_verification_email(request, user):
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    link = request.build_absolute_uri(reverse('verify_email', kwargs={'uidb64': uid, 'token': token}))
+    message = render_to_string('accounts/verification_email.txt', {'user': user, 'link': link})
+    send_mail(
+        'Confirm your SMASHED-SFs account',
+        message,
+        settings.DEFAULT_FROM_EMAIL,
+        [user.email],
+        fail_silently=True,
+    )
 
 
 def register(request):
@@ -122,6 +148,11 @@ def register(request):
             )
             user.first_name = full_name.split()[0] if full_name else ''
             user.last_name = full_name.split()[-1] if len(full_name.split()) > 1 else ''
+            # Inactive until the confirmation email is clicked (verify_email
+            # below flips this back on) - Django's own authenticate() already
+            # refuses to log in an inactive user, so this alone is enough to
+            # block access without any extra checks at the login view.
+            user.is_active = False
             user.save()
 
             Teacher.objects.create(
@@ -136,9 +167,8 @@ def register(request):
                 terms_accepted_at=timezone.now(),
             )
 
-        login(request, user)
-        messages.success(request, f'Registration successful! Welcome {username}!')
-        return redirect('complete_profile')
+        _send_verification_email(request, user)
+        return redirect('registration_pending')
 
     selected_role = request.GET.get('role')
     if selected_role not in TEACHING_ROLE_CHOICES:
@@ -147,6 +177,111 @@ def register(request):
     return render(request, 'accounts/register.html', {
         'account_type': account_type,
         'selected_role': selected_role,
+    })
+
+
+def registration_pending(request):
+    return render(request, 'accounts/registration_pending.html')
+
+
+def verify_email(request, uidb64, token):
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        user = None
+
+    if user is None or not default_token_generator.check_token(user, token):
+        return render(request, 'accounts/verify_email_invalid.html')
+
+    user.is_active = True
+    user.save()
+    Teacher.objects.filter(user=user).update(email_verified_at=timezone.now())
+
+    login(request, user)
+    messages.success(request, f'Email confirmed! Welcome {user.username}!')
+    return redirect('complete_profile')
+
+
+def resend_verification(request):
+    """Re-sends the confirmation email for an account stuck at is_active=False
+    - the original link may have expired (default_token_generator tokens are
+    time-limited via PASSWORD_RESET_TIMEOUT) or the email may never have
+    arrived. Deliberately shows the same generic message whether or not a
+    matching unverified account exists, so this can't be used to probe which
+    emails are registered."""
+    if request.method == 'POST':
+        email = request.POST.get('email', '').strip()
+
+        cache_key = f'resend_verification:{email.lower()}'
+        attempts = cache.get(cache_key, 0)
+        if email and attempts < RESEND_VERIFICATION_LIMIT:
+            cache.set(cache_key, attempts + 1, RESEND_VERIFICATION_LOCKOUT_SECONDS)
+            user = User.objects.filter(email=email, is_active=False).first()
+            if user:
+                _send_verification_email(request, user)
+
+        messages.success(
+            request,
+            "If that email belongs to an account awaiting confirmation, we've sent a new link.",
+        )
+        return redirect('resend_verification')
+
+    return render(request, 'accounts/resend_verification.html')
+
+
+@login_required
+def finish_social_signup(request):
+    """A first-time Google/Facebook sign-in only supplies a name and email
+    (see accounts/adapters.py SocialAccountAdapter) - nothing about role or
+    position, which every other part of this app assumes a Teacher row
+    already has. AccountAdapter.get_login_redirect_url routes here whenever
+    that's still blank; once filled in, this is a dead end for that account
+    (redirects straight to complete_profile like nothing happened)."""
+    try:
+        teacher = Teacher.objects.get(user=request.user)
+    except Teacher.DoesNotExist:
+        messages.error(request, 'Your account is not linked to a Teacher profile.')
+        return redirect('dashboard')
+
+    if teacher.position:
+        return redirect('complete_profile')
+
+    account_type = request.POST.get('account_type') or request.GET.get('type')
+    if account_type != 'non_teaching':
+        account_type = 'teaching'
+
+    if request.method == 'POST':
+        position = (request.POST.get('position') or '').strip().upper()
+        is_officer = False
+        if account_type == 'non_teaching':
+            role = Teacher.ROLE_NON_TEACHING
+            is_officer = request.POST.get('non_teaching_role') == 'officer'
+        else:
+            role = request.POST.get('role')
+            if role not in TEACHING_ROLE_CHOICES:
+                role = Teacher.ROLE_ADVISER
+
+        if not position:
+            messages.error(request, 'Position is required.')
+            return render(request, 'accounts/finish_social_signup.html', {'account_type': account_type, 'teacher': teacher})
+
+        if request.POST.get('agree_terms') != 'on':
+            messages.error(request, "Please check the box confirming you agree to the User's Agreement and Privacy Policy.")
+            return render(request, 'accounts/finish_social_signup.html', {'account_type': account_type, 'teacher': teacher})
+
+        teacher.position = position
+        teacher.role = role
+        teacher.is_officer = is_officer
+        teacher.terms_accepted_at = timezone.now()
+        teacher.save()
+
+        messages.success(request, f'Welcome {teacher.full_name}!')
+        return redirect('complete_profile')
+
+    return render(request, 'accounts/finish_social_signup.html', {
+        'account_type': account_type,
+        'teacher': teacher,
     })
 
 
@@ -221,8 +356,21 @@ def login_view(request):
             messages.success(request, f'Welcome back, {username}!')
             return redirect('dashboard')
         else:
-            cache.set(cache_key, attempts + 1, LOGIN_LOCKOUT_SECONDS)
-            messages.error(request, 'Invalid username or password.')
+            # authenticate() returns None for a correct password on an
+            # inactive account too (Django's ModelBackend refuses those
+            # outright) - re-check the password directly so an unverified
+            # registrant gets pointed at resend_verification instead of a
+            # generic "wrong password" that gives them nothing to act on.
+            candidate = User.objects.filter(username__iexact=username, is_active=False).first()
+            if candidate and candidate.check_password(password):
+                messages.error(
+                    request,
+                    'Please confirm your email before logging in - check your inbox, '
+                    'or resend the confirmation email below.',
+                )
+            else:
+                cache.set(cache_key, attempts + 1, LOGIN_LOCKOUT_SECONDS)
+                messages.error(request, 'Invalid username or password.')
 
     return render(request, 'accounts/login.html')
 

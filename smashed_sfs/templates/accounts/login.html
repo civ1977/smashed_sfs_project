@@ -19,8 +19,17 @@
 
         <button type="submit" class="btn" style="width: 100%;">Login</button>
     </form>
+
+    {% if google_login_available or facebook_login_available %}
+    <div style="margin: var(--space-4) 0; text-align: center; color: var(--ink-faint);">or</div>
+    {% include 'partials/social_login_buttons.html' %}
+    {% endif %}
+
     <p style="margin-top: var(--space-4);">
         <a href="{% url 'password_reset' %}">Forgot your password?</a>
+    </p>
+    <p>
+        <a href="{% url 'resend_verification' %}">Didn't get your confirmation email?</a>
     </p>
     <p>
         Don't have an account? <a href="{% url 'register' %}">Register here</a>

@@ -71,6 +71,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Required by django-allauth even for social-only use (no local
+    # account/signup pages of its own are wired in - see urls.py, which
+    # only includes allauth.socialaccount.urls, not the full allauth.urls).
+    'django.contrib.sites',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+    'allauth.socialaccount.providers.facebook',
     'accounts',
     'students',
     'grades',
@@ -78,6 +87,8 @@ INSTALLED_APPS = [
     'school',
     'portal',
 ]
+
+SITE_ID = 1
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -94,6 +105,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'smashed_sfs.middleware.TrackLastSeenMiddleware',
     'smashed_sfs.middleware.TrackSiteVisitMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
 ]
 
 ROOT_URLCONF = 'smashed_sfs.urls'
@@ -110,6 +122,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'smashed_sfs.context_processors.shell_context',
+                'smashed_sfs.context_processors.social_login_context',
             ],
         },
     },
@@ -251,6 +264,67 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
+
+# django-allauth: social login (Google/Facebook) only - this app's own
+# login/register/password-reset pages (accounts/views.py, urls.py) handle
+# everything else, so only allauth.socialaccount.urls is wired in (see
+# urls.py), not the full allauth.urls (which would add a second, competing
+# set of login/signup/password pages).
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+# Skips allauth's own "click to confirm you want to continue to Google"
+# intermediate page - the provider's own consent screen is confirmation
+# enough, so this makes each button an actual one-click sign-in.
+SOCIALACCOUNT_LOGIN_ON_GET = True
+# Skips allauth's own post-OAuth signup form (asking to pick a username/
+# confirm email again) - accounts/adapters.py's SocialAccountAdapter
+# creates the Teacher row directly from the provider's data instead, then
+# routes first-time signups to finish_social_signup to pick a role.
+SOCIALACCOUNT_AUTO_SIGNUP = True
+# Google and Facebook both already verify the email addresses they hand
+# back, so there's no need to make a new registrant click yet another
+# confirmation link on top of that (unlike the manual /register/ path,
+# where the email is self-reported and unverified until they do).
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+SOCIALACCOUNT_ADAPTER = 'accounts.adapters.SocialAccountAdapter'
+ACCOUNT_ADAPTER = 'accounts.adapters.AccountAdapter'
+
+# Optional: OAuth app credentials for the "Sign in with Google/Facebook"
+# buttons on the login/register pages. Leave unset to just hide those
+# buttons (see templates/accounts/login.html, register.html) rather than
+# show a button that would fail - get these from
+# https://console.cloud.google.com/apis/credentials (OAuth client ID, Web
+# application) and https://developers.facebook.com/apps (Facebook Login
+# product) respectively. Authorized redirect URI for each provider:
+#   http://127.0.0.1:8000/accounts/google/login/callback/   (local dev)
+#   https://your-domain-or-ip/accounts/google/login/callback/  (prod)
+#   (same pattern with /accounts/facebook/login/callback/ for Facebook)
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
+GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '')
+FACEBOOK_OAUTH_CLIENT_ID = os.environ.get('FACEBOOK_OAUTH_CLIENT_ID', '')
+FACEBOOK_OAUTH_CLIENT_SECRET = os.environ.get('FACEBOOK_OAUTH_CLIENT_SECRET', '')
+
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'APP': {
+            'client_id': GOOGLE_OAUTH_CLIENT_ID,
+            'secret': GOOGLE_OAUTH_CLIENT_SECRET,
+            'key': '',
+        },
+        'SCOPE': ['profile', 'email'],
+    },
+    'facebook': {
+        'APP': {
+            'client_id': FACEBOOK_OAUTH_CLIENT_ID,
+            'secret': FACEBOOK_OAUTH_CLIENT_SECRET,
+            'key': '',
+        },
+        'FIELDS': ['id', 'email', 'name'],
+    },
+}
 
 # Logging. With DEBUG=True, unhandled errors already show Django's own
 # debug page, so console output here mostly matters once DEBUG=False (no

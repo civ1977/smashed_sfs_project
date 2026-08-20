@@ -5,6 +5,11 @@
 <p>Create your account to access the system.</p>
 
 <div class="card">
+    {% if google_login_available or facebook_login_available %}
+    {% include 'partials/social_login_buttons.html' with google_button_label='Sign up with Google' facebook_button_label='Sign up with Facebook' %}
+    <div style="margin: var(--space-4) 0; text-align: center; color: var(--ink-faint);">or fill in the form below</div>
+    {% endif %}
+
     <form method="POST">
         {% csrf_token %}
         <input type="hidden" name="account_type" value="{{ account_type }}">

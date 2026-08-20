@@ -6,11 +6,24 @@ Teacher.objects.get(username=request.user.username) / teacher.role pattern
 already established in school/views.py.
 """
 
+from django.conf import settings
 from django.urls import reverse
 
 from accounts.models import Teacher
 from portal.models import StudentAccount
 from students.models import Section, SchoolProfile
+
+
+def social_login_context(request):
+    """Whether to show the "Sign in with Google/Facebook" buttons on the
+    login/register pages (templates/accounts/login.html, register.html) -
+    runs for every request, logged in or not, unlike shell_context below.
+    Hides a button entirely rather than showing one that would just fail,
+    for whichever provider's OAuth credentials aren't set in .env."""
+    return {
+        'google_login_available': bool(settings.GOOGLE_OAUTH_CLIENT_ID and settings.GOOGLE_OAUTH_CLIENT_SECRET),
+        'facebook_login_available': bool(settings.FACEBOOK_OAUTH_CLIENT_ID and settings.FACEBOOK_OAUTH_CLIENT_SECRET),
+    }
 
 
 def _nav_item(request, label, url_name, url_args=None, match_names=None):
