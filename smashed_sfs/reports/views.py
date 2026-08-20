@@ -8,8 +8,6 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponse
-from django.urls import reverse
-from django.utils.html import format_html
 
 from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
@@ -848,6 +846,19 @@ def _sf2_ratio(numerator, denominator):
 
 
 def _fill_sf2_header(ws, teacher, section, school_profile, year, month):
+    # Overrides the template's own title text (which names "For Senior High
+    # School (SF2-SHS)" specifically) with the shorter, level-agnostic title.
+    ws['J3'] = 'School Form 2 Daily Attendance Report of Learners'
+    # The template's own title font uses a themed gray (theme color 1 at
+    # ~50% tint), not solid black - only the color needs overriding, so
+    # this copies every other attribute (bold, size, font name) from
+    # whatever's already there rather than hard-coding them and risking a
+    # mismatch with the template's actual styling.
+    title_font = ws['J3'].font
+    ws['J3'].font = Font(
+        name=title_font.name, size=title_font.size, bold=title_font.bold,
+        italic=title_font.italic, color='FF000000',
+    )
     ws['I5'] = school_profile.school_name if school_profile else ''
     ws['Y5'] = school_profile.school_id if school_profile else ''
     ws['AQ5'] = school_profile.district if school_profile else ''
@@ -947,6 +958,56 @@ def _build_sf2_workbook(teacher, section, school_profile, year, month, reanchor_
     # overwriting the formulas that referenced them, so no dangling link
     # survives in the saved file for Excel to prompt about on open.
     wb._external_links = []
+
+    # Most of the day-grid's cells only have a top/bottom border, not a
+    # left/right one - visually complete on screen only because Excel's own
+    # gridlines (unset here, so left at their default) fill in the missing
+    # vertical lines. Those gridlines are a *screen* default that Excel does
+    # NOT print/export by default, so without this the day grid's columns
+    # have no visible separator at all once printed or saved to PDF.
+    # Forcing gridlines on for both display and print is the reliable fix
+    # across this whole template - a few thousand merged ranges make
+    # auditing every cell's own border individually impractical.
+    ws.sheet_view.showGridLines = True
+    ws.print_options.gridLines = True
+    ws.print_options.gridLinesSet = True
+
+    # Row heights, measured against the template's default - any row not
+    # listed here keeps whatever height the template itself already sets.
+    # A requested height of 0 is set via `hidden` instead of `height = 0`:
+    # openpyxl doesn't round-trip a literal zero height (it's written out
+    # as if never set, so the row comes back at its normal height when
+    # reopened) - `hidden` is the actual Excel-native way to collapse a
+    # row to no visible space.
+    #
+    # Rows 132-166 are the Legend/Summary/certification block below the
+    # student rows - these are always at these same absolute row numbers
+    # regardless of section size (unused student rows above them are
+    # hidden, not deleted, so nothing here ever shifts); they just visually
+    # sit right under however many student rows are actually visible.
+    SF2_ROW_HEIGHTS = {
+        1: 7, 2: 15, 3: 43, 4: 11, 5: 17.25, 6: 7, 7: 2.25, 8: 14,
+        9: 1.5, 10: 6, 11: 2.25, 12: 14, 13: 2.25, 14: 8,
+        # Row 15 is the blank spacer directly above row 16's "No./NAME/DATE"
+        # column headers (the actual start of the table).
+        15: 16, 16: 16,
+        132: 10, 133: 10, 134: 10,
+        135: 6, 136: 6, 137: 6, 138: 6, 139: 6, 140: 6, 141: 6,
+        142: 9, 143: 9, 144: 9,
+        145: 10, 146: 10,
+        147: 9, 148: 9, 149: 9,
+        150: 10, 151: 10,
+        152: 7, 153: 7, 154: 7,
+        155: 9, 156: 9, 157: 9,
+        158: 8, 159: 8,
+        160: 15,
+        165: 8, 166: 8,
+    }
+    for row, height in SF2_ROW_HEIGHTS.items():
+        if height == 0:
+            ws.row_dimensions[row].hidden = True
+        else:
+            ws.row_dimensions[row].height = height
 
     school_days = _school_days_in_month(section.school_profile_id, year, month)
     holiday_days = list(SchoolCalendarException.objects.filter(
@@ -1093,11 +1154,15 @@ def export_sf2(request, year, month):
         messages.error(request, 'Your profile is missing a section. Please complete your profile first.')
         return redirect('attendance_grid')
 
+    # A month starting on a Saturday/Sunday shifts the day grid's first
+    # school week to a later column than usual (see _sf2_day_slot_map's
+    # reanchor_to_first_monday) - purely a layout quirk, not a data problem,
+    # so it's surfaced as an informational, non-blocking message rather than
+    # something the user has to click through before the file downloads.
     month_start = date(year, month, 1)
     starts_on_weekend = month_start.weekday() in (5, 6)
-    if starts_on_weekend and request.GET.get('confirmed') != '1':
+    if starts_on_weekend:
         weekday_name = 'Saturday' if month_start.weekday() == 5 else 'Sunday'
-        confirm_url = f"{reverse('export_sf2', args=[year, month])}?confirmed=1"
 
         school_days = _school_days_in_month(section.school_profile_id, year, month)
         preview_slot_map, _ = _sf2_day_slot_map(school_days, [], year, month, [], reanchor_to_first_monday=True)
@@ -1118,14 +1183,10 @@ def export_sf2(request, year, month):
         else:
             detail = "so the day grid's first calendar week has no weekdays in it"
 
-        messages.warning(
+        messages.info(
             request,
-            format_html(
-                '{} {} starts on a {}, {}. <a href="{}">Generate anyway</a>',
-                MONTH_NAMES[month - 1], year, weekday_name, detail, confirm_url,
-            ),
+            f"{MONTH_NAMES[month - 1]} {year} starts on a {weekday_name}, {detail} in the file you just downloaded.",
         )
-        return redirect(f"{reverse('attendance_grid')}?year={year}&month={month}")
 
     school_profile = None
     if teacher.school_profile_id:
