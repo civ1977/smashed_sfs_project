@@ -3,6 +3,7 @@ import csv
 import io
 import math
 import re
+import threading
 from datetime import date, datetime
 
 import openpyxl
@@ -82,10 +83,7 @@ RESEND_VERIFICATION_LIMIT = 3
 RESEND_VERIFICATION_LOCKOUT_SECONDS = 300
 
 
-def _send_verification_email(request, user):
-    uid = urlsafe_base64_encode(force_bytes(user.pk))
-    token = default_token_generator.make_token(user)
-    link = request.build_absolute_uri(reverse('verify_email', kwargs={'uidb64': uid, 'token': token}))
+def _dispatch_verification_email(user, link):
     message = render_to_string('accounts/verification_email.txt', {'user': user, 'link': link})
     send_mail(
         'Confirm your SMASHED-SFs account',
@@ -94,6 +92,22 @@ def _send_verification_email(request, user):
         [user.email],
         fail_silently=True,
     )
+
+
+def _send_verification_email(request, user, background=False):
+    """background=True sends off the request's critical path - used by
+    resend_verification, where the actual SMTP round-trip (only incurred
+    when a matching account is found) would otherwise make that response
+    measurably slower than the no-match case, leaking via timing which
+    emails belong to an account even though the response text is
+    identical either way."""
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    link = request.build_absolute_uri(reverse('verify_email', kwargs={'uidb64': uid, 'token': token}))
+    if background:
+        threading.Thread(target=_dispatch_verification_email, args=(user, link), daemon=True).start()
+    else:
+        _dispatch_verification_email(user, link)
 
 
 def register(request):
@@ -219,7 +233,7 @@ def resend_verification(request):
             cache.set(cache_key, attempts + 1, RESEND_VERIFICATION_LOCKOUT_SECONDS)
             user = User.objects.filter(email=email, is_active=False).first()
             if user:
-                _send_verification_email(request, user)
+                _send_verification_email(request, user, background=True)
 
         messages.success(
             request,
@@ -361,8 +375,20 @@ def login_view(request):
             # outright) - re-check the password directly so an unverified
             # registrant gets pointed at resend_verification instead of a
             # generic "wrong password" that gives them nothing to act on.
+            # Always does the hashing work either way (mirroring how
+            # Django's own ModelBackend hashes against a dummy user when
+            # none matches) - skipping it only when candidate is None would
+            # make this branch measurably faster for a username with no
+            # matching unverified account, leaking via timing which
+            # usernames are pending confirmation even though the response
+            # text itself never says so.
             candidate = User.objects.filter(username__iexact=username, is_active=False).first()
-            if candidate and candidate.check_password(password):
+            if candidate:
+                password_ok = candidate.check_password(password)
+            else:
+                User().set_password(password)
+                password_ok = False
+            if candidate and password_ok:
                 messages.error(
                     request,
                     'Please confirm your email before logging in - check your inbox, '

@@ -8,8 +8,12 @@ login and routes to finish_social_signup instead of the dashboard, so a
 first-time Google/Facebook sign-in still ends up picking a role/position
 the same way a manual registration does."""
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.core.exceptions import ImmediateHttpResponse
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 
+from django.contrib import messages
+from django.contrib.auth.models import User
+from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
 
@@ -17,6 +21,28 @@ from .models import Teacher
 
 
 class SocialAccountAdapter(DefaultSocialAccountAdapter):
+    def pre_social_login(self, request, sociallogin):
+        """Blocks a brand-new Google/Facebook sign-in from silently creating
+        a second, separate account when its email already belongs to an
+        existing (manually-registered) account - confirmed by testing that
+        save_user() below would otherwise do exactly that, with no
+        collision check like the manual /register/ path already has for
+        its own email field. Not an account-takeover risk either way (the
+        new account would get an unusable password, see save_user), but a
+        real data-integrity/confusion gap: two logins ending up
+        representing the same person. Only fires for a genuinely new
+        social login (sociallogin.is_existing is True on every subsequent
+        sign-in once linked, so this never blocks a returning user)."""
+        if sociallogin.is_existing:
+            return
+        email = sociallogin.user.email
+        if email and User.objects.filter(email=email).exists():
+            messages.error(
+                request,
+                f'An account already exists for {email}. Please log in with your username and password instead.',
+            )
+            raise ImmediateHttpResponse(redirect('login'))
+
     def save_user(self, request, sociallogin, form=None):
         user = super().save_user(request, sociallogin, form)
         if not Teacher.objects.filter(user=user).exists():
