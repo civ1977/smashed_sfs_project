@@ -913,7 +913,20 @@ def _fill_sf2_gender_block(ws, students, row_start, day_slot_map, holiday_column
 
     for i, student in enumerate(students):
         row = row_start + i
-        ws[f'G{row}'] = _sf2_student_name(student)
+        name_cell = ws[f'G{row}']
+        name_cell.value = _sf2_student_name(student)
+        # The template wraps long names onto a second line within the row,
+        # which looks inconsistent against the day-grid's fixed row height -
+        # shrink-to-fit keeps every name on one line by scaling the font
+        # down instead, so the row height stays uniform regardless of name
+        # length. wrap_text and shrink_to_fit are mutually exclusive in
+        # Excel; the template's own wrap_text=True has to come off or it
+        # wins over shrink_to_fit.
+        existing = name_cell.alignment
+        name_cell.alignment = Alignment(
+            horizontal=existing.horizontal, vertical=existing.vertical,
+            wrap_text=False, shrink_to_fit=True,
+        )
 
         absent_count = 0
         for col in school_cols:
@@ -1005,14 +1018,17 @@ def _build_sf2_workbook(teacher, section, school_profile, year, month, reanchor_
         # Row 15 is the blank spacer directly above row 16's "No./NAME/DATE"
         # column headers (the actual start of the table).
         15: 16, 16: 16,
+        # Two individual female-student rows (within 75-129) singled out
+        # for a shorter height than the rest of that block.
+        102: 8, 103: 8,
         132: 10, 133: 10, 134: 10,
         135: 6, 136: 6, 137: 6, 138: 6, 139: 6, 140: 6, 141: 6,
         142: 9, 143: 9, 144: 9,
         145: 10, 146: 10,
         147: 9, 148: 9, 149: 9,
-        150: 10, 151: 10,
-        152: 7, 153: 7, 154: 7,
-        155: 9, 156: 9, 157: 9,
+        150: 13.5, 151: 10,
+        152: 8, 153: 8, 154: 8,
+        155: 8, 156: 8, 157: 8,
         158: 8, 159: 8,
         160: 15,
         165: 8, 166: 8,
