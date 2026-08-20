@@ -8,9 +8,11 @@ Wired in the same way as admin_grouping.py: monkey-patch admin.site
 rather than swap in a custom AdminSite subclass, so nothing else about
 the existing admin registrations has to change.
 """
+from collections import Counter
 from datetime import timedelta
 
 from django.contrib import admin
+from django.http import Http404
 from django.shortcuts import render
 from django.urls import path
 from django.utils import timezone
@@ -19,6 +21,15 @@ from accounts.models import SiteVisit, Teacher
 from portal.models import StudentAccount
 from students.models import SchoolProfile, Section, Student
 
+from .geoip import location_for_ip, geoip_db_available
+
+VISIT_PERIOD_LABELS = {
+    'day': 'today',
+    'week': 'the last 7 days',
+    'month': 'the last 30 days',
+    'lifetime': 'all time',
+}
+
 # A session with no request in the last 5 minutes is treated as offline -
 # generous enough to survive normal page-to-page navigation gaps.
 ONLINE_WINDOW = timedelta(minutes=5)
@@ -26,20 +37,57 @@ UNASSIGNED_DIVISION = 'Unassigned Division'
 UNASSIGNED_SCHOOL = 'Unassigned School'
 
 
-def _visit_counts(now):
-    """Unique-IP visitor counts, read off SiteVisit (one row per IP per
-    calendar date - see TrackSiteVisitMiddleware). Day/week/month are
+def _visits_queryset_for_period(period, now):
+    """SiteVisit rows (one per IP per calendar date - see
+    TrackSiteVisitMiddleware) for a given period. Day/week/month are
     trailing windows ending today, not calendar-aligned periods."""
     today = now.date()
-    week_start = today - timedelta(days=6)
-    month_start = today - timedelta(days=29)
+    if period == 'day':
+        return SiteVisit.objects.filter(visited_date=today)
+    if period == 'week':
+        return SiteVisit.objects.filter(visited_date__gte=today - timedelta(days=6))
+    if period == 'month':
+        return SiteVisit.objects.filter(visited_date__gte=today - timedelta(days=29))
+    if period == 'lifetime':
+        return SiteVisit.objects.all()
+    raise Http404('Unknown period.')
 
+
+def _visit_counts(now):
+    """Unique-IP visitor counts per period."""
     return {
-        'day': SiteVisit.objects.filter(visited_date=today).count(),
-        'week': SiteVisit.objects.filter(visited_date__gte=week_start).values('ip_address').distinct().count(),
-        'month': SiteVisit.objects.filter(visited_date__gte=month_start).values('ip_address').distinct().count(),
-        'lifetime': SiteVisit.objects.values('ip_address').distinct().count(),
+        period: _visits_queryset_for_period(period, now).values('ip_address').distinct().count()
+        for period in ('day', 'week', 'month', 'lifetime')
     }
+
+
+def _visit_countries(period, now):
+    """Unique-IP visitor counts per country for a period, each with its own
+    province/region breakdown (sorted by count descending, both levels).
+    Each IP is resolved once and geo-lookups are purely local (see
+    smashed_sfs/geoip.py) - nothing is sent to a third party.
+
+    Returns a list of {'country', 'count', 'provinces': [(name, count), ...]}.
+    Every country gets a province breakdown, not just the Philippines - the
+    UI only bothers rendering it as collapsible where there's more than one
+    province, but the data itself doesn't special-case any one country."""
+    ips = _visits_queryset_for_period(period, now).values_list('ip_address', flat=True).distinct()
+
+    country_totals = Counter()
+    province_totals = Counter()  # keyed by (country, province)
+    for ip in ips:
+        country, province = location_for_ip(ip)
+        country_totals[country] += 1
+        province_totals[(country, province)] += 1
+
+    rows = []
+    for country, count in sorted(country_totals.items(), key=lambda pair: (-pair[1], pair[0])):
+        provinces = sorted(
+            ((province, n) for (c, province), n in province_totals.items() if c == country),
+            key=lambda pair: (-pair[1], pair[0]),
+        )
+        rows.append({'country': country, 'count': count, 'provinces': provinces})
+    return rows
 
 
 def _status(last_seen, now):
@@ -137,6 +185,23 @@ def online_users_view(request):
     return render(request, 'admin/online_users.html', context)
 
 
+def online_users_visit_countries_view(request, period):
+    if period not in VISIT_PERIOD_LABELS:
+        raise Http404('Unknown period.')
+    now = timezone.now()
+    country_counts = _visit_countries(period, now)
+
+    context = {
+        **admin.site.each_context(request),
+        'title': 'Visitor Countries',
+        'period_label': VISIT_PERIOD_LABELS[period],
+        'country_counts': country_counts,
+        'total_visitors': sum(row['count'] for row in country_counts),
+        'geoip_available': geoip_db_available(),
+    }
+    return render(request, 'admin/online_users_visit_countries.html', context)
+
+
 def online_users_school_students_view(request, profile_id=None):
     now = timezone.now()
     accounts_by_lrn = {
@@ -161,6 +226,11 @@ def apply():
     def get_urls():
         custom = [
             path('online-users/', admin.site.admin_view(online_users_view), name='online_users'),
+            path(
+                'online-users/visits/<str:period>/',
+                admin.site.admin_view(online_users_visit_countries_view),
+                name='online_users_visit_countries',
+            ),
             path(
                 'online-users/students/unassigned/',
                 admin.site.admin_view(online_users_school_students_view),

@@ -1,0 +1,59 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<p><a href="{% url 'admin:online_users' %}">&larr; Back to Online Users</a></p>
+
+<h1>Visitor Countries &mdash; {{ period_label }}</h1>
+
+{% if not geoip_available %}
+<p style="color: #a94442; background: #f2dede; border: 1px solid #ebccd1; border-radius: 4px; padding: 8px 12px;">
+    The GeoLite2 database isn't available on this server, so every visitor below shows as
+    "{{ country_counts.0.country|default:'Unknown / Local' }}". See geoip_data/ and
+    deploy/download_geoip_db.py.
+</p>
+{% endif %}
+
+<p><strong>{{ total_visitors }}</strong> unique visitor{{ total_visitors|pluralize }} in this period.</p>
+<p style="color: #666; font-size: 12px;">
+    Countries with more than one province/region on file are expandable - click to see the breakdown.
+    City-level geolocation is approximate: many ISPs route traffic through a hub city, so this can be
+    off from a visitor's actual location.
+</p>
+
+<table>
+    <thead>
+        <tr><th>Country</th><th>Unique visitors</th></tr>
+    </thead>
+    <tbody>
+        {% for row in country_counts %}
+        <tr>
+            <td>
+                {% if row.provinces|length > 1 %}
+                <details>
+                    <summary style="cursor: pointer;">{{ row.country }}</summary>
+                    <table style="margin: 8px 0 4px 20px; width: auto;">
+                        <thead>
+                            <tr><th>Province/Region</th><th>Unique visitors</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for province, province_count in row.provinces %}
+                            <tr>
+                                <td>{{ province }}</td>
+                                <td>{{ province_count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </details>
+                {% else %}
+                    {{ row.country }}
+                {% endif %}
+            </td>
+            <td>{{ row.count }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="2">No visits in this period.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

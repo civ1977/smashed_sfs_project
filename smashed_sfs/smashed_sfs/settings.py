@@ -189,6 +189,15 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@smashed-sfs.local')
 
+# Local, gitignored MaxMind GeoLite2-City database (see geoip_data/) - used
+# by the Online Users admin page to break visit counts down by country and,
+# per country, by province/region. The City edition includes country data
+# too, so this is the only database needed. GEOIP_LICENSE_KEY is only
+# needed to (re-)download it (see deploy/download_geoip_db.py); lookups at
+# request time read the .mmdb file directly and never call out to MaxMind.
+GEOIP_DB_PATH = BASE_DIR / 'geoip_data' / 'GeoLite2-City.mmdb'
+GEOIP_LICENSE_KEY = os.environ.get('MAXMIND_LICENSE_KEY', '')
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {

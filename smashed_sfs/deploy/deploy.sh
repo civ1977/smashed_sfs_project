@@ -40,6 +40,9 @@ pip install -r requirements.txt --quiet
 echo "==> Applying migrations"
 python manage.py migrate --noinput
 
+echo "==> Refreshing GeoIP database"
+python deploy/download_geoip_db.py
+
 echo "==> Collecting static files"
 python manage.py collectstatic --noinput
 

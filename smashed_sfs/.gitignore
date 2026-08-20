@@ -5,3 +5,4 @@ staticfiles/
 logs/
 .env
 venv/
+geoip_data/
