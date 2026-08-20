@@ -1019,8 +1019,8 @@ def _build_sf2_workbook(teacher, section, school_profile, year, month, reanchor_
         # column headers (the actual start of the table).
         15: 16, 16: 16,
         # Two individual female-student rows (within 75-129) singled out
-        # for a shorter height than the rest of that block.
-        102: 8, 103: 8,
+        # for a taller height than the rest of that block.
+        102: 15, 103: 15,
         132: 10, 133: 10, 134: 10,
         135: 6, 136: 6, 137: 6, 138: 6, 139: 6, 140: 6, 141: 6,
         142: 9, 143: 9, 144: 9,
