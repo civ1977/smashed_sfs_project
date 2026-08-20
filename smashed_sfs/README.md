@@ -22,9 +22,10 @@ upload student records, enter grades, and generate SF9/SF10 report forms.
    CREATE DATABASE smashed_sfs CHARACTER SET utf8mb4;
    ```
 
-3. By default the app connects as MySQL user `root` with password `Password123#!` (see
-   `smashed_sfs/settings.py`). To use a different user/password, set the `DB_PASSWORD`
-   environment variable, or edit the `DATABASES` block in `settings.py` directly.
+3. Set `DB_USER` and `DB_PASSWORD` (e.g. in a `.env` file — copy `.env.example` to `.env`
+   and fill them in). There is no default/root fallback: `settings.py` raises an error on
+   startup if these aren't set, so create a least-privilege MySQL user for this database
+   first (see `CLAUDE.md` for the `CREATE USER` / `GRANT` statement).
 
 4. Apply migrations:
 

@@ -18,19 +18,29 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # by a hosting platform) still take precedence over anything in .env.
 load_dotenv(BASE_DIR / '.env')
 
-# SECURITY WARNING: keep the secret key used in production secret!
-# Override with a DJANGO_SECRET_KEY environment variable for any real
-# deployment; this fallback is fine for local dev only.
-SECRET_KEY = os.environ.get(
-    'DJANGO_SECRET_KEY',
-    '4@l5)1et3s9$4sy!xrcz2y5gxmtx(1(7qv)z+7_3(iuv)2i9la',
-)
-
 # SECURITY WARNING: don't run with debug turned on in production!
 # Set DJANGO_DEBUG=False in the environment before exposing this past localhost
 # (e.g. through a cloudflared tunnel) - with DEBUG on, any unhandled error
 # renders a full stack trace + settings dump to whoever triggers it.
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
+
+# SECURITY WARNING: keep the secret key used in production secret!
+# Override with a DJANGO_SECRET_KEY environment variable for any real
+# deployment. The fallback below is an obviously-fake placeholder (not a
+# real generated key) so it can never be mistaken for a working secret -
+# and since this is a public repo, any value hardcoded here would be public
+# too, so a real deployment must set DJANGO_SECRET_KEY itself; this raises
+# loudly instead of silently running production on a known, public key.
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
+if not SECRET_KEY:
+    if not DEBUG and 'test' not in sys.argv:
+        raise ImproperlyConfigured(
+            'DJANGO_SECRET_KEY is not set. Generate one with `python -c '
+            '"from django.core.management.utils import get_random_secret_key; '
+            'print(get_random_secret_key())"` and set it as a real environment '
+            'variable before running with DEBUG=False.'
+        )
+    SECRET_KEY = 'django-insecure-local-dev-only-do-not-use-in-production'
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 # For tunnel testing, set DJANGO_ALLOWED_HOSTS (comma-separated) in the
