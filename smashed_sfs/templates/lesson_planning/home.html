@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}LESSON PLANNING{% endblock %}
+
+{% block content %}
+<h1>Lesson Planning</h1>
+<p>Generate a weekly lesson plan following the ILAW Framework (DepEd Order No. 016, s. 2026), assisted by an AI provider you connect yourself.</p>
+
+<a href="{% url 'tools' %}" class="btn ghost">← Tools</a>
+
+<div class="card" style="margin-top: var(--space-4);">
+    <h3 style="margin-top: 0;">1. Connect your own AI provider</h3>
+    {% if connection %}
+        <p>Connected to <strong>{{ connection.get_provider_display }}</strong> since {{ connection.consented_at|date:"M j, Y" }}.</p>
+        <form method="post" action="{% url 'lesson_planning_disconnect' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn ghost">Disconnect</button>
+        </form>
+    {% else %}
+        <p style="font-size: 13px; color: var(--ink-soft);">
+            This is bring-your-own-key: you connect your own account, so nothing is billed to the school.
+        </p>
+        <form method="post" action="{% url 'lesson_planning_connect' %}">
+            {% csrf_token %}
+
+            <fieldset style="border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-3);">
+                <legend style="font-weight: 600; font-size: 13px;">Choose a provider</legend>
+                <label style="display: block; margin-bottom: var(--space-2);">
+                    <input type="radio" name="provider" value="openrouter" checked>
+                    <strong>OpenRouter (free)</strong> — no card required, rate-limited. Get a key at
+                    <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>.
+                </label>
+                <label style="display: block;">
+                    <input type="radio" name="provider" value="deepseek">
+                    <strong>DeepSeek</strong> — free trial (~5M tokens, ~30 days), then small per-use fees on
+                    your own account. Get a key at
+                    <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">platform.deepseek.com/api_keys</a>.
+                </label>
+            </fieldset>
+
+            <label for="api_key" style="margin-top: var(--space-3); display: block;">API Key</label>
+            <input type="password" id="api_key" name="api_key" style="width: 100%; max-width: 480px;" required>
+
+            <div class="alert alert-info" style="margin-top: var(--space-3);">
+                By connecting, you agree that this tool will send whatever you upload/enter below to the
+                provider you chose above, using your own key. <strong>Do not upload or enter real student
+                names, grades, or any other confidential learner information</strong> — per DepEd Order No.
+                003, s. 2026, using this tool means declaring that no confidential learner or institutional
+                information was shared with the AI provider.
+            </div>
+
+            <label style="display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3);">
+                <input type="checkbox" name="agree" required>
+                I have read and agree to the above.
+            </label>
+
+            <button type="submit" class="btn" style="margin-top: var(--space-3);">Connect</button>
+        </form>
+    {% endif %}
+</div>
+
+{% if connection %}
+<div class="card" style="margin-top: var(--space-4);">
+    <h3 style="margin-top: 0;">2. Generate this week's lesson plan</h3>
+    <form method="post" action="{% url 'lesson_planning_generate' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <label for="reference_file">Reference file (optional — .docx, .pptx, or .pdf)</label>
+        <input type="file" id="reference_file" name="reference_file" accept=".docx,.pptx,.pdf">
+        <p style="font-size: 12px; color: var(--ink-faint); margin-top: 2px;">
+            Used only for this request, sent to DeepSeek, and never saved — do not upload anything containing
+            real student names or grades.
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-top: var(--space-3);">
+            <div>
+                <label for="learning_area">Learning Area / Subject</label>
+                <input type="text" id="learning_area" name="learning_area" style="width: 100%;"
+                       value="{{ form_values.learning_area|default:'' }}" required>
+            </div>
+            <div>
+                <label for="grade_section">Grade Level and Section</label>
+                <input type="text" id="grade_section" name="grade_section" style="width: 100%;"
+                       value="{{ form_values.grade_section|default:'' }}" required>
+            </div>
+            <div>
+                <label for="teaching_dates">Teaching Date(s) / Week</label>
+                <input type="text" id="teaching_dates" name="teaching_dates" style="width: 100%;"
+                       placeholder="e.g. Week 10 (August 17-21, 2026)"
+                       value="{{ form_values.teaching_dates|default:'' }}" required>
+            </div>
+            <div>
+                <label for="num_days">Number of days this week</label>
+                <select id="num_days" name="num_days" style="width: 100%;">
+                    {% for n in max_days %}
+                    <option value="{{ n }}" {% if form_values.num_days|default:'5' == n|stringformat:'s' %}selected{% endif %}>{{ n }}</option>
+                    {% endfor %}
+                </select>
+                <p style="font-size: 12px; color: var(--ink-faint); margin-top: 2px;">Maximum of 5 — choose fewer if a holiday shortens the week.</p>
+            </div>
+        </div>
+
+        <label for="competencies" style="margin-top: var(--space-3); display: block;">Competencies to cover this week</label>
+        <textarea id="competencies" name="competencies" rows="4" style="width: 100%;"
+                  placeholder="Paste the competencies from the Curriculum Guide for this week.">{{ form_values.competencies|default:'' }}</textarea>
+
+        <label for="added_instructions" style="margin-top: var(--space-3); display: block;">Added instructions (optional)</label>
+        <textarea id="added_instructions" name="added_instructions" rows="3" style="width: 100%;"
+                  placeholder="Anything specific you want the AI to account for, e.g. a scheduled quiz on Friday, a preferred activity type, learner accommodations.">{{ form_values.added_instructions|default:'' }}</textarea>
+
+        <button type="submit" class="btn" style="margin-top: var(--space-4);">Generate Lesson Plan</button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

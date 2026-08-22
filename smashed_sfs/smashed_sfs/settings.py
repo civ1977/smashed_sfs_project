@@ -42,6 +42,24 @@ if not SECRET_KEY:
         )
     SECRET_KEY = 'django-insecure-local-dev-only-do-not-use-in-production'
 
+# Encrypts each teacher's own bring-your-own-key AI provider credential
+# (lesson_planning.models.TeacherAIConnection) at rest - same "must be set
+# for a real deployment, dev gets an obviously-fake fallback" shape as
+# SECRET_KEY above, and for the same reason: a value hardcoded here would
+# be public since this is a public repo. Generate one with
+# `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+AI_KEY_ENCRYPTION_KEY = os.environ.get('AI_KEY_ENCRYPTION_KEY', '')
+if not AI_KEY_ENCRYPTION_KEY:
+    if not DEBUG and 'test' not in sys.argv:
+        raise ImproperlyConfigured(
+            'AI_KEY_ENCRYPTION_KEY is not set. Generate one with `python -c '
+            '"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` '
+            'and set it as a real environment variable before running with DEBUG=False.'
+        )
+    # base64 of the 32 literal bytes b"INSECURE-LOCAL-DEV-ONLY-DO-NOT-USE!!"[:32] -
+    # a fixed, publicly-known placeholder, not a real generated key.
+    AI_KEY_ENCRYPTION_KEY = 'SU5TRUNVUkUtTE9DQUwtREVWLU9OTFktRE8tTk9ULVU='
+
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 # For tunnel testing, set DJANGO_ALLOWED_HOSTS (comma-separated) in the
 # environment for that session instead of committing a wildcard here.
@@ -96,6 +114,7 @@ INSTALLED_APPS = [
     'reports',
     'school',
     'portal',
+    'lesson_planning',
 ]
 
 SITE_ID = 1

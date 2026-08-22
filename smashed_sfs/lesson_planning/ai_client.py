@@ -1,0 +1,171 @@
+import json
+
+import requests
+
+REQUEST_TIMEOUT_SECONDS = 90
+
+# One entry per supported AI provider - validate_api_key/generate_json
+# below are written entirely against this config, not against DeepSeek
+# specifically, so adding another provider (e.g. OpenAI, which happens to
+# share DeepSeek's OpenAI-compatible REST shape) is just a new entry here,
+# not a new code path. A provider with a different auth header convention
+# (e.g. Anthropic's `x-api-key` instead of `Authorization: Bearer`) still
+# fits by giving it its own `auth_headers` function; one that can't honor
+# `response_format: json_object` fits by setting `json_response_format`
+# to False, which falls back to a plain prompt instruction instead.
+PROVIDERS = {
+    'deepseek': {
+        'label': 'DeepSeek',
+        'base_url': 'https://api.deepseek.com',
+        'chat_models': ['deepseek-chat'],
+        'validate_path': '/models',
+        'chat_path': '/chat/completions',
+        'auth_headers': lambda api_key: {'Authorization': f'Bearer {api_key}'},
+        'json_response_format': True,
+    },
+    # OpenRouter's own key is genuinely free (rate-limited, no card) when
+    # pointed at one of its ":free"-suffixed models - but which specific
+    # models are free rotates on OpenRouter's side as sponsorship deals
+    # change (a single hardcoded model id here already 404'd once), so
+    # this is a fallback list tried in order rather than one fixed model;
+    # generate_json below moves to the next entry on a 404 specifically.
+    # Check current free models at https://openrouter.ai/models?max_price=0
+    # if every entry here ends up 404ing.
+    'openrouter': {
+        'label': 'OpenRouter (free)',
+        'base_url': 'https://openrouter.ai/api/v1',
+        'chat_models': [
+            'z-ai/glm-5.2:free',
+            'google/gemma-4-31b-it:free',
+            'nvidia/nemotron-3-super-120b-a12b:free',
+        ],
+        'validate_path': '/auth/key',
+        'chat_path': '/chat/completions',
+        'auth_headers': lambda api_key: {'Authorization': f'Bearer {api_key}'},
+        'json_response_format': True,
+    },
+}
+
+
+class UnsupportedProviderError(Exception):
+    pass
+
+
+class AIProviderError(Exception):
+    """Raised for anything that should surface as a plain error message to
+    the teacher - a bad/expired key, a provider outage, or a malformed
+    response - rather than a raw traceback."""
+
+
+def _provider_config(provider):
+    config = PROVIDERS.get(provider)
+    if not config:
+        raise UnsupportedProviderError(f'"{provider}" is not a supported AI provider.')
+    return config
+
+
+def _raise_for_error_status(config, response, *, on_auth_error):
+    """Shared HTTP-status handling for both calls below - a 402 means the
+    provider has no balance/payment method on file for this key (DepEd
+    teachers hitting this on DeepSeek after their free trial grant runs
+    out is the expected case this guards against), which is different
+    from - and much more fixable by switching providers than - a bad key
+    or an outage, so it gets its own message pointing at OpenRouter."""
+    if response.status_code == 401:
+        raise AIProviderError(on_auth_error)
+    if response.status_code == 402:
+        free_alternatives = [
+            c['label'] for key, c in PROVIDERS.items() if c is not config and key == 'openrouter'
+        ]
+        switch_hint = f" or disconnect and connect with {free_alternatives[0]} instead" if free_alternatives else ''
+        raise AIProviderError(
+            f"{config['label']} says this account has no available balance (HTTP 402) - its free trial grant "
+            f"may have run out. Add a payment method on your {config['label']} account{switch_hint}."
+        )
+    if response.status_code == 429:
+        raise AIProviderError(f"{config['label']} rate-limited this request. Wait a moment and try again.")
+    if response.status_code == 404:
+        raise AIProviderError(
+            f"{config['label']} doesn't recognize the model this tool is configured to use - it may have "
+            'been renamed or retired on the provider\'s side. Please report this so it can be updated.'
+        )
+    if not response.ok:
+        raise AIProviderError(f"{config['label']} returned an unexpected error (HTTP {response.status_code}).")
+
+
+def validate_api_key(provider, api_key):
+    """A cheap, no-completion-cost call to confirm a key actually works
+    before saving it - catches a bad/expired/mistyped key immediately
+    instead of failing on the teacher's first real generation."""
+    config = _provider_config(provider)
+    try:
+        response = requests.get(
+            f"{config['base_url']}{config['validate_path']}",
+            headers=config['auth_headers'](api_key),
+            timeout=15,
+        )
+    except requests.RequestException as exc:
+        raise AIProviderError(f"Could not reach {config['label']}: {exc}") from exc
+
+    _raise_for_error_status(
+        config, response,
+        on_auth_error=f"{config['label']} rejected this API key. Double-check it and try again.",
+    )
+
+
+def generate_json(provider, api_key, system_prompt, user_prompt):
+    """Sends a chat completion request constrained to JSON output and
+    returns the parsed dict. Tries each of the provider's chat_models in
+    order, moving to the next on a 404 (model retired/renamed on the
+    provider's side - see PROVIDERS' comment on openrouter) or a 429
+    (confirmed against OpenRouter's own free tier: a 429 there typically
+    means that one specific free model's shared upstream capacity pool is
+    briefly saturated, not that this account is rate-limited - a
+    different free model routes to different upstream capacity and
+    usually just works). Any other error status stops immediately rather
+    than burning through the whole list for a problem no model swap would
+    fix (a bad key or no balance). Raises AIProviderError on any failure
+    mode a teacher should see as a plain message."""
+    config = _provider_config(provider)
+    models = config['chat_models']
+
+    for index, model in enumerate(models):
+        is_last = index == len(models) - 1
+        body = {
+            'model': model,
+            'messages': [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': user_prompt},
+            ],
+            'temperature': 0.4,
+        }
+        if config['json_response_format']:
+            body['response_format'] = {'type': 'json_object'}
+
+        try:
+            response = requests.post(
+                f"{config['base_url']}{config['chat_path']}",
+                headers={**config['auth_headers'](api_key), 'Content-Type': 'application/json'},
+                json=body,
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+        except requests.RequestException as exc:
+            raise AIProviderError(f"Could not reach {config['label']}: {exc}") from exc
+
+        if response.status_code in (404, 429) and not is_last:
+            continue
+
+        _raise_for_error_status(
+            config, response,
+            on_auth_error=f"{config['label']} rejected the saved API key. Reconnect with a valid key and try again.",
+        )
+
+        try:
+            content = response.json()['choices'][0]['message']['content']
+            return json.loads(content)
+        except (KeyError, IndexError, json.JSONDecodeError) as exc:
+            raise AIProviderError(f"{config['label']} returned a response that could not be understood. Please try again.") from exc
+
+    # Unreachable unless `models` is empty - _raise_for_error_status above
+    # always raises or returns before falling out of the loop otherwise.
+    raise AIProviderError(f"{config['label']} has no configured model to use.")

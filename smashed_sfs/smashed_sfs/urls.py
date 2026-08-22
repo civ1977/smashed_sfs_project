@@ -69,6 +69,7 @@ urlpatterns = [
     path('tools/dtr/bulk-fill-lunch/', views.bulk_fill_dtr_lunch, name='bulk_fill_dtr_lunch'),
     path('tools/dtr/save-signature/', views.save_dtr_signature, name='save_dtr_signature'),
     
+    path('tools/lesson-planning/', include('lesson_planning.urls')),
     path('students/', include('students.urls')),
     path('grades/', include('grades.urls')),
     path('reports/', include('reports.urls')),

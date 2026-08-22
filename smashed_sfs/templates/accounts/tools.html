@@ -22,6 +22,28 @@
 </div>
 {% endif %}
 
+{% if is_adviser %}
+<h2 style="margin-top: var(--space-5);">Instruction</h2>
+<div class="dashboard-grid">
+    <div class="card">
+        <h3>Lesson Planning</h3>
+        <p><small>Generate a weekly ILAW Framework lesson plan with an AI provider you connect yourself (bring your own key) — nothing you upload or generate is saved to our database.</small></p>
+        <a href="{% url 'lesson_planning_home' %}" class="btn">Lesson Planning</a>
+    </div>
+</div>
+{% endif %}
+
+{% if is_subject_teacher %}
+<h2 style="margin-top: var(--space-5);">Subject Teacher</h2>
+<div class="dashboard-grid">
+    <div class="card">
+        <h3>Lesson Planning</h3>
+        <p><small>Generate a weekly ILAW Framework lesson plan with an AI provider you connect yourself (bring your own key) — nothing you upload or generate is saved to our database.</small></p>
+        <a href="{% url 'lesson_planning_home' %}" class="btn">Lesson Planning</a>
+    </div>
+</div>
+{% endif %}
+
 <h2 style="margin-top: var(--space-5);">School</h2>
 <div class="dashboard-grid">
     <div class="card">
