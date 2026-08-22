@@ -336,6 +336,21 @@ SOCIALACCOUNT_PROVIDERS = {
     },
 }
 
+# File-based, not Django's default LocMemCache - the login-attempt
+# throttle in accounts/views.py's login_view is keyed through this cache,
+# and LocMemCache is private to each process. Gunicorn runs multiple
+# worker processes (see deploy/gunicorn.service's --workers), so with the
+# in-memory default the same username's failed attempts would be counted
+# separately per worker, multiplying the real attempt ceiling by the
+# worker count instead of enforcing LOGIN_ATTEMPT_LIMIT overall. A shared
+# file adds no new infrastructure (no Redis/memcached to run/monitor).
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': BASE_DIR / 'cache',
+    },
+}
+
 # Logging. With DEBUG=True, unhandled errors already show Django's own
 # debug page, so console output here mostly matters once DEBUG=False (no
 # debug page - errors would otherwise vanish silently). Also writes ERROR+

@@ -3,6 +3,7 @@ __pycache__/
 db.sqlite3
 staticfiles/
 logs/
+cache/
 .env
 venv/
 geoip_data/
