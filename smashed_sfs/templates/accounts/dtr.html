@@ -27,6 +27,46 @@
         holidays, and class suspensions are skipped, and any day you've already filled in is left untouched.
     </p>
 
+    <details class="dtr-leave-panel">
+        <summary class="btn ghost" style="display: inline-block; cursor: pointer;">Mark Leave Dates</summary>
+        <p style="color: #999; font-size: 12px; margin: 6px 0;">
+            Marking a day here replaces that session's Arrival/Departure cells on the card with the leave
+            code (e.g. "SL"), the same way a Holiday or Class Suspension already does. Saves immediately and
+            reloads to reflect the change on the card.
+        </p>
+        <div style="max-height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius);">
+        <table class="dtr-leave-table">
+            <thead>
+                <tr><th>Day</th><th>Leave Type</th><th>Session</th></tr>
+            </thead>
+            <tbody>
+                {% for entry in days %}
+                {% if not entry.label or entry.label_is_leave %}
+                <tr id="dtr-leave-row-{{ entry.date }}">
+                    <td>{{ entry.day }}</td>
+                    <td>
+                        <select class="dtr-leave-select" data-date="{{ entry.date }}" data-field="leave_type" style="width: 100%;">
+                            <option value=""{% if not entry.leave_type %} selected{% endif %}>—</option>
+                            {% for code, name in leave_choices %}
+                            <option value="{{ code }}"{% if entry.leave_type == code %} selected{% endif %}>{{ name }} ({{ code }})</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <select class="dtr-leave-select" data-date="{{ entry.date }}" data-field="leave_session" style="width: 100%;">
+                            {% for value, name in leave_session_choices %}
+                            <option value="{{ value }}"{% if entry.leave_session == value %} selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </details>
+
     <hr>
 </div>
 
@@ -44,6 +84,26 @@
         gap: 6px;
         font-size: 13px;
         color: var(--ink-soft);
+    }
+    .dtr-leave-panel {
+        margin-top: var(--space-3);
+    }
+    .dtr-leave-table {
+        width: 100%;
+        font-size: 13px;
+        border-collapse: collapse;
+    }
+    .dtr-leave-table th, .dtr-leave-table td {
+        padding: 4px 8px;
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+    }
+    .dtr-leave-table th:first-child, .dtr-leave-table td:first-child {
+        width: 40px;
+    }
+    .dtr-leave-row-highlight {
+        background: var(--accent-wash);
+        transition: background 0.3s;
     }
     .dtr-signature-pad-card {
         margin: var(--space-4) auto 0;
@@ -153,6 +213,52 @@
     })();
 
     (function () {
+        var csrfToken = "{{ csrf_token }}";
+        document.querySelectorAll('.dtr-leave-select').forEach(function (select) {
+            select.addEventListener('change', function () {
+                fetch("{% url 'save_dtr_cell' %}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        date: select.dataset.date,
+                        field: select.dataset.field,
+                        value: select.value,
+                    }),
+                }).then(function (resp) {
+                    if (!resp.ok) throw new Error('save failed');
+                    // Reload so the card's label/am_label/pm_label cells
+                    // (build_dtr_days) pick up the change - unlike the plain
+                    // text cells above, a leave selection can blank/restore
+                    // the Arrival/Departure cells too, not just its own value.
+                    window.location.reload();
+                }).catch(function () {
+                    select.style.background = 'var(--risk-wash)';
+                });
+            });
+        });
+    })();
+
+    (function () {
+        // Makes a leave label on the card itself the "edit" affordance -
+        // clicking it opens the Mark Leave Dates panel and jumps straight
+        // to that date's row instead of leaving the teacher to hunt for it.
+        var panel = document.querySelector('.dtr-leave-panel');
+        document.querySelectorAll('.dtr-leave-label[data-date]').forEach(function (label) {
+            label.addEventListener('click', function () {
+                if (panel) panel.open = true;
+                var row = document.getElementById('dtr-leave-row-' + label.dataset.date);
+                if (!row) return;
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                row.classList.add('dtr-leave-row-highlight');
+                setTimeout(function () { row.classList.remove('dtr-leave-row-highlight'); }, 1500);
+            });
+        });
+    })();
+
+    (function () {
         var canvas = document.getElementById('dtr-signature-canvas');
         if (!canvas) return;
         var ctx = canvas.getContext('2d');
@@ -240,4 +346,5 @@
         }
     })();
 </script>
+{% include 'partials/dtr_leave_label_shrink.html' %}
 {% endblock %}

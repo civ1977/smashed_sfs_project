@@ -1,0 +1,27 @@
+<!-- Shared by every page that renders partials/dtr_form_content.html (see
+     that file's own header comment) - shrinks each .dtr-leave-label span
+     (a leave label, showing the full leave name rather than the short
+     Holiday/Saturday/Sunday/Suspension labels' fixed short words - see
+     partials/dtr_form_style.html) to the largest font size that still fits
+     on one line within its fixed-width card cell, only falling back to
+     actually wrapping (already permitted by that class's own CSS) for a
+     name still too long even at the minimum size. -->
+<script>
+    (function () {
+        document.querySelectorAll('.dtr-leave-label').forEach(function (span) {
+            var cell = span.parentElement;
+            if (!cell) return;
+            var originalWhiteSpace = span.style.whiteSpace;
+            span.style.whiteSpace = 'nowrap';
+            var naturalWidth = span.scrollWidth;
+            var available = cell.clientWidth;
+            span.style.whiteSpace = originalWhiteSpace;
+            if (naturalWidth <= available || naturalWidth === 0) return;
+
+            var baseSize = parseFloat(getComputedStyle(span).fontSize);
+            var minSize = baseSize * 0.55;
+            var newSize = Math.max(minSize, baseSize * (available / naturalWidth));
+            span.style.fontSize = newSize + 'px';
+        });
+    })();
+</script>

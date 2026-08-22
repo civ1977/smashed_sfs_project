@@ -99,6 +99,31 @@
         color: #555;
         font-size: 7.5pt;
     }
+    /* Leave labels show the full leave name (e.g. "Special Emergency
+       (Calamity) Leave"), not the short code, so unlike the fixed
+       Holiday/Saturday/Sunday/Suspension labels above they need to be
+       allowed to wrap - accounts/dtr.html's own script shrinks
+       font-size first and only lets it actually wrap to 2 lines as a
+       last resort for names too long to fit even at the smallest size. */
+    .dtr-leave-label {
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.05;
+    }
+    /* @media screen, not a .no-print-style ancestor selector - the
+       editable card sits inside .no-print-sheet (only display:none'd at
+       print time) while the two hidden .dtr-print-sheet copies have no
+       such wrapper at all, so a class-based selector can't reliably tell
+       them apart. This affordance is purely visual/interactive anyway
+       (cursor, underline) and has no reason to render in the printed/
+       exported PDF output regardless of which copy it's on. */
+    @media screen {
+        .dtr-leave-label[data-date] {
+            cursor: pointer;
+            text-decoration: underline dotted;
+            text-underline-offset: 2px;
+        }
+    }
 
     .dtr-editable { cursor: text; font-size: 7.5pt; }
     .dtr-editable:hover { background: var(--bg-exhibit); }

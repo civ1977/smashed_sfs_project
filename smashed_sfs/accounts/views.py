@@ -697,7 +697,7 @@ def tools(request):
 
 DTR_EDITABLE_FIELDS = (
     'am_arrival', 'am_departure', 'pm_arrival', 'pm_departure',
-    'undertime_hours', 'undertime_minutes',
+    'undertime_hours', 'undertime_minutes', 'leave_type', 'leave_session',
 )
 
 def build_dtr_days(year, month, exceptions, records_by_date, dtr_exceptions=None):
@@ -716,7 +716,13 @@ def build_dtr_days(year, month, exceptions, records_by_date, dtr_exceptions=None
     a single label, same as before. A half-day Class Suspension only
     blanks its own session's two columns (am_label/pm_label) - the other
     session's time fields stay real and editable, since work still
-    happened that half of the day."""
+    happened that half of the day.
+
+    A per-employee leave (record.leave_type, from the "Leave" panel on the
+    DTR page - see accounts/dtr.html) reuses this exact same label/am_label/
+    pm_label mechanism, just layered in afterward and only where a
+    school-wide exception hasn't already claimed that slot - a leave day is
+    always assumed to fall on what would otherwise be a working day."""
     dtr_exceptions = dtr_exceptions or {}
     num_days = calendar.monthrange(year, month)[1]
     days = []
@@ -740,9 +746,31 @@ def build_dtr_days(year, month, exceptions, records_by_date, dtr_exceptions=None
             if not is_school_day:
                 label = 'Saturday' if d.weekday() == 5 else 'Sunday' if d.weekday() == 6 else 'Holiday'
         record = records_by_date.get(d)
-        entry = {'day': day, 'date': d.isoformat(), 'label': label, 'am_label': am_label, 'pm_label': pm_label}
+        label_is_leave = am_label_is_leave = pm_label_is_leave = False
+        if record and record.leave_type and label is None:
+            # The full leave name (e.g. "Sick Leave"), not the stored short
+            # code - accounts/dtr.html's own auto-shrink script (scoped to
+            # just the .dtr-leave-label class this produces, not the
+            # Holiday/Saturday/Sunday/Suspension labels above) is what
+            # keeps a long name like "Special Emergency (Calamity) Leave"
+            # fitting inside the card's fixed-width cells.
+            leave_name = dict(TeacherTimeRecord.LEAVE_CHOICES).get(record.leave_type, record.leave_type)
+            if record.leave_session == TeacherTimeRecord.LEAVE_SESSION_AM:
+                if am_label is None:
+                    am_label, am_label_is_leave = leave_name, True
+            elif record.leave_session == TeacherTimeRecord.LEAVE_SESSION_PM:
+                if pm_label is None:
+                    pm_label, pm_label_is_leave = leave_name, True
+            elif am_label is None and pm_label is None:
+                label, label_is_leave = leave_name, True
+        entry = {
+            'day': day, 'date': d.isoformat(), 'label': label, 'am_label': am_label, 'pm_label': pm_label,
+            'label_is_leave': label_is_leave, 'am_label_is_leave': am_label_is_leave, 'pm_label_is_leave': pm_label_is_leave,
+        }
         for field in DTR_EDITABLE_FIELDS:
             entry[field] = getattr(record, field, '') or '' if record else ''
+        if not entry['leave_session']:
+            entry['leave_session'] = TeacherTimeRecord.LEAVE_SESSION_WHOLE_DAY
         if am_label:
             entry['am_arrival'] = entry['am_departure'] = ''
         if pm_label:
@@ -919,6 +947,8 @@ def daily_time_record(request):
         'next_month': next_month,
         'next_month_name': date(next_year, next_month, 1).strftime('%B'),
         'days': days,
+        'leave_choices': TeacherTimeRecord.LEAVE_CHOICES,
+        'leave_session_choices': TeacherTimeRecord.LEAVE_SESSION_CHOICES,
     })
 
 
@@ -1208,6 +1238,16 @@ def save_dtr_cell(request):
     # that would otherwise leak into the registrar's school-wide PDF export.
     employee_name = teacher.full_name
     value = request.POST.get('value', '').strip()
+
+    # leave_type/leave_session are dropdown-driven (see the "Leave" panel
+    # in accounts/dtr.html), not free text like the time cells - constrain
+    # them to the model's own choices rather than trusting the client, the
+    # same way `field` above is constrained to DTR_EDITABLE_FIELDS.
+    if field == 'leave_type' and value and value not in dict(TeacherTimeRecord.LEAVE_CHOICES):
+        return JsonResponse({'error': 'Invalid leave type.'}, status=400)
+    if field == 'leave_session' and value not in dict(TeacherTimeRecord.LEAVE_SESSION_CHOICES):
+        return JsonResponse({'error': 'Invalid leave session.'}, status=400)
+
     record, _ = TeacherTimeRecord.objects.get_or_create(
         teacher_id=teacher.teacher_id, employee_name=employee_name, date=d
     )

@@ -92,6 +92,37 @@ class TeacherTimeRecord(models.Model):
     that owns the edit. Defaults to that account's own Teacher.full_name
     the first time a DTR is opened, but can be changed to anyone."""
 
+    # The official CSC Form No. 6 (Application for Leave) categories - the
+    # stored value IS the short code shown on the printed card (accounts/
+    # views.py's build_dtr_days reuses the same label/am_label/pm_label
+    # mechanism already built for Holiday/Class Suspension rows, just
+    # sourced from this field instead of a school-wide calendar exception),
+    # so no separate code-lookup table is needed.
+    LEAVE_CHOICES = [
+        ('VL', 'Vacation Leave'),
+        ('FL', 'Mandatory/Forced Leave'),
+        ('SL', 'Sick Leave'),
+        ('ML', 'Maternity Leave'),
+        ('PL', 'Paternity Leave'),
+        ('SPL', 'Special Privilege Leave'),
+        ('SOLO', 'Solo Parent Leave'),
+        ('STL', 'Study Leave'),
+        ('VAWC', '10-Day VAWC Leave'),
+        ('REHAB', 'Rehabilitation Privilege'),
+        ('SLBW', 'Special Leave Benefits for Women'),
+        ('CL', 'Special Emergency (Calamity) Leave'),
+        ('AL', 'Adoption Leave'),
+        ('OTHER', 'Other'),
+    ]
+    LEAVE_SESSION_WHOLE_DAY = 'whole_day'
+    LEAVE_SESSION_AM = 'am'
+    LEAVE_SESSION_PM = 'pm'
+    LEAVE_SESSION_CHOICES = [
+        (LEAVE_SESSION_WHOLE_DAY, 'Whole Day'),
+        (LEAVE_SESSION_AM, 'Morning Only'),
+        (LEAVE_SESSION_PM, 'Afternoon Only'),
+    ]
+
     record_id = models.AutoField(primary_key=True)
     teacher_id = models.IntegerField()
     employee_name = models.CharField(max_length=100, default='')
@@ -102,6 +133,10 @@ class TeacherTimeRecord(models.Model):
     pm_departure = models.CharField(max_length=16, blank=True, null=True)
     undertime_hours = models.CharField(max_length=16, blank=True, null=True)
     undertime_minutes = models.CharField(max_length=16, blank=True, null=True)
+    leave_type = models.CharField(max_length=10, choices=LEAVE_CHOICES, blank=True, null=True)
+    leave_session = models.CharField(
+        max_length=10, choices=LEAVE_SESSION_CHOICES, default=LEAVE_SESSION_WHOLE_DAY, blank=True,
+    )
 
     class Meta:
         db_table = 'teacher_time_record'
