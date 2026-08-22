@@ -216,3 +216,39 @@ class SchoolMasterlistEntry(models.Model):
 
     def __str__(self):
         return f'{self.school_name} ({self.school_id})'
+
+
+class ActiveDeviceSession(models.Model):
+    """One row per (user, device category) currently logged in - caps every
+    account at 3 simultaneous sessions, one smartphone + one tablet + one
+    desktop, enforced in accounts/signals.py off Django's own
+    user_logged_in/user_logged_out signals rather than from inside any
+    individual login view, so it applies uniformly to the password login in
+    accounts/views.py's login_view AND allauth's Google login. A new login in
+    a category that's already occupied overwrites this row and deletes the
+    old Session row outright (see signals.py) - the prior device is kicked
+    the moment it makes its next request, not just prevented from logging in
+    again."""
+
+    DEVICE_SMARTPHONE = 'smartphone'
+    DEVICE_TABLET = 'tablet'
+    DEVICE_DESKTOP = 'desktop'
+    DEVICE_CHOICES = [
+        (DEVICE_SMARTPHONE, 'Smartphone'),
+        (DEVICE_TABLET, 'Tablet'),
+        (DEVICE_DESKTOP, 'Desktop/Laptop'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='active_device_sessions')
+    device_category = models.CharField(max_length=12, choices=DEVICE_CHOICES)
+    session_key = models.CharField(max_length=40)
+    user_agent = models.CharField(max_length=512, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'device_category'], name='one_session_per_device_category'),
+        ]
+
+    def __str__(self):
+        return f'{self.user.username} - {self.get_device_category_display()}'
