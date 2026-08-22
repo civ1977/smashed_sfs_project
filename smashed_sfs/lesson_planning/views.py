@@ -16,6 +16,15 @@ from .models import TeacherAIConnection
 
 MAX_DAYS = 5
 
+# The AI connection (BYOK key) is one-per-teacher, not one-per-tool - the
+# Assessment tool (assessment/views.py) reuses connect_ai/disconnect_ai
+# below rather than duplicating its own connect form, so a teacher who
+# already connected for one tool doesn't reconnect for the other. This is
+# the whitelist of pages allowed to be the "come back here after
+# connecting" target - deliberately not an open redirect to any URL the
+# POST body names.
+CONNECT_REDIRECT_TARGETS = {'lesson_planning_home', 'assessment_home'}
+
 
 def _get_teacher(request):
     return Teacher.objects.filter(username=request.user.username).first()
@@ -23,6 +32,13 @@ def _get_teacher(request):
 
 def _get_connection(teacher):
     return TeacherAIConnection.objects.filter(teacher_id=teacher.teacher_id).first()
+
+
+def _connect_redirect(request):
+    target = request.POST.get('next')
+    if target not in CONNECT_REDIRECT_TARGETS:
+        target = 'lesson_planning_home'
+    return redirect(target)
 
 
 @login_required
@@ -55,19 +71,19 @@ def connect_ai(request):
 
     if provider not in dict(TeacherAIConnection.PROVIDER_CHOICES):
         messages.error(request, 'Choose a valid AI provider.')
-        return redirect('lesson_planning_home')
+        return _connect_redirect(request)
     if not agreed:
         messages.error(request, 'You must agree to the disclosure statement to connect an AI provider.')
-        return redirect('lesson_planning_home')
+        return _connect_redirect(request)
     if not api_key:
         messages.error(request, 'Enter your API key.')
-        return redirect('lesson_planning_home')
+        return _connect_redirect(request)
 
     try:
         ai_client.validate_api_key(provider, api_key)
     except (ai_client.AIProviderError, ai_client.UnsupportedProviderError) as exc:
         messages.error(request, str(exc))
-        return redirect('lesson_planning_home')
+        return _connect_redirect(request)
 
     TeacherAIConnection.objects.update_or_create(
         teacher_id=teacher.teacher_id,
@@ -77,8 +93,8 @@ def connect_ai(request):
             'consented_at': timezone.now(),
         },
     )
-    messages.success(request, 'Connected to DeepSeek.')
-    return redirect('lesson_planning_home')
+    messages.success(request, f'Connected to {dict(TeacherAIConnection.PROVIDER_CHOICES)[provider]}.')
+    return _connect_redirect(request)
 
 
 @login_required
@@ -90,7 +106,7 @@ def disconnect_ai(request):
     if teacher:
         TeacherAIConnection.objects.filter(teacher_id=teacher.teacher_id).delete()
         messages.info(request, 'Disconnected. Your API key has been deleted.')
-    return redirect('lesson_planning_home')
+    return _connect_redirect(request)
 
 
 @login_required

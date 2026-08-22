@@ -11,15 +11,17 @@ class TeacherAIConnection(models.Model):
     consent record: agreeing to connect and providing a key are the same
     action in this tool's UI."""
 
+    PROVIDER_GEMINI = 'gemini'
     PROVIDER_DEEPSEEK = 'deepseek'
     PROVIDER_OPENROUTER = 'openrouter'
     PROVIDER_CHOICES = [
+        (PROVIDER_GEMINI, 'Gemini (free)'),
         (PROVIDER_DEEPSEEK, 'DeepSeek'),
         (PROVIDER_OPENROUTER, 'OpenRouter (free)'),
     ]
 
     teacher_id = models.IntegerField(unique=True)
-    provider = models.CharField(max_length=30, choices=PROVIDER_CHOICES, default=PROVIDER_DEEPSEEK)
+    provider = models.CharField(max_length=30, choices=PROVIDER_CHOICES, default=PROVIDER_GEMINI)
     encrypted_api_key = models.TextField()
     consented_at = models.DateTimeField()
     updated_at = models.DateTimeField(auto_now=True)

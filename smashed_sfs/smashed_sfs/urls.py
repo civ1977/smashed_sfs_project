@@ -70,6 +70,7 @@ urlpatterns = [
     path('tools/dtr/save-signature/', views.save_dtr_signature, name='save_dtr_signature'),
     
     path('tools/lesson-planning/', include('lesson_planning.urls')),
+    path('tools/assessment/', include('assessment.urls')),
     path('students/', include('students.urls')),
     path('grades/', include('grades.urls')),
     path('reports/', include('reports.urls')),

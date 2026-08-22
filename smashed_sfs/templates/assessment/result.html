@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}ASSESSMENT{% endblock %}
+
+{% block content %}
+<h1>{{ assessment.assessment_title }}</h1>
+
+<a href="{% url 'assessment_home' %}" class="btn ghost">← Back</a>
+<form method="post" action="{% url 'assessment_download' %}" style="display: inline;">
+    {% csrf_token %}
+    <input type="hidden" name="payload" value="{{ download_payload }}">
+    <button type="submit" class="btn">⬇ Download as .docx</button>
+</form>
+
+<div class="alert alert-warning" style="margin-top: var(--space-4);">
+    <strong>This assessment is not saved anywhere.</strong> Nothing generated here is stored in our database —
+    once you leave or refresh this page, it's gone for good. Download the .docx above now and keep your own
+    copy somewhere safe.
+</div>
+
+{% if assessment.multiple_choice %}
+<div class="card" style="margin-top: var(--space-4);">
+    <h3 style="margin-top: 0;">Part I: Multiple Choice ({{ assessment.multiple_choice|length }} items)</h3>
+    <ol>
+        {% for item in assessment.multiple_choice %}
+        <li style="margin-bottom: var(--space-3);">
+            {{ item.question|cut:"**" }}
+            <ul style="list-style: none; padding-left: var(--space-3);">
+                <li>a. {{ item.choices.a }}</li>
+                <li>b. {{ item.choices.b }}</li>
+                <li>c. {{ item.choices.c }}</li>
+                <li>d. {{ item.choices.d }}</li>
+            </ul>
+            <span style="font-size: 12px; color: var(--ink-faint);">Answer: {{ item.correct }} · {{ item.bloom_level }}{% if item.source_page %} · {{ item.source_page }}{% endif %}</span>
+        </li>
+        {% endfor %}
+    </ol>
+</div>
+{% endif %}
+
+{% if assessment.true_false_plain %}
+<div class="card" style="margin-top: var(--space-4);">
+    <h3 style="margin-top: 0;">Part II: True or False ({{ assessment.true_false_plain|length }} items)</h3>
+    <ol>
+        {% for item in assessment.true_false_plain %}
+        <li style="margin-bottom: var(--space-2);">
+            {{ item.statement }}
+            <br><span style="font-size: 12px; color: var(--ink-faint);">Answer: {{ item.correct }} · {{ item.bloom_level }}{% if item.source_page %} · {{ item.source_page }}{% endif %}</span>
+        </li>
+        {% endfor %}
+    </ol>
+</div>
+{% endif %}
+
+{% if assessment.true_false_modified %}
+<div class="card" style="margin-top: var(--space-4);">
+    <h3 style="margin-top: 0;">Part III: Modified True or False ({{ assessment.true_false_modified|length }} items)</h3>
+    <ol>
+        {% for item in assessment.true_false_modified %}
+        <li style="margin-bottom: var(--space-2);">
+            {{ item.statement }}
+            <br><span style="font-size: 12px; color: var(--ink-faint);">
+                Answer: {{ item.correct }}{% if item.correct == 'FALSE' %} · Correction: {{ item.correction }}{% endif %} · {{ item.bloom_level }}{% if item.source_page %} · {{ item.source_page }}{% endif %}
+            </span>
+        </li>
+        {% endfor %}
+    </ol>
+</div>
+{% endif %}
+{% endblock %}

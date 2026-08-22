@@ -115,6 +115,7 @@ INSTALLED_APPS = [
     'school',
     'portal',
     'lesson_planning',
+    'assessment',
 ]
 
 SITE_ID = 1

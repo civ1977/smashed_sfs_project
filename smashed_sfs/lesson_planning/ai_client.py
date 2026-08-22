@@ -14,6 +14,37 @@ REQUEST_TIMEOUT_SECONDS = 90
 # `response_format: json_object` fits by setting `json_response_format`
 # to False, which falls back to a plain prompt instruction instead.
 PROVIDERS = {
+    # Google's own free tier: no card required, and a fixed documented
+    # daily quota per model (unlike OpenRouter's free models below, which
+    # share a community capacity pool and can be randomly congested or
+    # retired - both of which happened during this tool's own testing).
+    # Listed first/default for that reason. Google's OpenAI-compatible
+    # layer has no /models listing endpoint (confirmed: genuinely 404s),
+    # so validation instead sends a real 1-token chat request - the
+    # validate_method/validate_body below are what make that possible
+    # without a separate code path in validate_api_key.
+    'gemini': {
+        'label': 'Gemini (free)',
+        'base_url': 'https://generativelanguage.googleapis.com/v1beta/openai',
+        # gemini-3.7-flash is the model Google's own OpenAI-compatibility
+        # doc actually shows in its chat-completions example as of this
+        # writing; the 2.5 names are kept as fallbacks in case 3.7 is ever
+        # unavailable on a given account/region - both validate_api_key
+        # and generate_json below iterate this same list on a 404, so a
+        # renamed/retired entry doesn't require a code change here, only
+        # reordering or adding to this list.
+        'chat_models': ['gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
+        'validate_path': '/chat/completions',
+        'validate_method': 'POST',
+        'validate_body': lambda model: {
+            'model': model,
+            'messages': [{'role': 'user', 'content': 'hi'}],
+            'max_tokens': 1,
+        },
+        'chat_path': '/chat/completions',
+        'auth_headers': lambda api_key: {'Authorization': f'Bearer {api_key}'},
+        'json_response_format': True,
+    },
     'deepseek': {
         'label': 'DeepSeek',
         'base_url': 'https://api.deepseek.com',
@@ -64,6 +95,21 @@ def _provider_config(provider):
     return config
 
 
+def _error_detail(response):
+    """Best-effort extraction of a provider's own error message from its
+    response body - useful for a status code this module doesn't special-
+    case (e.g. Gemini returns 400, not 401, for a missing/invalid key,
+    with a genuinely informative message attached) rather than showing
+    just a bare HTTP code for those."""
+    try:
+        body = response.json()
+        if isinstance(body, list) and body:
+            body = body[0]
+        return body.get('error', {}).get('message', '')
+    except (ValueError, AttributeError, KeyError, IndexError):
+        return ''
+
+
 def _raise_for_error_status(config, response, *, on_auth_error):
     """Shared HTTP-status handling for both calls below - a 402 means the
     provider has no balance/payment method on file for this key (DepEd
@@ -90,30 +136,48 @@ def _raise_for_error_status(config, response, *, on_auth_error):
             'been renamed or retired on the provider\'s side. Please report this so it can be updated.'
         )
     if not response.ok:
-        raise AIProviderError(f"{config['label']} returned an unexpected error (HTTP {response.status_code}).")
+        detail = _error_detail(response)
+        suffix = f' ({detail})' if detail else ''
+        raise AIProviderError(f"{config['label']} returned an unexpected error (HTTP {response.status_code}){suffix}.")
 
 
 def validate_api_key(provider, api_key):
-    """A cheap, no-completion-cost call to confirm a key actually works
-    before saving it - catches a bad/expired/mistyped key immediately
-    instead of failing on the teacher's first real generation."""
+    """Confirms a key actually works before saving it - catches a bad/
+    expired/mistyped key immediately instead of failing on the teacher's
+    first real generation. Most providers expose a free model-listing
+    endpoint for this (a GET, no completion cost) and only need trying
+    once; one that doesn't (Gemini - see PROVIDERS' comment there) sets
+    validate_method to POST and validate_body to a minimal real request
+    instead, which - like generate_json - is retried across chat_models
+    on a 404/429 rather than only ever trying the first entry, since a
+    model name going stale shouldn't require a validate_api_key code
+    change on top of a PROVIDERS one."""
     config = _provider_config(provider)
-    try:
-        response = requests.get(
-            f"{config['base_url']}{config['validate_path']}",
-            headers=config['auth_headers'](api_key),
-            timeout=15,
+    method = config.get('validate_method', 'GET')
+    models = config['chat_models'] if method == 'POST' else [None]
+
+    for index, model in enumerate(models):
+        is_last = index == len(models) - 1
+        kwargs = {'headers': config['auth_headers'](api_key), 'timeout': 15}
+        if method == 'POST':
+            kwargs['json'] = config['validate_body'](model)
+
+        try:
+            response = requests.request(method, f"{config['base_url']}{config['validate_path']}", **kwargs)
+        except requests.RequestException as exc:
+            raise AIProviderError(f"Could not reach {config['label']}: {exc}") from exc
+
+        if response.status_code in (404, 429) and not is_last:
+            continue
+
+        _raise_for_error_status(
+            config, response,
+            on_auth_error=f"{config['label']} rejected this API key. Double-check it and try again.",
         )
-    except requests.RequestException as exc:
-        raise AIProviderError(f"Could not reach {config['label']}: {exc}") from exc
-
-    _raise_for_error_status(
-        config, response,
-        on_auth_error=f"{config['label']} rejected this API key. Double-check it and try again.",
-    )
+        return
 
 
-def generate_json(provider, api_key, system_prompt, user_prompt):
+def generate_json(provider, api_key, system_prompt, user_prompt, max_tokens=4096):
     """Sends a chat completion request constrained to JSON output and
     returns the parsed dict. Tries each of the provider's chat_models in
     order, moving to the next on a 404 (model retired/renamed on the
@@ -138,6 +202,7 @@ def generate_json(provider, api_key, system_prompt, user_prompt):
                 {'role': 'user', 'content': user_prompt},
             ],
             'temperature': 0.4,
+            'max_tokens': max_tokens,
         }
         if config['json_response_format']:
             body['response_format'] = {'type': 'json_object'}
@@ -163,7 +228,16 @@ def generate_json(provider, api_key, system_prompt, user_prompt):
         try:
             content = response.json()['choices'][0]['message']['content']
             return json.loads(content)
-        except (KeyError, IndexError, json.JSONDecodeError) as exc:
+        except json.JSONDecodeError as exc:
+            # The likeliest real cause at a high max_tokens is the response
+            # getting cut off mid-JSON (a large item count asked for more
+            # output than the model produced) rather than a wholesale
+            # malformed reply, so this hints at the actual fix.
+            raise AIProviderError(
+                f"{config['label']}'s response was cut off before it finished (often means too many items were "
+                'requested at once). Try again with a smaller count.'
+            ) from exc
+        except (KeyError, IndexError) as exc:
             raise AIProviderError(f"{config['label']} returned a response that could not be understood. Please try again.") from exc
 
     # Unreachable unless `models` is empty - _raise_for_error_status above

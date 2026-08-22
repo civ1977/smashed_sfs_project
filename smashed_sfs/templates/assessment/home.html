@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}ASSESSMENT{% endblock %}
+
+{% block content %}
+<h1>Assessment</h1>
+<p>Generate a classroom assessment (Multiple Choice and/or True or False), assisted by an AI provider you connect yourself.</p>
+
+<a href="{% url 'tools' %}" class="btn ghost">← Tools</a>
+
+<div class="card" style="margin-top: var(--space-4);">
+    <h3 style="margin-top: 0;">1. Connect your own AI provider</h3>
+    {% if connection %}
+        <p>Connected to <strong>{{ connection.get_provider_display }}</strong> since {{ connection.consented_at|date:"M j, Y" }}.
+        (Shared with Lesson Planning — you only need to connect once.)</p>
+        <form method="post" action="{% url 'lesson_planning_disconnect' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="assessment_home">
+            <button type="submit" class="btn ghost">Disconnect</button>
+        </form>
+    {% else %}
+        <p style="font-size: 13px; color: var(--ink-soft);">
+            This is bring-your-own-key: you connect your own account, so nothing is billed to the school.
+            (If you've already connected via Lesson Planning, that connection works here too.)
+        </p>
+        <form method="post" action="{% url 'lesson_planning_connect' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="assessment_home">
+
+            <fieldset style="border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-3);">
+                <legend style="font-weight: 600; font-size: 13px;">Choose a provider</legend>
+                <label style="display: block; margin-bottom: var(--space-2);">
+                    <input type="radio" name="provider" value="gemini" checked>
+                    <strong>Gemini (free)</strong> — no card required, a fixed daily quota with no shared-capacity
+                    congestion. Get a key at
+                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.
+                </label>
+                <label style="display: block; margin-bottom: var(--space-2);">
+                    <input type="radio" name="provider" value="openrouter">
+                    <strong>OpenRouter (free)</strong> — no card required, rate-limited. Get a key at
+                    <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>.
+                </label>
+                <label style="display: block;">
+                    <input type="radio" name="provider" value="deepseek">
+                    <strong>DeepSeek</strong> — free trial (~5M tokens, ~30 days), then small per-use fees on
+                    your own account. Get a key at
+                    <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">platform.deepseek.com/api_keys</a>.
+                </label>
+            </fieldset>
+
+            <label for="api_key" style="margin-top: var(--space-3); display: block;">API Key</label>
+            <input type="password" id="api_key" name="api_key" style="width: 100%; max-width: 480px;" required>
+
+            <div class="alert alert-info" style="margin-top: var(--space-3);">
+                By connecting, you agree that this tool will send whatever you upload/enter below to the
+                provider you chose above, using your own key. <strong>Do not upload or enter real student
+                names, grades, or any other confidential learner information</strong> — per DepEd Order No.
+                003, s. 2026, using this tool means declaring that no confidential learner or institutional
+                information was shared with the AI provider.
+            </div>
+
+            <label style="display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3);">
+                <input type="checkbox" name="agree" required>
+                I have read and agree to the above.
+            </label>
+
+            <button type="submit" class="btn" style="margin-top: var(--space-3);">Connect</button>
+        </form>
+    {% endif %}
+</div>
+
+{% if connection %}
+<div class="card" style="margin-top: var(--space-4);">
+    <h3 style="margin-top: 0;">2. Generate an assessment</h3>
+    <div class="alert alert-info">
+        Bloom's Taxonomy distribution (Remembering 30% / Understanding 30% / Applying 15% / Analyzing 15% /
+        Evaluating 5% / Creating 5%) is applied automatically and independently to each question type you
+        request — small counts may naturally end up with zero Evaluating/Creating items.
+    </div>
+    <form method="post" action="{% url 'assessment_generate' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <label for="reference_file">Reference file (optional — .docx, .pptx, or .pdf)</label>
+        <input type="file" id="reference_file" name="reference_file" accept=".docx,.pptx,.pdf">
+        <p style="font-size: 12px; color: var(--ink-faint); margin-top: 2px;">
+            Used only for this request, sent to your AI provider, and never saved — do not upload anything
+            containing real student names or grades.
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-top: var(--space-3);">
+            <div>
+                <label for="learning_area">Learning Area / Subject (optional)</label>
+                <input type="text" id="learning_area" name="learning_area" style="width: 100%;"
+                       value="{{ form_values.learning_area|default:'' }}">
+            </div>
+            <div>
+                <label for="grade_section">Grade Level and Section (optional)</label>
+                <input type="text" id="grade_section" name="grade_section" style="width: 100%;"
+                       value="{{ form_values.grade_section|default:'' }}">
+            </div>
+        </div>
+
+        <fieldset class="test-types-fieldset" style="border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space-3); margin-top: var(--space-3);">
+            <legend style="font-weight: 600; font-size: 13px;">Test Types</legend>
+
+            <div class="test-type-row" style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2);">
+                <label style="display: flex; align-items: center; gap: var(--space-2); flex: 1; margin: 0;">
+                    <input type="checkbox" class="test-type-toggle" data-target="mc_count"
+                           {% if form_values.mc_count|default:'0' != '0' %}checked{% endif %}>
+                    Multiple Choice
+                </label>
+                <input type="number" id="mc_count" name="mc_count" min="0" max="{{ max_items }}" style="width: 100px;" disabled
+                       value="{{ form_values.mc_count|default:'0' }}">
+            </div>
+            <div class="test-type-row" style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2);">
+                <label style="display: flex; align-items: center; gap: var(--space-2); flex: 1; margin: 0;">
+                    <input type="checkbox" class="test-type-toggle" data-target="tf_plain_count"
+                           {% if form_values.tf_plain_count|default:'0' != '0' %}checked{% endif %}>
+                    True or False
+                </label>
+                <input type="number" id="tf_plain_count" name="tf_plain_count" min="0" max="{{ max_items }}" style="width: 100px;" disabled
+                       value="{{ form_values.tf_plain_count|default:'0' }}">
+            </div>
+            <div class="test-type-row" style="display: flex; align-items: center; gap: var(--space-3);">
+                <label style="display: flex; align-items: center; gap: var(--space-2); flex: 1; margin: 0;">
+                    <input type="checkbox" class="test-type-toggle" data-target="tf_modified_count"
+                           {% if form_values.tf_modified_count|default:'0' != '0' %}checked{% endif %}>
+                    Modified True or False
+                </label>
+                <input type="number" id="tf_modified_count" name="tf_modified_count" min="0" max="{{ max_items }}" style="width: 100px;" disabled
+                       value="{{ form_values.tf_modified_count|default:'0' }}">
+            </div>
+
+            <p style="font-size: 12px; color: var(--ink-faint); margin-top: var(--space-2); margin-bottom: 0;">
+                Check a type to include it (up to {{ max_items }} items each) — all types follow the same fixed
+                Bloom's Taxonomy distribution. At least one type must be checked.
+            </p>
+        </fieldset>
+
+        <label for="added_instructions" style="margin-top: var(--space-3); display: block;">Added instructions (optional)</label>
+        <textarea id="added_instructions" name="added_instructions" rows="3" style="width: 100%;"
+                  placeholder="Anything specific you want the AI to account for.">{{ form_values.added_instructions|default:'' }}</textarea>
+
+        <button type="submit" class="btn" style="margin-top: var(--space-4);">Generate Assessment</button>
+    </form>
+</div>
+<script>
+    (function () {
+        document.querySelectorAll('.test-type-toggle').forEach(function (checkbox) {
+            var input = document.getElementById(checkbox.dataset.target);
+            if (!input) return;
+
+            function sync() {
+                input.disabled = !checkbox.checked;
+                if (checkbox.checked && input.value === '0') {
+                    input.value = '10';
+                } else if (!checkbox.checked) {
+                    input.value = '0';
+                }
+            }
+
+            checkbox.addEventListener('change', sync);
+            sync();
+        });
+    })();
+</script>
+{% endif %}
+{% endblock %}
