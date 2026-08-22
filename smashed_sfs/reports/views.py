@@ -13,7 +13,11 @@ from accounts.models import Teacher
 from students.models import Student, SchoolProfile, Section
 from students.utils import split_by_sex, male_then_female
 from grades.models import Grade, SubjectMapping, StudentTermRemark, ATTENDANCE_MONTHS, AttendanceMark, SchoolCalendarException, TeacherSubjectAssignment, SubjectTestMaxScore, AncillaryTask, AncillaryTaskSchedule
-from grades.views import MONTH_NAMES, _school_days_in_month, build_student_grade_sheet, _score_stats, WEEKDAYS, round_half_up
+from grades.views import (
+    MONTH_NAMES, _school_days_in_month, build_student_grade_sheet, _score_stats, WEEKDAYS,
+    round_half_up, LEARNING_AREA_EXCELLENCE_MIN, LEARNING_AREA_EXCELLENCE_AWARD,
+    ACADEMIC_EXCELLENCE_FLOOR, _award_for_average, _award_remark,
+)
 
 
 def _get_teacher(request):
@@ -365,17 +369,44 @@ def report_cards(request):
     return render(request, 'reports/report_cards.html', {'students': students})
 
 
-def _summary_of_ratings_data(teacher):
-    """Shared data-shaping for the Summary of Ratings page and its Excel
-    export - one advisory section's students (all-MALE-then-all-FEMALE),
-    aligned to a shared subject column order. Returns (section, subjects,
-    student_rows); section is None (subjects/student_rows empty) if the
-    teacher has no advisory section."""
-    section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
-    if not section:
-        return None, [], []
+def _subject_awardees_for(subjects, student_rows):
+    """DO 15, s. 2026, Annex H item b: per learning area, whoever has the
+    highest FG in it is awarded, provided that FG is at least 90 - ties
+    (two or more rows sharing the highest FG) are all recognized. Returns a
+    list parallel to `subjects`, each entry the list of awardee display
+    names for that subject (empty if nobody qualifies). Shared by the
+    single-section Summary of Ratings and the school-wide Awards page,
+    which calls this over every section in a grade level pooled together -
+    that pooling is what makes this the actual DepEd "batch," rather than
+    just one section's own top scorer."""
+    subject_awardees = []
+    for subject_index in range(len(subjects)):
+        finals = [
+            row['subject_cells'][subject_index]['final']
+            for row in student_rows
+            if row['subject_cells'][subject_index]['final'] is not None
+        ]
+        top_final = max(finals) if finals else None
+        if top_final is None or top_final < LEARNING_AREA_EXCELLENCE_MIN:
+            subject_awardees.append([])
+            continue
+        subject_awardees.append([
+            row['display_name'] for row in student_rows
+            if row['subject_cells'][subject_index]['final'] == top_final
+        ])
+    return subject_awardees
 
-    students = Student.objects.filter(adviser_id=teacher.teacher_id).order_by('surname', 'name')
+
+def _summary_of_ratings_data_for_section(section):
+    """Shared data-shaping for one section's worth of students
+    (all-MALE-then-all-FEMALE), aligned to a shared subject column order -
+    used both for that section's own Summary of Ratings page/export and,
+    pooled across every section in a grade level, for the school-wide
+    Awards page. Returns (subjects, student_rows); each row has rank/award/
+    remarks computed within just this section - the school-wide page
+    doesn't use those (it only needs subject_cells/general_average/
+    has_grade_below_floor/display_name to pool across sections itself)."""
+    students = Student.objects.filter(section_id=section.section_id).order_by('surname', 'name')
     students = male_then_female(students)
 
     # Master subject list/order for the section's grade level - every
@@ -411,15 +442,57 @@ def _summary_of_ratings_data(teacher):
 
         finals = [row['final'] for row in subject_rows if row['final'] is not None]
         general_average = round_half_up(sum(finals) / len(finals)) if (all_finals_ready and finals) else None
+        has_grade_below_floor = any(value < ACADEMIC_EXCELLENCE_FLOOR for value in finals)
 
         student_rows.append({
             'student': student,
             'display_name': _student_display_name(student),
             'subject_cells': subject_cells,
             'general_average': general_average,
+            'has_grade_below_floor': has_grade_below_floor,
         })
 
-    return section, subjects, student_rows
+    # Standard competition ranking (1224) off the annual General Average,
+    # same convention as _compute_term_rankings - ties share a rank, and the
+    # next distinct average skips the ranks the tie consumed. Only students
+    # with a complete GA are ranked/considered for the Academic Excellence
+    # Award (DO 15, s. 2026, Annex H para 4: GA >= 90, no FG below 80 in any
+    # learning area); an incomplete gradesheet gets neither.
+    ranked = sorted(
+        (row for row in student_rows if row['general_average'] is not None),
+        key=lambda row: row['general_average'], reverse=True,
+    )
+    rank = 0
+    previous_average = None
+    for position, row in enumerate(ranked, start=1):
+        if row['general_average'] != previous_average:
+            rank = position
+        row['rank'] = rank
+        previous_average = row['general_average']
+        row['award'] = _award_for_average(row['general_average'], row['has_grade_below_floor'])
+        row['remarks'] = _award_remark(row['general_average'], row['has_grade_below_floor'])
+    for row in student_rows:
+        row.setdefault('rank', None)
+        row.setdefault('award', None)
+        row.setdefault('remarks', None)
+
+    return subjects, student_rows
+
+
+def _summary_of_ratings_data(teacher):
+    """Thin per-teacher wrapper around _summary_of_ratings_data_for_section
+    for the Summary of Ratings page/export: resolves the teacher's own
+    advisory section and scopes the Excellence in a Specific Learning Area
+    award to just that section. Returns (section, subjects, student_rows,
+    subject_awardees); section is None (the rest empty) if the teacher has
+    no advisory section."""
+    section = Section.objects.filter(adviser_id=teacher.teacher_id).first()
+    if not section:
+        return None, [], [], []
+
+    subjects, student_rows = _summary_of_ratings_data_for_section(section)
+    subject_awardees = _subject_awardees_for(subjects, student_rows)
+    return section, subjects, student_rows, subject_awardees
 
 
 @login_required
@@ -430,7 +503,7 @@ def summary_of_ratings(request):
         messages.error(request, 'Your account is not linked to a Teacher profile.')
         return redirect('dashboard')
 
-    section, subjects, student_rows = _summary_of_ratings_data(teacher)
+    section, subjects, student_rows, subject_awardees = _summary_of_ratings_data(teacher)
     if not section:
         messages.error(request, 'No advisory section found for your account.')
         return redirect('select_student_report')
@@ -439,6 +512,7 @@ def summary_of_ratings(request):
         'section': section,
         'subjects': subjects,
         'student_rows': student_rows,
+        'subject_columns': zip(subjects, subject_awardees),
     })
 
 
@@ -450,7 +524,7 @@ def export_summary_of_ratings(request):
         messages.error(request, 'Your account is not linked to a Teacher profile.')
         return redirect('dashboard')
 
-    section, subjects, student_rows = _summary_of_ratings_data(teacher)
+    section, subjects, student_rows, subject_awardees = _summary_of_ratings_data(teacher)
     if not section:
         messages.error(request, 'No advisory section found for your account.')
         return redirect('select_student_report')
@@ -473,9 +547,16 @@ def export_summary_of_ratings(request):
             ws.cell(row=2, column=col + offset, value=label)
         col += 4
 
-    last_col = col
-    ws.cell(row=1, column=last_col, value='General Average')
-    ws.merge_cells(start_row=1, start_column=last_col, end_row=2, end_column=last_col)
+    ga_col = col
+    ws.cell(row=1, column=ga_col, value='General Average')
+    ws.merge_cells(start_row=1, start_column=ga_col, end_row=2, end_column=ga_col)
+    ws.cell(row=1, column=ga_col + 1, value='Rank')
+    ws.merge_cells(start_row=1, start_column=ga_col + 1, end_row=2, end_column=ga_col + 1)
+    ws.cell(row=1, column=ga_col + 2, value='Academic Award')
+    ws.merge_cells(start_row=1, start_column=ga_col + 2, end_row=2, end_column=ga_col + 2)
+    ws.cell(row=1, column=ga_col + 3, value='Remarks')
+    ws.merge_cells(start_row=1, start_column=ga_col + 3, end_row=2, end_column=ga_col + 3)
+    last_col = ga_col + 3
 
     for header_row in ws.iter_rows(min_row=1, max_row=2, min_col=1, max_col=last_col):
         for cell in header_row:
@@ -492,8 +573,22 @@ def export_summary_of_ratings(request):
             ws.cell(row=row_num, column=col + 2, value=cell_data['term_3'])
             ws.cell(row=row_num, column=col + 3, value=cell_data['final'])
             col += 4
-        ws.cell(row=row_num, column=last_col, value=row_data['general_average'])
+        ws.cell(row=row_num, column=ga_col, value=row_data['general_average'])
+        ws.cell(row=row_num, column=ga_col + 1, value=row_data['rank'])
+        ws.cell(row=row_num, column=ga_col + 2, value=row_data['award'])
+        ws.cell(row=row_num, column=ga_col + 3, value=row_data['remarks'])
         row_num += 1
+
+    # Footer row: DO 15, s. 2026's per-subject Excellence award, placed
+    # under that subject's own 4-column block (merged) rather than as a
+    # separate trailing column - mirrors the HTML table's layout.
+    award_font = Font(bold=True, italic=True)
+    ws.cell(row=row_num, column=1, value=LEARNING_AREA_EXCELLENCE_AWARD).font = award_font
+    col = 2
+    for awardees in subject_awardees:
+        ws.cell(row=row_num, column=col, value=', '.join(awardees) or None)
+        ws.merge_cells(start_row=row_num, start_column=col, end_row=row_num, end_column=col + 3)
+        col += 4
 
     # Excel's real Freeze Panes feature (View > Freeze Panes), matching the
     # page's CSS sticky header/first-column: everything above row 3 and
@@ -503,6 +598,8 @@ def export_summary_of_ratings(request):
     ws.column_dimensions['A'].width = 28
     for c in range(2, last_col + 1):
         ws.column_dimensions[get_column_letter(c)].width = 10
+    ws.column_dimensions[get_column_letter(ga_col + 2)].width = 24
+    ws.column_dimensions[get_column_letter(ga_col + 3)].width = 60
 
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}AWARDS{% endblock %}
+
+{% block content %}
+<h1>Awards</h1>
+<p>Consolidated across every section, per grade level - per DepEd Order No. 015, s. 2026.</p>
+
+<a href="{% url 'school_dashboard' %}" class="btn ghost">← Dashboard</a>
+
+<div class="alert alert-info" style="margin-top: var(--space-4);">
+    <strong>Academic Excellence Award</strong> (Annex H para 4): GA of at least 90, with no
+    Final Grade below 80 in any subject. Eligible learners must also have no derogatory
+    records or disciplinary cases within the school year, which this app has no data for, so
+    confirm that against actual records before finalizing. Per the Order, awardees should be
+    announced/listed alphabetically rather than by rank.
+    <br><br>
+    <strong>Excellence in a Specific Learning Area</strong> (Annex H item b): whoever has the
+    highest Final Grade in a subject, provided it's at least 90 - ties are all recognized.
+    Unlike the per-section view on Summary of Ratings, this page pools every section in the
+    grade level together, which is what actually makes it the DepEd "batch."
+</div>
+
+{% if grade_level_rows %}
+{% for gl in grade_level_rows %}
+<h2 style="margin-top: var(--space-6);">Grade {{ gl.grade_level }}</h2>
+
+<div class="card" style="margin-top: var(--space-3);">
+    <h3 style="margin-top: 0;">Academic Excellence Award <span style="color: var(--ink-soft); font-weight: 400;">({{ gl.total_academic_awardees }})</span></h3>
+
+    {% if gl.section_awards %}
+        {% for sa in gl.section_awards %}
+        <h4 style="margin-top: var(--space-4);">{{ sa.section_label }}</h4>
+        {% if sa.awardees %}
+        <ul class="awards-list">
+            {% for row in sa.awardees %}
+            <li>{{ row.display_name }} <span class="mono" style="color: var(--ink-soft);">(GA {{ row.general_average }})</span></li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p style="color: var(--ink-faint); font-size: 13px;">No awardees in this section.</p>
+        {% endif %}
+        {% endfor %}
+    {% else %}
+        <p style="color: var(--ink-faint);">No sections found for this grade level.</p>
+    {% endif %}
+</div>
+
+<div class="card" style="margin-top: var(--space-4);">
+    <h3 style="margin-top: 0;">Excellence in a Specific Learning Area</h3>
+
+    {% if gl.subject_awards %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col">Subject</th>
+                    <th scope="col">Candidate(s)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in gl.subject_awards %}
+                <tr>
+                    <td>{{ entry.subject.subject_name }}</td>
+                    <td>
+                        {% if entry.awardees %}
+                            {% for name in entry.awardees %}
+                            <span class="pill good">{{ name }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span style="color: var(--ink-faint);">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <p style="color: var(--ink-faint);">No subjects found for this grade level.</p>
+    {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<p style="margin-top: var(--space-5);">No sections found for this school yet.</p>
+{% endif %}
+
+<style>
+    .awards-list {
+        margin: 0 0 0 var(--space-4);
+        padding: 0 0 0 var(--space-4);
+    }
+    .awards-list li {
+        padding: 2px 0;
+    }
+</style>
+{% endblock %}

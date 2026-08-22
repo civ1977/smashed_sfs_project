@@ -11,6 +11,20 @@
 {% endif %}
 
 {% if student_rows and subjects %}
+<div class="alert alert-info" style="margin-top: var(--space-4);">
+    Per DepEd Order No. 015, s. 2026: the Academic Award column is the Academic Excellence
+    Award (Annex H para 4) — GA of at least 90, with no Final Grade below 80 in any subject.
+    Eligible learners must also have no derogatory records or disciplinary cases within the
+    school year, which this app has no data for, so confirm that against actual records before
+    finalizing. Rank is shown for the class's own records, but per the Order, awardees
+    themselves should be announced/listed alphabetically rather than by rank. Excellence in a
+    Specific Learning Area (Annex H item b, shown below the last learner) goes to whoever has
+    the highest Final Grade in that subject, provided it's at least 90 — ties are all
+    recognized. Both awards are computed only across your own advisory section, so if this
+    grade level has other sections at your school, cross-check schoolwide before finalizing.
+    Remarks is system-generated and only fires for the one non-obvious case: a GA of 90+ that
+    still misses the Academic Excellence Award because of a subject below 80.
+</div>
 <div class="summary-ratings-scroll" style="margin-top: var(--space-4);">
 <table class="summary-ratings-table">
     <thead>
@@ -20,6 +34,9 @@
             <th colspan="4" class="row1">{{ subject.subject_name }}</th>
             {% endfor %}
             <th rowspan="2" class="row1">General Average</th>
+            <th rowspan="2" class="row1">Rank</th>
+            <th rowspan="2" class="row1">Academic Award</th>
+            <th rowspan="2" class="row1">Remarks</th>
         </tr>
         <tr>
             {% for subject in subjects %}
@@ -38,9 +55,41 @@
             <td>{{ cell.final|default_if_none:'—' }}</td>
             {% endfor %}
             <td>{{ row.general_average|default_if_none:'—' }}</td>
+            <td>{{ row.rank|default_if_none:'—' }}</td>
+            <td>
+                {% if row.award %}
+                    <span class="pill good">{{ row.award }}</span>
+                {% else %}
+                    <span style="color: var(--ink-faint);">—</span>
+                {% endif %}
+            </td>
+            <td class="summary-ratings-remarks">
+                {% if row.remarks %}
+                    <span class="pill warn">{{ row.remarks }}</span>
+                {% else %}
+                    <span style="color: var(--ink-faint);">—</span>
+                {% endif %}
+            </td>
         </tr>
         {% endfor %}
     </tbody>
+    <tfoot>
+        <tr class="summary-ratings-award-row">
+            <td class="col-frozen">Excellence in a Specific Learning Area</td>
+            {% for subject, awardees in subject_columns %}
+            <td colspan="4">
+                {% if awardees %}
+                    {% for name in awardees %}
+                    <span class="pill good">{{ name }}</span>
+                    {% endfor %}
+                {% else %}
+                    <span style="color: var(--ink-faint);">—</span>
+                {% endif %}
+            </td>
+            {% endfor %}
+            <td colspan="4"></td>
+        </tr>
+    </tfoot>
 </table>
 </div>
 {% else %}
@@ -104,6 +153,28 @@
     }
     .summary-ratings-table tbody tr:nth-child(even) td {
         background: var(--bg);
+    }
+    /* Award footer row sits right below the last learner, one cell per
+       subject spanning that subject's own 4 columns - not squeezed onto
+       one line like the rest of the table, since a tie can list more than
+       one name. */
+    .summary-ratings-table tfoot td {
+        font-weight: 700;
+        white-space: normal;
+        vertical-align: top;
+        background: var(--good-wash);
+        border-top: 2px solid var(--line);
+    }
+    .summary-ratings-table tfoot td:first-child {
+        font-style: italic;
+    }
+    /* Remarks holds a full generated sentence, not a short value like the
+       other columns - let it wrap within a bounded width instead of
+       forcing the whole table wider via nowrap. */
+    .summary-ratings-table td.summary-ratings-remarks {
+        white-space: normal;
+        text-align: left;
+        max-width: 260px;
     }
 </style>
 <script>

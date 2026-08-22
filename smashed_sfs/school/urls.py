@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path('dashboard/', views.school_dashboard, name='school_dashboard'),
     path('subject-statistics/', views.school_subject_statistics, name='school_subject_statistics'),
+    path('awards/', views.school_awards, name='school_awards'),
     path('dtr/upload/', views.school_dtr_upload, name='school_dtr_upload'),
     path('dtr/upload/template/', views.download_dtr_upload_template, name='download_dtr_upload_template'),
     path('dtr/download/<int:year>/<int:month>/', views.download_dtr_pdf, name='download_dtr_pdf'),

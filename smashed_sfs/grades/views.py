@@ -368,27 +368,50 @@ def build_student_grade_sheet(lrn):
     return subject_grades, subject_names, general_average, grades
 
 
-# Assumption, not data this app has: DepEd's standard published honor-roll
-# cutoffs, each also gated on no failing subject grade. The sample
-# Rank.xlsm's actual awards didn't cleanly reduce to an average-only rule
-# and may depend on a criterion (conduct, a specific subject floor, etc.)
-# this app has no data for - surfaced as a UI note on the rankings page
-# too, so confirm against the school's actual policy before relying on it.
-HONOR_HIGHEST_MIN = 98
-HONOR_HIGH_MIN = 95
-HONOR_WITH_MIN = 90
+# DepEd Order No. 015, s. 2026 (Revised Guidelines on Classroom Assessment,
+# Grading System, and Awards and Recognition for the K to 12 Basic Education
+# Program), Annex H para 4: a single Academic Excellence Award - GA of at
+# least 90, with no Final Grade below 80 in any learning area - replacing
+# DO 36, s. 2016's three-tier Highest/High/With Honors bands, which this
+# order repeals. The Order also requires no derogatory records or
+# disciplinary cases within the SY, which this app has no data for -
+# surfaced as a UI note on the rankings page too, so confirm against the
+# school's actual records before relying on this column.
 PASSING_GRADE = 75
+ACADEMIC_EXCELLENCE_GA_MIN = 90
+ACADEMIC_EXCELLENCE_FLOOR = 80
+ACADEMIC_EXCELLENCE_AWARD = 'Academic Excellence Award'
+
+# Annex H, item b: awarded per learning area to whoever has the highest FG
+# in it, provided that grade is at least 90 - a separate, per-subject award
+# from the Academic Excellence Award above. Ties (two+ learners at the same
+# highest FG) are all recognized. DepEd scopes this to "each batch," which
+# this app can only compute over a teacher's own advisory section - if a
+# grade level spans multiple sections, cross-check schoolwide before
+# finalizing (surfaced as a UI note where this is used).
+LEARNING_AREA_EXCELLENCE_MIN = 90
+LEARNING_AREA_EXCELLENCE_AWARD = 'Excellence in a Specific Learning Area'
 
 
-def _award_for_average(general_average, has_failing_grade):
-    if has_failing_grade:
+def _award_for_average(general_average, has_grade_below_floor):
+    if has_grade_below_floor:
         return None
-    if general_average >= HONOR_HIGHEST_MIN:
-        return 'With Highest Honors'
-    if general_average >= HONOR_HIGH_MIN:
-        return 'With High Honors'
-    if general_average >= HONOR_WITH_MIN:
-        return 'With Honors'
+    if general_average >= ACADEMIC_EXCELLENCE_GA_MIN:
+        return ACADEMIC_EXCELLENCE_AWARD
+    return None
+
+
+def _award_remark(general_average, has_grade_below_floor):
+    """System-generated note for the one non-obvious disqualification case:
+    a GA that clears the Academic Excellence Award's 90 threshold but is
+    still disqualified by a subject below the 80 floor - otherwise the
+    award/no-award pill alone doesn't explain why a seemingly qualified
+    average didn't get the award."""
+    if general_average is not None and general_average >= ACADEMIC_EXCELLENCE_GA_MIN and has_grade_below_floor:
+        return (
+            f'GA of {general_average} meets the Academic Excellence Award threshold, but is '
+            f'not awarded because of a grade below {ACADEMIC_EXCELLENCE_FLOOR} in at least one subject.'
+        )
     return None
 
 
@@ -458,36 +481,38 @@ def _compute_term_rankings(teacher):
                 continue
 
             general_average = round_half_up(sum(term_values.values()) / len(term_values))
-            has_failing_grade = any(value < PASSING_GRADE for value in term_values.values())
+            has_grade_below_floor = any(value < ACADEMIC_EXCELLENCE_FLOOR for value in term_values.values())
             complete.append({
                 'student': student,
                 'general_average': general_average,
-                'has_failing_grade': has_failing_grade,
+                'has_grade_below_floor': has_grade_below_floor,
                 'remark': remarks_by_key.get((student.lrn, term), ''),
             })
 
         # Standard competition ranking (1224): ties share a rank, and the next
         # distinct average is ranked by its position, skipping the ranks the
         # tie consumed - e.g. two students tied at position 6 are both rank 6,
-        # and the next student down is rank 8, not 7.
+        # and the next student down is rank 8, not 7. DepEd's Academic
+        # Excellence Award itself isn't rank-based (it's a fixed GA/floor
+        # threshold, and awardees are listed alphabetically per DO 15, s.
+        # 2026), but this rank is still tracked for the school's own
+        # records/certification purposes.
         complete.sort(key=lambda row: row['general_average'], reverse=True)
         rank = 0
         previous_average = None
-        award_counts = {'With Highest Honors': 0, 'With High Honors': 0, 'With Honors': 0}
+        award_counts = {ACADEMIC_EXCELLENCE_AWARD: 0}
         for position, row in enumerate(complete, start=1):
             if row['general_average'] != previous_average:
                 rank = position
             row['rank'] = rank
             previous_average = row['general_average']
 
-            row['award'] = _award_for_average(row['general_average'], row['has_failing_grade'])
+            row['award'] = _award_for_average(row['general_average'], row['has_grade_below_floor'])
             if row['award']:
                 award_counts[row['award']] += 1
 
         award_summary = [
-            {'label': 'With Highest Honors', 'count': award_counts['With Highest Honors']},
-            {'label': 'With High Honors', 'count': award_counts['With High Honors']},
-            {'label': 'With Honors', 'count': award_counts['With Honors']},
+            {'label': ACADEMIC_EXCELLENCE_AWARD, 'count': award_counts[ACADEMIC_EXCELLENCE_AWARD]},
         ]
 
         # Displayed male-then-female, alphabetical - same roster convention

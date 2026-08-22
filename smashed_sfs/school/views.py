@@ -29,6 +29,7 @@ from accounts.views import (
 from students.models import SchoolProfile, Section, Student
 from grades.models import Grade, SubjectMapping, TeacherSubjectAssignment, SchoolCalendarException, SubjectTestMaxScore, AncillaryTask, AncillaryTaskSchedule
 from grades.views import MONTH_NAMES, _score_stats, WEEKDAYS
+from reports.views import _summary_of_ratings_data_for_section, _subject_awardees_for
 from portal.models import StudentAccount
 from .models import (
     TeacherAccountAuditLog, SectionAuditLog, TimeSlot, ScheduleRequirement, ScheduleEntry,
@@ -204,6 +205,65 @@ def school_subject_statistics(request):
         grade_level_rows.append({'grade_level': grade_level, 'terms': terms})
 
     return render(request, 'school/subject_statistics.html', {
+        'grade_level_rows': grade_level_rows,
+    })
+
+
+@login_required
+def school_awards(request):
+    """School-wide DO 15, s. 2026 awards, consolidated per grade level:
+    Academic Excellence Award recipients grouped by section, and Excellence
+    in a Specific Learning Area candidates grouped by subject - the latter
+    computed by pooling every section in the grade level together, which is
+    what actually makes it the DepEd "batch" rather than one section's own
+    top scorer (the per-section version on the Summary of Ratings page
+    flags this same gap and points here)."""
+    teacher, error = _get_school_admin_teacher(request)
+    if error:
+        return error
+
+    if not teacher.school_profile_id:
+        messages.warning(request, 'Your account has no school assigned yet.')
+        return render(request, 'school/awards.html', {'grade_level_rows': []})
+
+    grade_levels = sorted(set(
+        Section.objects.filter(school_profile_id=teacher.school_profile_id).values_list('grade_level', flat=True)
+    ))
+
+    grade_level_rows = []
+    for grade_level in grade_levels:
+        sections = list(Section.objects.filter(
+            school_profile_id=teacher.school_profile_id, grade_level=grade_level
+        ).order_by('strand', 'section_name'))
+
+        section_awards = []
+        pooled_subjects = []
+        pooled_student_rows = []
+        for section in sections:
+            subjects, student_rows = _summary_of_ratings_data_for_section(section)
+            if not pooled_subjects:
+                pooled_subjects = subjects
+            pooled_student_rows.extend(student_rows)
+
+            section_awards.append({
+                'section': section,
+                'section_label': _section_label(section),
+                'awardees': [row for row in student_rows if row['award']],
+            })
+
+        subject_awards = [
+            {'subject': subject, 'awardees': awardees}
+            for subject, awardees in zip(pooled_subjects, _subject_awardees_for(pooled_subjects, pooled_student_rows))
+        ]
+
+        grade_level_rows.append({
+            'grade_level': grade_level,
+            'section_awards': section_awards,
+            'subject_awards': subject_awards,
+            'total_academic_awardees': sum(len(sa['awardees']) for sa in section_awards),
+        })
+
+    return render(request, 'school/awards.html', {
         'grade_level_rows': grade_level_rows,
     })
 
